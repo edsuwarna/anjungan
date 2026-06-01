@@ -1,0 +1,31 @@
+# ─── Dependencies ──────────────────────────────────────────────────────────
+node_modules/
+vendor/
+
+# ─── Build output ──────────────────────────────────────────────────────────
+/build
+/.svelte-kit
+frontend/build/
+frontend/.svelte-kit/
+*.exe
+*.out
+*.test
+
+# ─── Environment ──────────────────────────────────────────────────────────
+.env
+.env.local
+.env.production
+
+# ─── IDE / Editor ──────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ─── Docker ────────────────────────────────────────────────────────────────
+.docker/
+
+# ─── SSH keys (generated at runtime) ───────────────────────────────────────
+/data/ssh/

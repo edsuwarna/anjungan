@@ -1,0 +1,118 @@
+# ─── Docker Compose for Anjungan ────────────────────────────────────────────
+# Usage: docker compose up -d
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: anjungan-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-anjungan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anjungan}
+      POSTGRES_DB: ${POSTGRES_DB:-anjungan}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-anjungan}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: anjungan-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../Dockerfile.backend
+    container_name: anjungan-backend
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-anjungan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anjungan}
+      POSTGRES_DB: ${POSTGRES_DB:-anjungan}
+      REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      REGISTRY_URL: ${REGISTRY_URL:-http://zot:5000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - sshkeys:/data/ssh
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: anjungan-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+  # ─── Optional: Container Registry ─────────────────────────────────────────
+  # zot:
+  #   image: ghcr.io/project-zot/zot-linux-amd64:latest
+  #   container_name: anjungan-zot
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - zotdata:/var/lib/zot
+  #   environment:
+  #     ZOT_STORAGE_ROOT_DIRECTORY: /var/lib/zot
+
+  # ─── Optional: Monitoring ─────────────────────────────────────────────────
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: anjungan-vm
+    ports:
+      - "8428:8428"
+    volumes:
+      - vmdata:/victoria-metrics-data
+    command:
+      - "-storageDataPath=/victoria-metrics-data"
+      - "-httpListenAddr=:8428"
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: anjungan-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    profiles:
+      - monitoring
+
+volumes:
+  pgdata:
+  redisdata:
+  vmdata:
+  grafanadata:
+  sshkeys:
+  # zotdata:

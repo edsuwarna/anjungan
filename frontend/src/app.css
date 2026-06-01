@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Variables for theme switching ─────────────────────────────── */
+:root {
+	--color-surface: #f4f5f7;
+	--color-sidebar: #ffffff;
+	--color-border: #e5e7eb;
+	--color-text: #111827;
+	--color-text-secondary: #6b7280;
+	--color-primary: #10b981;
+	--color-primary-hover: #059669;
+	--color-accent: #6366f1;
+	--color-danger: #ef4444;
+	--color-warning: #f59e0b;
+	--color-success: #10b981;
+}
+
+.dark {
+	--color-surface: #1a1d23;
+	--color-sidebar: #111318;
+	--color-border: #2a2d35;
+	--color-text: #f3f4f6;
+	--color-text-secondary: #9ca3af;
+	--color-primary: #34d399;
+	--color-primary-hover: #6ee7b7;
+	--color-accent: #818cf8;
+	--color-danger: #f87171;
+	--color-warning: #fbbf24;
+	--color-success: #34d399;
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────── */
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	background-color: var(--color-surface);
+	color: var(--color-text);
+	font-family: 'Inter', system-ui, -apple-system, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: var(--color-border);
+	border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-text-secondary);
+}
+
+/* ─── Animations ───────────────────────────────────────────────────── */
+@keyframes fadeIn {
+	from { opacity: 0; transform: translateY(4px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+	animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+	from { opacity: 0; transform: translateX(-8px); }
+	to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in {
+	animation: slideIn 0.2s ease-out;
+}
