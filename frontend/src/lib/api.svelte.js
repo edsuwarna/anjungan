@@ -150,10 +150,43 @@ export const api = {
 
 	repositories: {
 		list: () => request('/repositories'),
+		connections: {
+			list: () => request('/repositories/connections'),
+			create: (data) => request('/repositories/connections', { method: 'POST', body: JSON.stringify(data) }),
+			delete: (id) => request(`/repositories/connections/${id}`, { method: 'DELETE' }),
+		},
+		selections: {
+			list: () => request('/repositories/selections'),
+			save: (data) => request('/repositories/selections', { method: 'POST', body: JSON.stringify(data) }),
+		},
+		branches: (provider, owner, repo) => request(`/repositories/${provider}/${owner}/${repo}/branches`),
+		ciStatus: (provider, owner, repo, branch) => {
+			const q = branch ? `?branch=${branch}` : '';
+			return request(`/repositories/${provider}/${owner}/${repo}/ci-status${q}`);
+		},
+		deployments: (provider, owner, repo) => request(`/repositories/${provider}/${owner}/${repo}/deployments`),
 	},
 
 	deployments: {
-		list: () => request('/deployments'),
+		list: (params) => {
+			const q = params ? '?' + new URLSearchParams(params).toString() : '';
+			return request(`/deployments${q}`);
+		},
+		create: (data) => request('/deployments', { method: 'POST', body: JSON.stringify(data) }),
+		get: (id) => request(`/deployments/${id}`),
+		restart: (id) => request(`/deployments/${id}/restart`, { method: 'POST' }),
+		redeploy: (id) => request(`/deployments/${id}/redeploy`, { method: 'POST' }),
+		rollback: (id) => request(`/deployments/${id}/rollback`, { method: 'POST' }),
+		history: {
+			list: () => request('/deployments/history'),
+			get: (id) => request(`/deployments/${id}/history`),
+		},
+		environments: {
+			list: () => request('/deployments/environments'),
+			create: (data) => request('/deployments/environments', { method: 'POST', body: JSON.stringify(data) }),
+			update: (id, data) => request(`/deployments/environments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+			delete: (id) => request(`/deployments/environments/${id}`, { method: 'DELETE' }),
+		},
 	},
 
 	sshKeys: {
