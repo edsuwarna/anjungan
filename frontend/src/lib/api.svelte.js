@@ -125,8 +125,10 @@ export const api = {
 	},
 
 	registry: {
-		list: () => request('/registry'),
-		search: (q) => request(`/registry/search?q=${encodeURIComponent(q)}`),
+		list: () => request('/registry/repos'),
+		listTags: (name) => request(`/registry/repos/${encodeURIComponent(name)}/tags`),
+		detail: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`),
+		delete: (name, digest) => request(`/registry/repos/${encodeURIComponent(name)}/manifests/${encodeURIComponent(digest)}`, { method: 'DELETE' }),
 	},
 
 	repositories: {

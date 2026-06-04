@@ -1,0 +1,369 @@
+<script>
+	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { api } from '$lib/api.svelte.js';
+	import Icon from '@iconify/svelte';
+
+	let { name, tag } = $props();
+
+	let detail = $state(null);
+	let loading = $state(true);
+	let error = $state('');
+	let activeTab = $state('info');
+	let showPassword = $state(false);
+
+	onMount(() => {
+		loadDetail();
+	});
+
+	async function loadDetail() {
+		loading = true;
+		error = '';
+		try {
+			const data = await api.registry.detail(name, tag);
+			detail = data;
+		} catch (e) {
+			error = e.message || 'Failed to load image details';
+		} finally {
+			loading = false;
+		}
+	}
+
+	function formatSize(bytes) {
+		if (!bytes || bytes === 0) return '—';
+		if (bytes < 1024) return bytes + ' B';
+		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+		if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(0) + ' MB';
+		return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+	}
+
+	function formatDate(iso) {
+		if (!iso) return '—';
+		const d = new Date(iso);
+		return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+	}
+
+	function shortDigest(d) {
+		if (!d) return '';
+		return d.length > 25 ? d.slice(0, 25) + '...' : d;
+	}
+
+	function copyToClipboard(text) {
+		navigator.clipboard?.writeText(text);
+	}
+
+	const tabs = [
+		{ id: 'info', label: 'Info', icon: 'solar:info-circle-outline' },
+		{ id: 'config', label: 'Configuration', icon: 'solar:settings-outline' },
+		{ id: 'layers', label: 'Layers', icon: 'solar:layers-outline' },
+		{ id: 'history', label: 'History', icon: 'solar:clock-circle-outline' },
+	];
+
+	let pullCmd = $derived(`docker pull registry.anjungan.io/${name}:${tag}`);
+</script>
+
+<div class="page-container">
+	<!-- Breadcrumb -->
+	<div class="mb-4 flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">
+		<a href="/registry" class="flex items-center gap-1 transition-colors" style="color: var(--color-text-secondary);">
+			<Icon icon="solar:alt-arrow-left-outline" class="h-3.5 w-3.5" />
+			Registry
+		</a>
+		<Icon icon="solar:alt-arrow-right-outline" class="h-3 w-3" style="color: var(--color-text-muted);" />
+		<span class="font-medium" style="color: var(--color-text);">{name}:{tag}</span>
+	</div>
+
+	{#if loading}
+		<div class="flex items-center justify-center py-20">
+			<Icon icon="solar:spinner-bold" class="h-6 w-6 animate-spin" style="color: var(--color-primary);" />
+		</div>
+	{:else if error}
+		<div class="rounded-lg border p-3 text-xs" style="background-color: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: var(--color-danger);">
+			<div class="flex items-center gap-2">
+				<Icon icon="solar:danger-triangle-bold" class="h-4 w-4" />
+				<span>{error}</span>
+			</div>
+		</div>
+	{:else if detail}
+		<!-- Image Header -->
+		<div class="card p-5">
+			<div class="flex items-start justify-between">
+				<div class="flex items-start gap-3">
+					<div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg" style="background-color: var(--color-primary-subtle);">
+						<Icon icon="solar:box-bold" class="h-5 w-5" style="color: var(--color-primary);" />
+					</div>
+					<div>
+						<div class="flex items-center gap-2">
+							<h2 class="text-base font-semibold" style="color: var(--color-text);">{detail.name}:{detail.tag}</h2>
+							{#if detail.tag === 'latest'}
+								<span class="rounded px-1.5 py-0.5 text-[10px] font-medium" style="background-color: var(--color-primary-subtle); color: var(--color-primary);">latest</span>
+							{/if}
+						</div>
+						<div class="mt-1 flex items-center gap-2">
+							<code class="font-mono text-[11px]" style="color: var(--color-text-muted);">{shortDigest(detail.digest)}</code>
+							<button class="flex-shrink-0" onclick={() => copyToClipboard(detail.digest)}>
+								<Icon icon="solar:copy-outline" class="h-3 w-3" style="color: var(--color-text-muted);" />
+							</button>
+						</div>
+					</div>
+				</div>
+				<button
+					class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+					style="background-color: var(--color-primary-subtle); color: var(--color-primary);"
+					onclick={() => copyToClipboard(pullCmd)}>
+					<Icon icon="solar:copy-bold" class="h-3.5 w-3.5" />
+					Copy Pull Command
+				</button>
+			</div>
+		</div>
+
+		<!-- Tabs -->
+		<div class="flex items-center gap-1 border-b" style="border-color: var(--color-border);">
+			{#each tabs as t}
+				<button
+					class="relative flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors"
+					style="color: {activeTab === t.id ? 'var(--color-primary)' : 'var(--color-text-secondary)'};"
+					onclick={() => activeTab = t.id}
+				>
+					{#if activeTab === t.id}
+						<div class="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style="background-color: var(--color-primary);"></div>
+					{/if}
+					<Icon icon={t.icon} class="h-3.5 w-3.5" />
+					{t.label}
+				</button>
+			{/each}
+		</div>
+
+		<!-- Tab: Info -->
+		{#if activeTab === 'info'}
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+				<div class="card p-4">
+					<h3 class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Metadata</h3>
+					<div class="space-y-2.5">
+						<div class="flex items-center justify-between">
+							<span class="text-xs" style="color: var(--color-text-muted);">OS / Architecture</span>
+							<span class="text-xs font-medium" style="color: var(--color-text);">{detail.os || '—'}/{detail.arch || '—'}</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-xs" style="color: var(--color-text-muted);">Tag</span>
+							<span class="text-xs font-medium font-mono" style="color: var(--color-text);">{detail.tag}</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-xs" style="color: var(--color-text-muted);">Created</span>
+							<span class="text-xs font-medium" style="color: var(--color-text);">{formatDate(detail.created)}</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-xs" style="color: var(--color-text-muted);">Size</span>
+							<span class="text-xs font-medium" style="color: var(--color-text);">{formatSize(detail.size)}</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-xs" style="color: var(--color-text-muted);">Layer Count</span>
+							<span class="text-xs font-medium" style="color: var(--color-text);">{detail.layers || 0} layers</span>
+						</div>
+						<div class="flex items-center justify-between">
+							<span class="text-xs" style="color: var(--color-text-muted);">Digest</span>
+							<code class="max-w-[180px] truncate font-mono text-[10px]" style="color: var(--color-text-secondary);">{detail.digest}</code>
+						</div>
+					</div>
+				</div>
+
+				<div class="card p-4">
+					<h3 class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Pull Command</h3>
+					<div class="rounded-lg p-3" style="background-color: var(--color-primary-subtle);">
+						<div class="flex items-center gap-2">
+							<code class="flex-1 font-mono text-xs break-all" style="color: var(--color-text);">{pullCmd}</code>
+							<button class="flex-shrink-0" onclick={() => copyToClipboard(pullCmd)}>
+								<Icon icon="solar:copy-outline" class="h-3.5 w-3.5" style="color: var(--color-text-muted);" />
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Tab: Config -->
+		{#if activeTab === 'config'}
+			{@const cfg = detail.config}
+			{#if cfg}
+				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<!-- Command -->
+					<div class="card p-4">
+						<h3 class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Entrypoint & CMD</h3>
+						<div class="space-y-3">
+							<div>
+								<label class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Entrypoint</label>
+								<div class="mt-1 rounded-lg px-3 py-2" style="background-color: var(--color-primary-subtle);">
+									<code class="font-mono text-xs" style="color: var(--color-text-muted);">{cfg.entrypoint?.length ? cfg.entrypoint.join(' ') : '(none)'}</code>
+								</div>
+							</div>
+							<div>
+								<label class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">CMD</label>
+								<div class="mt-1 rounded-lg px-3 py-2" style="background-color: var(--color-primary-subtle);">
+									<code class="font-mono text-xs" style="color: var(--color-text);">{cfg.cmd?.length ? cfg.cmd.join(' ') : '(none)'}</code>
+								</div>
+							</div>
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Working Dir</label>
+									<div class="mt-1 font-mono text-xs" style="color: var(--color-text);">{cfg.workdir || '(none)'}</div>
+								</div>
+								<div>
+									<label class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">User</label>
+									<div class="mt-1 font-mono text-xs" style="color: var(--color-text);">{cfg.user || '(none)'}</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Expose & Volumes -->
+					<div class="card p-4">
+						<h3 class="mb-3 text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Exposed Ports & Volumes</h3>
+						<div class="space-y-3">
+							<div>
+								<label class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Exposed Ports</label>
+								<div class="mt-1 flex flex-wrap gap-1.5">
+									{#if cfg.exposed_ports?.length}
+										{#each cfg.exposed_ports as port}
+											<span class="rounded-lg px-2 py-0.5 text-[10px] font-mono" style="background-color: rgba(6,182,212,0.1); color: #06b6d4;">
+												{port}
+											</span>
+										{/each}
+									{:else}
+										<span class="text-xs" style="color: var(--color-text-muted);">(none)</span>
+									{/if}
+								</div>
+							</div>
+							<div>
+								<label class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Volumes</label>
+								<div class="mt-1">
+									{#if cfg.volumes?.length}
+										{#each cfg.volumes as vol}
+											<code class="font-mono text-xs" style="color: var(--color-text);">{vol}</code>
+										{/each}
+									{:else}
+										<span class="text-xs" style="color: var(--color-text-muted);">(none)</span>
+									{/if}
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- ENV -->
+					<div class="card col-span-full p-4">
+						<div class="mb-3 flex items-center justify-between">
+							<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Environment Variables</h3>
+							<span class="text-[10px]" style="color: var(--color-text-muted);">{cfg.env?.length || 0} variables</span>
+						</div>
+						<div class="space-y-0.5">
+							{#if cfg.env?.length}
+								{#each cfg.env as e}
+									<div class="flex items-start gap-2 rounded-lg px-3 py-1.5 transition-colors hover:opacity-80">
+										<span class="flex-shrink-0 font-mono text-xs" style="color: #06b6d4;">{e.key}</span>
+										<span style="color: var(--color-text-muted);">=</span>
+										<span class="break-all font-mono text-xs" style="color: var(--color-text-secondary);">{e.value}</span>
+									</div>
+								{/each}
+							{:else}
+								<span class="text-xs" style="color: var(--color-text-muted);">No environment variables</span>
+							{/if}
+						</div>
+					</div>
+
+					<!-- Labels -->
+					<div class="card col-span-full p-4">
+						<div class="mb-3 flex items-center justify-between">
+							<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Labels</h3>
+							<span class="text-[10px]" style="color: var(--color-text-muted);">{cfg.labels?.length || 0} labels</span>
+						</div>
+						<div class="space-y-0.5">
+							{#if cfg.labels?.length}
+								{#each cfg.labels as l}
+									<div class="flex items-start gap-2 rounded-lg px-3 py-1.5 transition-colors hover:opacity-80">
+										<span class="flex-shrink-0 font-mono text-xs" style="color: #f59e0b;">{l.key}</span>
+										<span style="color: var(--color-text-muted);">=</span>
+										<span class="break-all font-mono text-xs" style="color: var(--color-text-secondary);">{l.value}</span>
+									</div>
+								{/each}
+							{:else}
+								<span class="text-xs" style="color: var(--color-text-muted);">No labels</span>
+							{/if}
+						</div>
+					</div>
+				</div>
+			{:else}
+				<div class="card p-6 text-center">
+					<p class="text-xs" style="color: var(--color-text-muted);">No configuration data available for this image.</p>
+				</div>
+			{/if}
+		{/if}
+
+		<!-- Tab: Layers -->
+		{#if activeTab === 'layers'}
+			<div class="card p-4">
+				<div class="mb-3">
+					<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Layer Details</h3>
+					<p class="mt-0.5 text-[10px]" style="color: var(--color-text-muted);">{detail.layers || 0} layers · {formatSize(detail.size)} total</p>
+				</div>
+				{#if detail.layers_arr?.length}
+					<div class="space-y-0.5">
+						{#each detail.layers_arr as layer, i}
+							{@const maxSize = Math.max(...detail.layers_arr.map(l => l.size), 1)}
+							{@const barWidth = Math.max(12, (layer.size / maxSize) * 100)}
+							{@const label = layer.command === 'BASE' ? 'B' : layer.command === 'RUN' ? 'R' : layer.command === 'COPY' ? 'C' : layer.command === 'CMD' ? 'O' : layer.command === 'EXPOSE' ? 'E' : layer.command === 'FOREIGN' ? 'F' : 'L'}
+							{@const badgeColor = layer.command === 'BASE' ? 'rgba(139,92,246,0.15)' : layer.command === 'RUN' ? 'rgba(59,130,246,0.15)' : layer.command === 'COPY' ? 'rgba(245,158,11,0.15)' : layer.command === 'CMD' || layer.command === 'EXPOSE' ? 'rgba(16,185,129,0.15)' : layer.command === 'FOREIGN' ? 'rgba(239,68,68,0.15)' : 'transparent'}
+							{@const badgeText = layer.command === 'BASE' ? '#8b5cf6' : layer.command === 'RUN' ? '#3b82f6' : layer.command === 'COPY' ? '#f59e0b' : layer.command === 'CMD' || layer.command === 'EXPOSE' ? '#10b981' : layer.command === 'FOREIGN' ? '#ef4444' : 'var(--color-text-muted)'}
+							<div class="flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors" style="border-color: transparent;">
+								<div class="flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-semibold" style="background-color: {badgeColor}; color: {badgeText};">
+									{label}
+								</div>
+								<div class="min-w-0 flex-1">
+									<div class="text-xs font-medium" style="color: var(--color-text);">{layer.description}</div>
+									<code class="font-mono text-[10px]" style="color: var(--color-text-muted);">{layer.digest}</code>
+								</div>
+								<div class="flex items-center gap-2 flex-shrink-0">
+									<div style="width: {Math.min(barWidth, 100)}px; height: 6px; border-radius: 3px; background-color: var(--color-primary); opacity: 0.4;"></div>
+									<span class="w-12 text-right text-xs" style="color: var(--color-text-muted);">{formatSize(layer.size)}</span>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{:else}
+					<div class="py-6 text-center text-xs" style="color: var(--color-text-muted);">No layer data available.</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Tab: History -->
+		{#if activeTab === 'history'}
+			<div class="card p-4">
+				<div class="mb-3 flex items-center justify-between">
+					<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Build History</h3>
+					<span class="text-[10px]" style="color: var(--color-text-muted);">{detail.history?.length || 0} steps</span>
+				</div>
+				{#if detail.history?.length}
+					<div class="relative">
+						<!-- Timeline line -->
+						<div class="absolute left-[12px] top-2 bottom-2 w-0.5" style="background-color: var(--color-border);"></div>
+						<div class="relative space-y-0">
+							{#each detail.history as step}
+								<div class="flex items-start gap-3 px-0 py-2.5">
+									<div class="mt-1 flex-shrink-0">
+										<div class="flex h-[26px] w-[26px] items-center justify-center rounded-full" style="border: 2px solid; background-color: var(--color-card); {step.empty ? 'border-color: var(--color-border)' : 'border-color: rgba(16,185,129,0.4)'};">
+											<div class="h-2 w-2 rounded-full" style="background-color: {step.empty ? 'var(--color-border)' : 'var(--color-primary)'};"></div>
+										</div>
+									</div>
+									<div class="min-w-0 flex-1 -mt-0.5">
+										<code class="font-mono text-xs" style="color: {step.empty ? 'var(--color-text-muted)' : 'var(--color-text)'};">{step.command}</code>
+										<p class="mt-0.5 text-[10px]" style="color: var(--color-text-muted);">{formatDate(step.created)}</p>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{:else}
+					<div class="py-6 text-center text-xs" style="color: var(--color-text-muted);">No build history available.</div>
+				{/if}
+			</div>
+		{/if}
+	{/if}
+</div>

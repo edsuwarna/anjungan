@@ -99,7 +99,7 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			r.Mount("/servers", infra.NewHandler(repo, vmClient).Routes())
 			r.Mount("/ssh-keys", infra.NewSSHKeyHandler(repo).Routes())
 			r.Mount("/containers", container.NewHandler(repo).Routes())
-			r.Mount("/registry", registry.NewHandler().Routes())
+			r.Mount("/registry", registry.NewHandler(s.cfg.Registry).Routes())
 			r.Mount("/repositories", repoapi.NewHandler().Routes())
 			r.Mount("/deployments", deployment.NewHandler().Routes())
 			r.Mount("/compliance", compliance.NewHandler(repo).Routes())

@@ -48,6 +48,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       REGISTRY_URL: ${REGISTRY_URL:-http://zot:5000}
+      ZOT_ADMIN_USER: ${ZOT_ADMIN_USER:-admin}
+      ZOT_ADMIN_PASS: ${ZOT_ADMIN_PASS:-z0t_4dm1n_p4ss}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MIGRATIONS_PATH: /migrations
     ports:
@@ -70,16 +72,20 @@ services:
     depends_on:
       - backend
 
-  # ─── Optional: Container Registry ─────────────────────────────────────────
-  # zot:
-  #   image: ghcr.io/project-zot/zot-linux-amd64:latest
-  #   container_name: anjungan-zot
-  #   ports:
-  #     - "5000:5000"
-  #   volumes:
-  #     - zotdata:/var/lib/zot
-  #   environment:
-  #     ZOT_STORAGE_ROOT_DIRECTORY: /var/lib/zot
+  # ─── Container Registry (Zot) ────────────────────────────────────────────
+  zot:
+    image: ghcr.io/project-zot/zot-linux-amd64:latest
+    container_name: anjungan-zot
+    ports:
+      - "5000:5000"
+    volumes:
+      - zotdata:/var/lib/zot
+      - ./zot/config.json:/etc/zot/config.json:ro
+      - ./zot/htpasswd:/etc/zot/htpasswd:ro
+    command:
+      - serve
+      - /etc/zot/config.json
+    restart: unless-stopped
 
   # ─── Metrics Storage: VictoriaMetrics ───────────────────────────────────
   victoria-metrics:
@@ -100,4 +106,4 @@ volumes:
   redisdata:
   vmdata:
   sshkeys:
-  # zotdata:
+  zotdata:

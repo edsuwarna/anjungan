@@ -67,7 +67,9 @@ type GitHubConfig struct {
 }
 
 type RegistryConfig struct {
-	URL string
+	URL        string
+	AdminUser  string
+	AdminPass  string
 }
 
 type SecurityConfig struct {
@@ -132,7 +134,9 @@ func Load() *Config {
 			Token: getEnv("GITHUB_TOKEN", ""),
 		},
 		Registry: RegistryConfig{
-			URL: getEnv("REGISTRY_URL", "http://zot:5000"),
+			URL:       getEnv("REGISTRY_URL", "http://zot:5000"),
+			AdminUser: getEnv("ZOT_ADMIN_USER", "admin"),
+			AdminPass: getEnv("ZOT_ADMIN_PASS", "z0t_4dm1n_p4ss"),
 		},
 		Security: SecurityConfig{
 			RateLimitMaxAttempts:  getEnvInt("RATE_LIMIT_MAX_ATTEMPTS", 5),
