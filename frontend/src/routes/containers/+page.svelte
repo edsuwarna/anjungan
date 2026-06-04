@@ -25,6 +25,9 @@
 	let actionLoading = $state({});
 	let scanningAll = $state(false);
 	let scanningContainer = $state(null); // container ID being scanned
+	let scanningServerId = $state(null); // server ID being scanned (for per-server button)
+	let scanningServerIndex = $state(0);
+	let scanningServerName = $state('');
 
 	// ── Expand State ────────────────────────────────────
 	let expandedServers = $state({});   // { [serverId]: true/false }
@@ -441,18 +444,32 @@
 	// ── Scan All Servers ───────────────────────────────
 	async function scanAllContainers() {
 		scanningAll = true;
-		const serverIds = data?.servers?.map(sv => sv.server.id) || [];
-		const triggereds = [];
-		for (const sid of serverIds) {
+		scanningServerIndex = 0;
+		const serverList = data?.servers || [];
+		for (let idx = 0; idx < serverList.length; idx++) {
+			const sv = serverList[idx];
+			scanningServerIndex = idx + 1;
+			scanningServerName = sv.server.name;
 			try {
-				const res = await api.compliance.scanContainers(sid);
-				triggereds.push(res);
+				await api.compliance.scanContainers(sv.server.id);
 			} catch (_) {}
 		}
-		// Poll for completion — simple delay then reload
+		scanningServerName = '';
 		await new Promise(r => setTimeout(r, 5000));
 		await loadData();
 		scanningAll = false;
+		scanningServerIndex = 0;
+	}
+
+	// ── Scan Server Containers ─────────────────────────
+	async function scanServerContainers(serverId) {
+		scanningServerId = serverId;
+		try {
+			await api.compliance.scanContainers(serverId);
+			await new Promise(r => setTimeout(r, 5000));
+			await loadData();
+		} catch (_) {}
+		scanningServerId = null;
 	}
 
 	// ── Scan Single Container ──────────────────────────
@@ -460,8 +477,17 @@
 		scanningContainer = c.id;
 		try {
 			await api.compliance.scanContainer(c.server_id, c.id);
-			// Wait a bit then reload data
-			await new Promise(r => setTimeout(r, 3000));
+			// Poll for completion
+			for (let i = 0; i < 60; i++) {
+				await new Promise(r => setTimeout(r, 2000));
+				try {
+					const latest = await api.compliance.latest(c.server_id, { scan_type: 'Container Security' });
+					if (latest && latest.status === 'completed') {
+						break;
+					}
+					if (latest && latest.status === 'failed') break;
+				} catch (_) {}
+			}
 			await loadData();
 			// Re-expand security panel
 			if (expanded[c.id]) {
@@ -783,8 +809,36 @@
 					{scanningAll ? 'Scanning...' : 'Scan All Servers'}
 				</button>
 			</div>
+			<div class="mt-3 grid grid-cols-3 gap-2 border-t pt-3" style="border-color: var(--color-border-light);">
+				<div class="text-center">
+					<p class="text-lg font-bold" style="color: var(--color-text);">{stats.total}</p>
+					<p class="text-[10px]" style="color: var(--color-text-muted);">Total Containers</p>
+				</div>
+				<div class="text-center">
+					<p class="text-lg font-bold" style="color: var(--color-success);">{secReportStats.scanned}</p>
+					<p class="text-[10px]" style="color: var(--color-text-muted);">Scanned</p>
+				</div>
+				<div class="text-center">
+					<p class="text-lg font-bold" style="color: {stats.avgScore ? securityColor(stats.avgScore) : 'var(--color-text-muted)'};">{stats.avgScore ? stats.avgScore + '/100' : '—'}</p>
+					<p class="text-[10px]" style="color: var(--color-text-muted);">Avg Security Score</p>
+				</div>
+			</div>
 		</div>
 	</div>
+
+	{#if scanningAll}
+		<div class="rounded-lg border px-4 py-3 mb-4" style="background-color: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.25);">
+			<div class="flex items-center gap-2">
+				<Icon icon="solar:spinner-bold" class="h-4 w-4 animate-spin" style="color: #f59e0b;" />
+				<span class="text-sm font-semibold" style="color: #f59e0b;">
+					Scanning all servers{scanningServerName ? ` — ${scanningServerIndex}/${data?.servers?.length || 0} (${scanningServerName})` : ''}...
+				</span>
+			</div>
+			<div class="mt-2 h-1.5 w-full rounded-full overflow-hidden" style="background-color: rgba(245,158,11,0.15);">
+				<div class="h-full rounded-full transition-all duration-500 ease-out" style="background-color: #f59e0b; width: {data?.servers?.length > 0 ? (scanningServerIndex / data.servers.length) * 100 : 0}%;"></div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Tab Navigation -->
 	<div class="flex items-center gap-1 mb-4 border-b" style="border-color: var(--color-border-light);">
@@ -916,6 +970,15 @@
 					</div>
 					<div class="flex items-center gap-3 shrink-0">
 						<span class="text-xs font-semibold" style="color: var(--color-text-muted);">{svContainers.length} container{svContainers.length !== 1 ? 's' : ''}</span>
+						<span onclick={(e) => { e.stopPropagation(); scanServerContainers(sv.server.id); }}
+							onkeydown={(e) => e.key === 'Enter' && (e.stopPropagation(), scanServerContainers(sv.server.id))}
+							role="button" tabindex="0"
+							class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all cursor-pointer {scanningAll || scanningServerId === sv.server.id ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'}"
+							style="background-color: var(--color-primary); color: #fff;">
+							<Icon icon={scanningServerId === sv.server.id ? 'solar:spinner-bold' : 'solar:shield-bold'}
+								class="h-3 w-3 {scanningServerId === sv.server.id ? 'animate-spin' : ''}" />
+							{scanningServerId === sv.server.id ? 'Scanning...' : 'Scan'}
+						</span>
 						{#if avgScore != null}
 							<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold"
 								style="background-color: {securityBg(avgScore)}; color: {securityColor(avgScore)};">
@@ -1000,14 +1063,19 @@
 													</div>
 												{/if}
 											</div>
-											<div class="flex flex-col items-end gap-1 shrink-0">
-												<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">#{shortId(c.id)}</span>
-												<Icon
-													icon={isExpanded ? 'solar:alt-arrow-up-bold' : 'solar:alt-arrow-down-bold'}
-													class="h-3.5 w-3.5 transition-transform duration-200"
-													style="color: var(--color-text-muted);"
-												/>
-											</div>
+										<div class="flex flex-col items-end gap-1 shrink-0">
+											{#if scanningContainer === c.id}
+												<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style="background: rgba(245,158,11,0.15); color: #fbbf24;">
+													<Icon icon="solar:spinner-bold" class="h-2.5 w-2.5 animate-spin" /> Scanning
+												</span>
+											{/if}
+											<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">#{shortId(c.id)}</span>
+											<Icon
+												icon={isExpanded ? 'solar:alt-arrow-up-bold' : 'solar:alt-arrow-down-bold'}
+												class="h-3.5 w-3.5 transition-transform duration-200"
+												style="color: var(--color-text-muted);"
+											/>
+										</div>
 										</div>
 
 										<!-- Card Body -->
@@ -1174,10 +1242,15 @@
 												<!-- Security Panel -->
 												{#if ec.showSecurity}
 													<div class="border-t px-4 py-3" style="border-color: var(--color-border-light); background-color: var(--color-card);">
-														<div class="flex items-center justify-between mb-2">
 															<h3 class="text-[11px] font-bold flex items-center gap-1.5" style="color: var(--color-text);">
 																<Icon icon="solar:shield-bold" class="h-3.5 w-3.5" /> SECURITY FINDINGS
 															</h3>
+															{#if scanningContainer === c.id}
+																<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style="background: rgba(245,158,11,0.15); color: #fbbf24;">
+																	<Icon icon="solar:spinner-bold" class="h-2.5 w-2.5 animate-spin" /> Scanning
+																</span>
+															{/if}
+															<div class="flex items-center gap-2">
 															<div class="flex items-center gap-2">
 																{#if hasSecurity}
 																	<button onclick={() => goto(`/containers/${c.server_id}/${c.id}/security`)}
@@ -1197,31 +1270,36 @@
 																</button>
 															</div>
 														</div>
-														{#if sec?.findings?.length}
-															<div class="space-y-1.5 max-h-48 overflow-y-auto">
-																{#each sec.findings as finding}
-																	<div class="rounded-lg px-3 py-2 text-[11px]"
-																		style="background-color: {severityBg(finding.severity)};">
-																		<div class="flex items-center gap-2 mb-0.5">
-																			<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
-																				style="background-color: {severityColor(finding.severity)}22; color: {severityColor(finding.severity)};">
-																				{finding.severity}
-																			</span>
-																			<span class="font-semibold" style="color: var(--color-text);">{finding.title}</span>
-																			<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">{finding.check_id}</span>
-																		</div>
-																		<p class="mb-1" style="color: var(--color-text-secondary);">{finding.description}</p>
-																		{#if finding.remediation}
-																			<p class="text-[10px]" style="color: var(--color-primary);">
-																				<span class="font-semibold">Fix:</span> {finding.remediation}
-																			</p>
-																		{/if}
-																	</div>
-																{/each}
-															</div>
-														{:else}
-															<p class="text-xs" style="color: var(--color-text-muted);">No security findings available. Run a Container Security scan first.</p>
-														{/if}
+						{#if scanningContainer === c.id}
+							<div class="flex items-center gap-2 py-3" style="color: var(--text-muted);">
+								<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
+								<span class="text-[11px]">Scanning container security configuration...</span>
+							</div>
+						{:else if sec?.findings?.length}
+							<div class="space-y-1.5 max-h-48 overflow-y-auto">
+								{#each sec.findings as finding}
+									<div class="rounded-lg px-3 py-2 text-[11px]"
+										style="background-color: {severityBg(finding.severity)};">
+										<div class="flex items-center gap-2 mb-0.5">
+											<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
+												style="background-color: {severityColor(finding.severity)}22; color: {severityColor(finding.severity)};">
+												{finding.severity}
+											</span>
+											<span class="font-semibold" style="color: var(--color-text);">{finding.title}</span>
+											<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">{finding.check_id}</span>
+										</div>
+										<p class="mb-1" style="color: var(--color-text-secondary);">{finding.description}</p>
+										{#if finding.remediation}
+											<p class="text-[10px]" style="color: var(--color-primary);">
+												<span class="font-semibold">Fix:</span> {finding.remediation}
+											</p>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-xs" style="color: var(--color-text-muted);">No security findings available. Run a Container Security scan first.</p>
+						{/if}
 													</div>
 												{/if}
 

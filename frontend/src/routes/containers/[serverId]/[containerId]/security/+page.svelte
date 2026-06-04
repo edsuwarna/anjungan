@@ -40,6 +40,8 @@
 
 	// ── Scanning ───────────────────────────────────────────
 	let scanning = $state(false);
+	let scanElapsed = $state(0);
+	let scanTimer = null;
 	let scanPollId = $state(null);
 
 	// ── Filters ────────────────────────────────────────────
@@ -214,6 +216,8 @@
 	// ── Scan ───────────────────────────────────────────────
 	async function runScan() {
 		scanning = true;
+		scanElapsed = 0;
+		scanTimer = setInterval(() => { scanElapsed++; }, 1000);
 		try {
 			await api.compliance.scanContainer(serverId, containerId);
 			// Poll for completion — check latest Container Security scan
@@ -230,6 +234,7 @@
 				} catch (_) {}
 			}
 		} catch (_) {}
+		clearInterval(scanTimer);
 		scanning = false;
 	}
 
@@ -285,6 +290,7 @@
 		loadData();
 		return () => {
 			if (scanPollId) clearInterval(scanPollId);
+			if (scanTimer) clearInterval(scanTimer);
 		};
 	});
 
@@ -412,7 +418,16 @@
 		</div>
 
 		<!-- ═══ SCAN BANNER ═══ -->
-		{#if hasSecurity || selectedHistoryId}
+		{#if scanning}
+			<div class="scan-banner" style="border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.06);">
+				<Icon icon="solar:spinner-bold" class="banner-icon animate-spin" style="color: #fbbf24;" />
+				<span>
+					Container Security scan in progress...
+				</span>
+				<span class="scan-timestamp" style="font-weight: 400;">{scanElapsed}s elapsed</span>
+				<span class="scanning-tag">Scanning</span>
+			</div>
+		{:else if hasSecurity || selectedHistoryId}
 			<div class="scan-banner">
 				<Icon icon="solar:clock-circle-bold" class="banner-icon" />
 				<span>
@@ -440,8 +455,27 @@
 			</div>
 		{/if}
 
-		<!-- ═══ IF HAS DATA ═══ -->
-		{#if hasSecurity || selectedHistoryId}
+		<!-- ═══ SCANNING PROGRESS ═══ -->
+		{#if scanning}
+			<div class="scanning-progress-card">
+				<div class="scanning-progress-inner">
+					<div class="scanning-shield-wrap">
+						<Icon icon="solar:shield-bold" class="scanning-shield-icon" />
+					</div>
+					<div class="scanning-progress-texts">
+						<div class="scanning-progress-title">Container Security Scan In Progress</div>
+						<div class="scanning-progress-desc">Checking Docker daemon configuration, container runtime, and security settings...</div>
+					</div>
+				</div>
+				<div class="scanning-progress-bar">
+					<div class="scanning-progress-fill"></div>
+				</div>
+				<div class="scanning-elapsed-row">
+					<Icon icon="solar:clock-circle-bold" class="elapsed-icon" />
+					<span>Elapsed: <strong>{scanElapsed}s</strong></span>
+				</div>
+			</div>
+		{:else if hasSecurity || selectedHistoryId}
 
 			<!-- ═══ SCORE OVERVIEW ═══ -->
 			<div class="score-grid">
@@ -1120,4 +1154,94 @@
 		.switcher-bar { flex-direction: column; }
 		.switcher-group { min-width: unset; }
 	}
+
+	/* ── Scanning Progress Card ── */
+	.scanning-tag {
+		padding: 2px 8px;
+		border-radius: 4px;
+		font-size: 10px;
+		font-weight: 600;
+		background: rgba(245,158,11,0.15);
+		color: #fbbf24;
+		margin-left: auto;
+		animation: pulse-tag 1.5s ease-in-out infinite;
+	}
+	@keyframes pulse-tag {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.5; }
+	}
+	.scanning-progress-card {
+		background: var(--color-card);
+		border: 1px solid rgba(245,158,11,0.3);
+		border-radius: 12px;
+		padding: 20px 24px;
+		margin-bottom: 16px;
+		position: relative;
+		overflow: hidden;
+	}
+	.scanning-progress-inner {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		margin-bottom: 14px;
+	}
+	.scanning-shield-wrap {
+		width: 40px;
+		height: 40px;
+		border-radius: 10px;
+		background: rgba(245,158,11,0.12);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		animation: shield-pulse 1.5s ease-in-out infinite;
+	}
+	@keyframes shield-pulse {
+		0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.25); }
+		50% { box-shadow: 0 0 0 8px rgba(245,158,11,0); }
+	}
+	.scanning-shield-icon {
+		width: 22px;
+		height: 22px;
+		color: #fbbf24;
+	}
+	.scanning-progress-texts { flex: 1; }
+	.scanning-progress-title {
+		font-size: 14px;
+		font-weight: 700;
+		color: var(--text);
+		margin-bottom: 2px;
+	}
+	.scanning-progress-desc {
+		font-size: 11px;
+		color: var(--text-muted);
+		line-height: 1.4;
+	}
+	.scanning-progress-bar {
+		height: 3px;
+		background: var(--color-border-light);
+		border-radius: 2px;
+		margin-bottom: 10px;
+		overflow: hidden;
+	}
+	.scanning-progress-fill {
+		height: 100%;
+		width: 30%;
+		background: linear-gradient(90deg, #f59e0b, #fbbf24);
+		border-radius: 2px;
+		animation: scanning-slide 1.5s ease-in-out infinite;
+	}
+	@keyframes scanning-slide {
+		0% { transform: translateX(-100%); width: 30%; }
+		50% { transform: translateX(200%); width: 30%; }
+		100% { transform: translateX(300%); width: 30%; }
+	}
+	.scanning-elapsed-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 11px;
+		color: var(--text-muted);
+	}
+	.elapsed-icon { width: 14px; height: 14px; color: var(--text-muted); }
 </style>

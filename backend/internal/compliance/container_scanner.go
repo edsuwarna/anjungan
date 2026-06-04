@@ -262,7 +262,7 @@ func (cs *ContainerScanner) scanContainer(ctx context.Context, sshCfg sshtool.Co
 // identified by containerID on the target server via SSH.
 func (cs *ContainerScanner) ScanSingleContainer(ctx context.Context, sshCfg sshtool.Config, containerID string) (ContainerSecurityResult, error) {
 	// Get container info
-	infoCmd := fmt.Sprintf(`docker inspect '%s' --format '{{.Name}}|{{.Config.Image}}|{{.Status}}|{{.State.Status}}' 2>/dev/null || echo "not-found"`, containerID)
+	infoCmd := fmt.Sprintf(`docker inspect '%s' --format '{{.Name}}|{{.Config.Image}}|{{.State.Status}}' 2>/dev/null || echo "not-found"`, containerID)
 	raw, err := sshtool.RunCommand(ctx, sshCfg, infoCmd)
 	if err != nil {
 		return ContainerSecurityResult{}, fmt.Errorf("get container info: %w", err)

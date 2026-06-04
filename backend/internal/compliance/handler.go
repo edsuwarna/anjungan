@@ -2,6 +2,7 @@ package compliance
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/edsuwarna/anjungan/internal/audit"
 	"github.com/edsuwarna/anjungan/internal/auth"
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
@@ -248,6 +250,19 @@ func (h *Handler) TriggerScan(w http.ResponseWriter, r *http.Request) {
 		"scan_type": scanResult.ScanType,
 	})
 
+	// Audit log
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		meta, _ := json.Marshal(map[string]string{
+			"server_id":   serverID,
+			"server_name": srv.Name,
+			"scan_type":   scanResult.ScanType,
+		})
+		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+			"compliance.scan", "scan", scanResult.ID,
+			fmt.Sprintf("Triggered %s scan on %s", profile.String(), srv.Name),
+			json.RawMessage(meta))
+	}
+
 	go func(sr *model.ScanResult, server *model.Server, prof ScanProfile) {
 		ctx := context.Background()
 
@@ -363,6 +378,19 @@ func (h *Handler) TriggerLynisScan(w http.ResponseWriter, r *http.Request) {
 		"status":    "running",
 		"scan_type": "Lynis",
 	})
+
+	// Audit log
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		meta, _ := json.Marshal(map[string]string{
+			"server_id":   serverID,
+			"server_name": srv.Name,
+			"scan_type":   "Lynis",
+		})
+		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+			"compliance.scan", "scan", scanResult.ID,
+			fmt.Sprintf("Triggered Lynis scan on %s", srv.Name),
+			json.RawMessage(meta))
+	}
 
 	go func(sr *model.ScanResult, server *model.Server) {
 		ctx := context.Background()
@@ -498,6 +526,19 @@ func (h *Handler) TriggerContainerScan(w http.ResponseWriter, r *http.Request) {
 		"scan_type": "Container Security",
 	})
 
+	// Audit log
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		meta, _ := json.Marshal(map[string]string{
+			"server_id":   serverID,
+			"server_name": srv.Name,
+			"scan_type":   "Container Security",
+		})
+		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+			"compliance.container-scan", "scan", scanResult.ID,
+			fmt.Sprintf("Triggered container security scan on %s", srv.Name),
+			json.RawMessage(meta))
+	}
+
 	go func(sr *model.ScanResult, server *model.Server) {
 		ctx := context.Background()
 
@@ -616,6 +657,20 @@ func (h *Handler) TriggerSingleContainerScan(w http.ResponseWriter, r *http.Requ
 		"scan_type":    "Container Security",
 		"container_id": containerID,
 	})
+
+	// Audit log
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		meta, _ := json.Marshal(map[string]string{
+			"server_id":    serverID,
+			"server_name":  srv.Name,
+			"container_id": containerID,
+			"scan_type":    "Container Security",
+		})
+		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+			"compliance.single-container-scan", "container", containerID,
+			fmt.Sprintf("Triggered container security scan on %s/%s", srv.Name, containerID),
+			json.RawMessage(meta))
+	}
 
 	go func(sr *model.ScanResult, server *model.Server) {
 		ctx := context.Background()

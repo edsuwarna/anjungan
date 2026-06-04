@@ -1105,6 +1105,20 @@ func (r *Repository) GetLatestScanResultByType(ctx context.Context, serverID, sc
 	return s, nil
 }
 
+// GetLatestCompletedScanByType returns the latest COMPLETED scan result for a server by scan type.
+func (r *Repository) GetLatestCompletedScanByType(ctx context.Context, serverID, scanType string) (*model.ScanResult, error) {
+	s := &model.ScanResult{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+		 FROM scan_results WHERE server_id = $1 AND scan_type = $2 AND status = 'completed' ORDER BY created_at DESC LIMIT 1`, serverID, scanType,
+	).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+		&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 func (r *Repository) GetScanResultByID(ctx context.Context, id string) (*model.ScanResult, error) {
 	s := &model.ScanResult{}
 	err := r.db.Pool.QueryRow(ctx,
@@ -1330,8 +1344,8 @@ type ContainerSecurityData struct {
 func (r *Repository) GetContainerSecurityByServer(ctx context.Context, serverID string) (map[string]*ContainerSecurityData, error) {
 	result := make(map[string]*ContainerSecurityData)
 
-	// Get latest Container Security scan
-	scan, err := r.GetLatestScanResultByType(ctx, serverID, "Container Security")
+	// Get latest COMPLETED Container Security scan
+	scan, err := r.GetLatestCompletedScanByType(ctx, serverID, "Container Security")
 	if err != nil {
 		// No scan found — return empty map, not an error
 		return result, nil
