@@ -22,20 +22,24 @@ db:
 	docker compose exec postgres psql -U $$POSTGRES_USER -d $$POSTGRES_DB
 
 # ─── Database Migrations ─────────────────────────────────────────────────────
-MIGRATE_CMD = docker compose run --rm backend migrate -path /migrations -database "postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@postgres:5432/$$POSTGRES_DB?sslmode=disable"
+# Migrations run automatically on backend startup. Use these for management.
 
-.PHONY: migrate-up migrate-down migrate-create
+.PHONY: migrate-up migrate-create
 
+## Restart backend to run pending migrations
 migrate-up:
-	$(MIGRATE_CMD) up
+	docker compose restart backend
+	@echo "Backend restarted — migrations auto-run on startup"
 
-migrate-down:
-	$(MIGRATE_CMD) down 1
-
+## Create new migration files (sequential numbering)
 migrate-create:
-	@read -p "Migration name: " name; \
-	touch backend/migrations/$$(date +%s)_$$name.up.sql \
-	      backend/migrations/$$(date +%s)_$$name.down.sql
+	@read -p "Migration name (e.g. add_user_groups): " name; \
+	last=$$(ls backend/migrations/*.up.sql 2>/dev/null | tail -1 | grep -oP '\d+' | head -1); \
+	next=$$(printf "%06d" $$((10#$${last:-0} + 1))); \
+	echo "Creating $${next}_$${name}.up.sql and .down.sql"; \
+	printf -- "-- Migration: %s_%s\n-- Up: apply the changes\n" "$${next}" "$$name" > "backend/migrations/$${next}_$${name}.up.sql"; \
+	printf -- "-- Migration: %s_%s\n-- Down: revert the changes\n" "$${next}" "$$name" > "backend/migrations/$${next}_$${name}.down.sql"; \
+	echo "Created: $${next}_$${name}.{up,down}.sql"
 
 # ─── Docker ──────────────────────────────────────────────────────────────────
 .PHONY: build up down logs restart

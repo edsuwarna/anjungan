@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Server Cards — Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #10b981;
+    --primary-hover: #059669;
+    --primary-subtle: rgba(16,185,129,0.1);
+    --primary-light: #d1fae5;
+    --danger: #ef4444;
+    --danger-subtle: rgba(239,68,68,0.1);
+    --warning: #f59e0b;
+    --bg: #f4f5f7;
+    --bg-card: #ffffff;
+    --bg-header: #1a1d23;
+    --text: #1a1d23;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --border: #e5e7eb;
+    --border-light: #f3f4f6;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-hover: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  /* Top bar */
+  .topbar {
+    background: var(--bg-header);
+    color: #fff;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar h1 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .topbar .badge {
+    font-size: 12px;
+    background: rgba(255,255,255,0.1);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  /* Tab bar */
+  .tabbar {
+    display: flex;
+    gap: 0;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+  }
+  .tabbar button {
+    padding: 12px 20px;
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .tabbar button:hover {
+    color: var(--text);
+  }
+  .tabbar button.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
+  /* Layout */
+  .main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 20px 24px;
+  }
+
+  /* Filter bar */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+  .filters input, .filters select {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    background: var(--bg-card);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .filters input:focus, .filters select:focus {
+    border-color: var(--primary);
+  }
+  .filters input {
+    flex: 1;
+    min-width: 200px;
+    max-width: 320px;
+  }
+  .filters select {
+    min-width: 110px;
+  }
+  .filters .count {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  /* ===== VARIANT A: Compact Grid ===== */
+  .variant-a .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+
+  .variant-a .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+  .variant-a .card:hover {
+    box-shadow: var(--shadow-hover);
+    border-color: var(--primary);
+    transform: translateY(-1px);
+  }
+  .variant-a .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .variant-a .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .variant-a .card-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .variant-a .card-host {
+    font-size: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--text-muted);
+  }
+  .variant-a .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+  }
+  .variant-a .card-meta .tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--primary-subtle);
+    color: var(--primary);
+    font-weight: 500;
+  }
+  .variant-a .card-meta .tag.region {
+    background: rgba(99,102,241,0.1);
+    color: #6366f1;
+  }
+  .variant-a .card-meta .tag.type {
+    background: rgba(245,158,11,0.1);
+    color: #d97706;
+  }
+  .variant-a .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-light);
+  }
+  .variant-a .card-actions {
+    display: flex;
+    gap: 4px;
+  }
+  .variant-a .card-actions button {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    transition: all 0.12s;
+  }
+  .variant-a .card-actions button:hover {
+    background: var(--primary-subtle);
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+  .variant-a .card-actions button.danger:hover {
+    background: var(--danger-subtle);
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+  .variant-a .card-added {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* ===== VARIANT B: Detailed Cards ===== */
+  .variant-b .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+
+  .variant-b .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: var(--shadow);
+  }
+  .variant-b .card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+  }
+  .variant-b .card-top {
+    padding: 16px 16px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .variant-b .card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--primary-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .variant-b .card-icon.offline {
+    background: var(--danger-subtle);
+  }
+  .variant-b .card-icon.pending {
+    background: rgba(245,158,11,0.1);
+  }
+  .variant-b .card-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .variant-b .card-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .variant-b .card-host {
+    font-size: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .variant-b .card-details {
+    padding: 0 16px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .variant-b .detail-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .variant-b .detail-item .label {
+    color: var(--text-muted);
+  }
+  .variant-b .card-tags {
+    padding: 0 16px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .variant-b .card-tags .tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: var(--primary-subtle);
+    color: var(--primary);
+    font-weight: 500;
+  }
+  .variant-b .card-tags .tag.region {
+    background: rgba(99,102,241,0.1);
+    color: #6366f1;
+  }
+  .variant-b .card-tags .tag.type {
+    background: rgba(245,158,11,0.1);
+    color: #d97706;
+  }
+  .variant-b .card-tags .tag.more {
+    background: none;
+    color: var(--text-muted);
+    font-size: 10px;
+  }
+  .variant-b .card-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--border-light);
+    border-top: 1px solid var(--border);
+  }
+  .variant-b .card-actions {
+    display: flex;
+    gap: 4px;
+  }
+  .variant-b .card-actions button {
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .variant-b .card-actions button:hover {
+    background: var(--primary-subtle);
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+  .variant-b .card-actions button.danger:hover {
+    background: var(--danger-subtle);
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+  .variant-b .card-added {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* Status badge */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+  .status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .status.online {
+    background: rgba(16,185,129,0.1);
+    color: #059669;
+  }
+  .status.online .dot { background: #10b981; }
+  .status.offline {
+    background: rgba(239,68,68,0.1);
+    color: #dc2626;
+  }
+  .status.offline .dot { background: #ef4444; }
+  .status.pending {
+    background: rgba(245,158,11,0.1);
+    color: #d97706;
+  }
+  .status.pending .dot { background: #f59e0b; }
+
+  /* Pagination */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .pagination .info {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .pagination .pages {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .pagination .pages button {
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .pagination .pages button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .pagination .pages button.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+  .pagination .per-page {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pagination .per-page select {
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    background: var(--bg-card);
+    color: var(--text);
+  }
+
+  /* Bulk bar */
+  .bulkbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--primary-subtle);
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .bulkbar .count {
+    font-weight: 600;
+    color: var(--primary);
+    margin-right: 4px;
+  }
+  .bulkbar button {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg-card);
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.12s;
+  }
+  .bulkbar button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .bulkbar button.danger:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-muted);
+  }
+  .empty .icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+  }
+  .empty h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .empty p {
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .empty button {
+    padding: 8px 16px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .empty button:hover {
+    background: var(--primary-hover);
+  }
+
+  /* Switch animation */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .add-btn:hover { background: var(--primary-hover); }
+
+  @media (max-width: 640px) {
+    .main { padding: 12px; }
+    .variant-a .grid { grid-template-columns: 1fr; }
+    .variant-b .grid { grid-template-columns: 1fr; }
+    .tabbar { padding: 0 12px; overflow-x: auto; }
+    .tabbar button { padding: 10px 14px; font-size: 12px; white-space: nowrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🖥️ Anjungan</h1>
+  <span class="badge">IDP — Platform Engineering</span>
+</div>
+
+<div class="tabbar">
+  <button class="active" onclick="switchTab('a')" id="tab-a">📦 Variant A: Compact Grid</button>
+  <button onclick="switchTab('b')" id="tab-b">📋 Variant B: Detailed Cards</button>
+</div>
+
+<div class="main">
+
+  <!-- Filters -->
+  <div class="filters">
+    <input type="text" placeholder="Search by name or host..." value="web-">
+    <select>
+      <option>All Status</option>
+      <option>Online</option>
+      <option selected>Offline</option>
+      <option>Unknown</option>
+    </select>
+    <select>
+      <option>All Groups</option>
+      <option>production</option>
+      <option>staging</option>
+      <option>development</option>
+    </select>
+    <select>
+      <option>All Regions</option>
+      <option>us-east-1</option>
+      <option>ap-southeast-1</option>
+      <option>eu-west-1</option>
+    </select>
+    <span class="count">12 servers</span>
+  </div>
+
+  <!-- === VARIANT A === -->
+  <div class="tab-content active" id="content-a">
+    <div class="variant-a">
+      <div class="grid" id="grid-a"></div>
+      <div class="pagination">
+        <span class="info">Page 1 of 3 (12 total)</span>
+        <div class="pages">
+          <button>‹</button>
+          <button class="active">1</button>
+          <button>2</button>
+          <button>3</button>
+          <button>›</button>
+        </div>
+        <span class="per-page">
+          <select><option>10</option><option selected>20</option><option>50</option></select>
+          /page
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- === VARIANT B === -->
+  <div class="tab-content" id="content-b">
+    <div class="variant-b">
+      <div class="grid" id="grid-b"></div>
+      <div class="pagination">
+        <span class="info">Page 1 of 3 (12 total)</span>
+        <div class="pages">
+          <button>‹</button>
+          <button class="active">1</button>
+          <button>2</button>
+          <button>3</button>
+          <button>›</button>
+        </div>
+        <span class="per-page">
+          <select><option>10</option><option selected>20</option><option>50</option></select>
+          /page
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const servers = [
+  { name: 'web-prod-01', host: '10.0.1.10', port: 22, user: 'root', group: 'production', type: 'VM', region: 'us-east-1', status: 'online', tags: ['nginx', 'ubuntu-24.04'], added: '12 Mar 2026' },
+  { name: 'web-prod-02', host: '10.0.1.11', port: 22, user: 'root', group: 'production', type: 'VM', region: 'us-east-1', status: 'online', tags: ['nginx', 'ubuntu-24.04'], added: '12 Mar 2026' },
+  { name: 'db-primary', host: '10.0.2.5', port: 22, user: 'admin', group: 'production', type: 'Bare-metal', region: 'ap-southeast-1', status: 'online', tags: ['postgres-16', 'replication'], added: '10 Mar 2026' },
+  { name: 'db-replica-1', host: '10.0.2.6', port: 22, user: 'admin', group: 'production', type: 'Bare-metal', region: 'ap-southeast-1', status: 'online', tags: ['postgres-16', 'replica'], added: '10 Mar 2026' },
+  { name: 'cache-cluster-01', host: '10.0.3.2', port: 2222, user: 'ops', group: 'production', type: 'Container', region: 'us-east-1', status: 'online', tags: ['redis-7'], added: '8 Mar 2026' },
+  { name: 'monitoring-01', host: '10.0.10.10', port: 22, user: 'root', group: 'infra', type: 'Container', region: 'eu-west-1', status: 'offline', tags: ['prometheus', 'grafana', 'alertmanager'], added: '5 Mar 2026' },
+  { name: 'staging-api', host: 'staging.anjungan.io', port: 22, user: 'deploy', group: 'staging', type: 'VM', region: 'ap-southeast-1', status: 'online', tags: ['go', 'docker'], added: '28 Feb 2026' },
+  { name: 'staging-web', host: '192.168.50.20', port: 22, user: 'deploy', group: 'staging', type: 'VM', region: 'ap-southeast-1', status: 'offline', tags: ['nginx', 'node'], added: '28 Feb 2026' },
+  { name: 'dev-box-01', host: '10.0.100.1', port: 22, user: 'dev', group: 'development', type: 'VM', region: 'us-east-1', status: 'pending', tags: ['ubuntu', 'dev-tools'], added: '20 Feb 2026' },
+  { name: 'dev-box-02', host: '10.0.100.2', port: 22, user: 'dev', group: 'development', type: 'VM', region: 'us-east-1', status: 'online', tags: ['docker', 'minikube'], added: '20 Feb 2026' },
+  { name: 'build-runner-01', host: '10.0.200.1', port: 22, user: 'ci', group: 'infra', type: 'Container', region: 'us-east-1', status: 'online', tags: ['github-runner', 'docker'], added: '15 Feb 2026' },
+  { name: 'vpn-gateway', host: 'vpn.anjungan.io', port: 2222, user: 'admin', group: 'infra', type: 'VM', region: 'eu-west-1', status: 'online', tags: ['wireguard', 'firewall'], added: '10 Feb 2026' },
+];
+
+function renderA() {
+  const grid = document.getElementById('grid-a');
+  // Bulk bar
+  const bulkHtml = `<div class="bulkbar">
+    <span><span class="count">0</span> selected</span>
+    <button>🔌 Test Connection</button>
+    <button class="danger">🗑️ Delete Selected</button>
+    <button>✕ Clear</button>
+  </div>`;
+
+  let cards = servers.map(s => {
+    const statusIcon = s.status === 'online' ? '🟢' : s.status === 'offline' ? '🔴' : '🟡';
+    return `<div class="card" onclick="alert('Go to /servers/${s.name}')">
+      <div class="card-header">
+        <div>
+          <div class="card-name">${s.name}</div>
+          <div class="card-host">${s.host}:${s.port}</div>
+        </div>
+        <span class="status ${s.status}">
+          <span class="dot"></span>${s.status}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="tag">${s.group}</span>
+          <span class="tag type">${s.type}</span>
+          <span class="tag region">${s.region}</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="card-actions">
+          <button title="Test connection" onclick="event.stopPropagation();alert('Testing ${s.name}...')">🔌</button>
+          <button title="Details" onclick="event.stopPropagation();alert('Go to /servers/${s.name}')">👁️</button>
+          <button class="danger" title="Delete" onclick="event.stopPropagation();alert('Delete ${s.name}?')">🗑️</button>
+        </div>
+        <span class="card-added">${s.added}</span>
+      </div>
+    </div>`;
+  }).join('');
+  grid.innerHTML = bulkHtml + cards;
+}
+
+function renderB() {
+  const grid = document.getElementById('grid-b');
+  let cards = servers.map(s => {
+    const statusIcon = s.status === 'online' ? '🟢' : s.status === 'offline' ? '🔴' : '🟡';
+    const iconBg = s.status === 'online' ? '' : s.status === 'offline' ? ' offline' : ' pending';
+    const tagOverflow = s.tags.length > 2 ? `<span class="tag more">+${s.tags.length - 2}</span>` : '';
+    return `<div class="card" onclick="alert('Go to /servers/${s.name}')">
+      <div class="card-top">
+        <div class="card-icon${iconBg}">${statusIcon}</div>
+        <div class="card-info">
+          <div class="card-name">
+            ${s.name}
+            <span class="status ${s.status}">
+              <span class="dot"></span>${s.status}
+            </span>
+          </div>
+          <div class="card-host">${s.host}:${s.port} · ${s.user}</div>
+        </div>
+      </div>
+      <div class="card-details">
+        <div class="detail-item"><span class="label">Group:</span> ${s.group}</div>
+        <div class="detail-item"><span class="label">Type:</span> ${s.type}</div>
+        <div class="detail-item"><span class="label">Region:</span> ${s.region}</div>
+      </div>
+      <div class="card-tags">
+        ${s.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+        ${tagOverflow}
+      </div>
+      <div class="card-bottom">
+        <div class="card-actions">
+          <button onclick="event.stopPropagation();alert('Testing ${s.name}...')">🔌 Test</button>
+          <button onclick="event.stopPropagation();alert('Go to /servers/${s.name}')">👁️ Detail</button>
+          <button class="danger" onclick="event.stopPropagation();alert('Delete ${s.name}?')">🗑️ Delete</button>
+        </div>
+        <span class="card-added">Added ${s.added}</span>
+      </div>
+    </div>`;
+  }).join('');
+  grid.innerHTML = cards;
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tabbar button').forEach(el => el.classList.remove('active'));
+  document.getElementById(`content-${tab}`).classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+renderA();
+renderB();
+</script>
+
+</body>
+</html>

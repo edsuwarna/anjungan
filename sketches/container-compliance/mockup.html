@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Container Compliance Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #1a1d23;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  /* Theme tokens matching Anjungan dark mode */
+  :root {
+    --color-primary: #10b981;
+    --color-primary-subtle: rgba(16, 185, 129, 0.12);
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-accent: #8b5cf6;
+    --color-surface: #1e2128;
+    --color-card: #22262e;
+    --color-border: #2a2e36;
+    --color-border-light: #333842;
+    --color-text: #e2e8f0;
+    --color-text-muted: #8892a6;
+    --color-text-secondary: #a0a8b8;
+    --color-sidebar-bg: #181a20;
+  }
+
+  .app-layout {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    background: var(--color-sidebar-bg);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .sidebar-logo .logo-box {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    color: #fff;
+  }
+  .sidebar-logo span {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+  .sidebar-nav {
+    flex: 1;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .nav-category-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    padding: 0 12px;
+    margin-bottom: 4px;
+    opacity: 0.6;
+  }
+  .nav-items { display: flex; flex-direction: column; gap: 2px; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition: all 0.12s;
+    cursor: default;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--color-text); }
+  .nav-item.active {
+    background: var(--color-primary-subtle);
+    color: var(--color-primary);
+  }
+  .nav-icon { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
+  .nav-item.active .nav-icon { opacity: 1; }
+  .nav-badge {
+    margin-left: auto;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 999px;
+    line-height: 1.4;
+  }
+  .sidebar-bottom {
+    padding: 12px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* Main content */
+  .main-content {
+    flex: 1;
+    padding: 24px 28px;
+    max-width: 1200px;
+  }
+
+  /* Page header */
+  .page-title { font-size: 22px; font-weight: 700; color: var(--color-text); }
+  .page-subtitle { font-size: 13px; color: var(--color-text-muted); margin-top: 2px; }
+
+  /* Cards */
+  .card {
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card-clickable { cursor: pointer; transition: all 0.15s; }
+  .card-clickable:hover { border-color: var(--color-primary); box-shadow: 0 2px 12px rgba(16,185,129,0.08); }
+
+  /* Stat cards */
+  .stat-card {
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    padding: 16px 20px;
+    border-left: 3px solid var(--color-primary);
+  }
+
+  /* Filter chips */
+  .filter-chip {
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+    background: transparent;
+  }
+  .filter-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .filter-chip.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+
+  /* Progress bar */
+  .progress-track {
+    height: 5px;
+    border-radius: 999px;
+    background: var(--color-border);
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; border-radius: 999px; transition: width 0.3s; }
+
+  /* Server row */
+  .server-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .server-row:hover { border-color: var(--color-primary); box-shadow: 0 2px 8px rgba(16,185,129,0.06); }
+
+  /* Tab navigation */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 20px;
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.12s;
+  }
+  .tab-btn:hover { color: var(--color-text); }
+  .tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Severity dots / pills */
+  .severity-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 2px;
+  }
+  .severity-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-critical { background: rgba(239,68,68,0.12); color: var(--color-danger); }
+  .pill-high { background: rgba(245,158,11,0.12); color: var(--color-warning); }
+  .pill-medium { background: rgba(139,92,246,0.12); color: var(--color-accent); }
+  .pill-low { background: rgba(16,185,129,0.12); color: var(--color-success); }
+  .pill-pass { background: rgba(16,185,129,0.1); color: var(--color-success); }
+  .pill-fail { background: rgba(239,68,68,0.1); color: var(--color-danger); }
+  .pill-warn { background: rgba(245,158,11,0.1); color: var(--color-warning); }
+
+  /* Check row */
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 13px;
+  }
+  .check-row:last-child { border-bottom: none; }
+
+  /* Checkbox style */
+  .check-icon { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .check-pass { background: rgba(16,185,129,0.15); color: var(--color-success); }
+  .check-fail { background: rgba(239,68,68,0.15); color: var(--color-danger); }
+  .check-na { background: rgba(100,116,139,0.15); color: #64748b; }
+
+  /* Trivy finding */
+  .trivy-finding {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+
+  /* Section label */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-bottom: 4px;
+  }
+
+  /* Info grid */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .info-label { font-size: 11px; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .info-value { font-size: 14px; font-weight: 600; color: var(--color-text); }
+
+  /* Legend for check status */
+  .check-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-box">A</div>
+      <span>Anjungan</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div>
+        <div class="nav-category-label">Dashboard</div>
+        <div class="nav-items">
+          <a class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/></svg>
+            Overview
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-category-label">Infrastructure</div>
+        <div class="nav-items">
+          <a class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+            Servers
+          </a>
+          <a class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+            SSH Keys
+          </a>
+          <a class="nav-item active">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            Containers
+            <span class="nav-badge">24</span>
+          </a>
+          <a class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+            Registry
+          </a>
+          <a class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            Repositories
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-category-label">Ops</div>
+        <div class="nav-items">
+          <a class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Deployments
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-category-label">Security</div>
+        <div class="nav-items">
+          <a class="nav-item active">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Compliance
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-category-label">Administration</div>
+        <div class="nav-items">
+          <a class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Users
+          </a>
+          <a class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            Audit Log
+          </a>
+        </div>
+      </div>
+    </nav>
+    <div class="sidebar-bottom">
+      <a class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        Light Mode
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="dashboard">📊 Compliance Dashboard</button>
+      <button class="tab-btn" data-tab="docker-detail">🐳 Container Compliance Detail</button>
+      <button class="tab-btn" data-tab="trivy">🔍 Trivy Vulnerability</button>
+    </div>
+
+    <!-- ==================== TAB A: COMPLIANCE DASHBOARD ==================== -->
+    <div class="tab-content active" id="tab-dashboard">
+
+      <!-- Header -->
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+        <div>
+          <h1 class="page-title">Compliance</h1>
+          <p class="page-subtitle">Security posture across all servers and containers</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full" style="background: var(--color-surface); border: 1px solid var(--color-border-light); color: var(--color-text-muted);">
+            <span>449 checks · <span style="color: var(--color-success);">40 L1</span> · <span style="color: var(--color-warning);">53 L2</span> · <span style="color: var(--color-accent);">128 Docker</span></span>
+          </div>
+          <button class="filter-chip" style="border-color: var(--color-primary); color: var(--color-primary); padding: 4px 14px; display: flex; align-items: center; gap: 6px;">
+            <span>⟳</span> Scan All
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
+        <div class="stat-card" style="border-left-color: var(--color-primary);">
+          <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+            Total Servers
+          </div>
+          <p class="text-2xl font-bold" style="color: var(--color-text);">4</p>
+          <p class="mt-1 text-xs" style="color: var(--color-text-muted);"><span style="color: var(--color-success);">3 scanned</span> · 1 pending</p>
+        </div>
+        <div class="stat-card" style="border-left-color: #3b82f6;">
+          <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/></svg>
+            Total Containers
+          </div>
+          <p class="text-2xl font-bold" style="color: var(--color-text);">24</p>
+          <p class="mt-1 text-xs" style="color: var(--color-text-muted);"><span style="color: var(--color-success);">18 scanned</span> · 6 pending</p>
+        </div>
+        <div class="stat-card" style="border-left-color: var(--color-accent);">
+          <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Compliance Score
+          </div>
+          <p class="text-2xl font-bold" style="color: var(--color-success);">78%</p>
+          <p class="mt-1 text-xs" style="color: var(--color-text-muted);">Across all benchmarks</p>
+        </div>
+        <div class="stat-card" style="border-left-color: var(--color-warning);">
+          <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Vulnerabilities
+          </div>
+          <div class="flex items-center gap-3 mb-1.5">
+            <span class="text-lg font-bold" style="color: var(--color-danger);">7</span><span class="text-xs" style="color: var(--color-text-muted);">critical</span>
+            <span class="text-lg font-bold" style="color: var(--color-warning);">23</span><span class="text-xs" style="color: var(--color-text-muted);">high</span>
+          </div>
+          <div class="h-1.5 rounded-full overflow-hidden flex" style="background: var(--color-border);">
+            <div style="width: 20%; background: var(--color-danger);"></div>
+            <div style="width: 35%; background: var(--color-warning);"></div>
+            <div style="width: 45%; background: var(--color-success);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan Categories -->
+      <div class="flex items-center gap-2 mb-3">
+        <h3 class="text-sm font-semibold" style="color: var(--color-text);">Benchmarks</h3>
+        <span class="text-xs" style="color: var(--color-text-muted);">Aggregate scores across all scanned targets</span>
+      </div>
+      <div class="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <!-- CIS L1 -->
+        <div class="card card-clickable" style="border-left: 3px solid var(--color-success);">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" style="background: rgba(16,185,129,0.12); color: var(--color-success);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold" style="color: var(--color-text);">CIS Level 1</div>
+                <div class="text-xs" style="color: var(--color-text-muted);">Server hardening</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-bold" style="color: var(--color-success);">86%</div>
+              <div class="text-[10px]" style="color: var(--color-text-muted);">avg score</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs mb-2" style="color: var(--color-text-muted);">
+            <span><strong style="color: var(--color-text);">40</strong> checks</span>
+            <span>·</span>
+            <span><strong style="color: var(--color-success);">34</strong> pass</span>
+            <span><strong style="color: var(--color-warning);">4</strong> warn</span>
+            <span><strong style="color: var(--color-danger);">2</strong> fail</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" style="width: 86%; background: var(--color-success);"></div></div>
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-[11px]" style="color: var(--color-text-muted);">7 categories · 3 servers</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+
+        <!-- CIS L2 -->
+        <div class="card card-clickable" style="border-left: 3px solid var(--color-warning);">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" style="background: rgba(245,158,11,0.12); color: var(--color-warning);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold" style="color: var(--color-text);">CIS Level 2</div>
+                <div class="text-xs" style="color: var(--color-text-muted);">Advanced hardening</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-bold" style="color: var(--color-warning);">72%</div>
+              <div class="text-[10px]" style="color: var(--color-text-muted);">avg score</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs mb-2" style="color: var(--color-text-muted);">
+            <span><strong style="color: var(--color-text);">53</strong> checks</span>
+            <span>·</span>
+            <span><strong style="color: var(--color-success);">38</strong> pass</span>
+            <span><strong style="color: var(--color-warning);">10</strong> warn</span>
+            <span><strong style="color: var(--color-danger);">5</strong> fail</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" style="width: 72%; background: var(--color-warning);"></div></div>
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-[11px]" style="color: var(--color-text-muted);">10 categories · 3 servers</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+
+        <!-- CIS DOCKER (new!) -->
+        <div class="card card-clickable" style="border-left: 3px solid #3b82f6; box-shadow: 0 0 0 1px rgba(59,130,246,0.15);">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" style="background: rgba(59,130,246,0.12); color: #3b82f6;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold" style="color: var(--color-text);">CIS Docker</div>
+                <div class="text-xs" style="color: #60a5fa;">Container runtime</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-bold" style="color: #60a5fa;">81%</div>
+              <div class="text-[10px]" style="color: var(--color-text-muted);">avg score</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs mb-2" style="color: var(--color-text-muted);">
+            <span><strong style="color: var(--color-text);">128</strong> checks</span>
+            <span>·</span>
+            <span><strong style="color: var(--color-success);">104</strong> pass</span>
+            <span><strong style="color: var(--color-warning);">16</strong> warn</span>
+            <span><strong style="color: var(--color-danger);">8</strong> fail</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" style="width: 81%; background: #3b82f6;"></div></div>
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-[11px]" style="color: var(--color-text-muted);">6 sections · 18 containers</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+
+        <!-- Lynis -->
+        <div class="card card-clickable" style="border-left: 3px solid var(--color-accent);">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" style="background: rgba(139,92,246,0.12); color: var(--color-accent);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><circle cx="12" cy="8" r="1"/></svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold" style="color: var(--color-text);">Lynis Audit</div>
+                <div class="text-xs" style="color: var(--color-text-muted);">System audit</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-bold" style="color: var(--color-accent);">—</div>
+              <div class="text-[10px]" style="color: var(--color-text-muted);">hardening idx</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs mb-2" style="color: var(--color-text-muted);">
+            <span><strong style="color: var(--color-text);">12</strong> categories</span>
+            <span>·</span>
+            <span style="color: var(--color-warning);"><strong>8</strong> warnings</span>
+            <span style="color: var(--color-accent);"><strong>23</strong> suggestions</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" style="width: 72%; background: var(--color-accent);"></div></div>
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-[11px]" style="color: var(--color-text-muted);">12 categories · 3 servers</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Filter -->
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <span class="text-xs font-medium" style="color: var(--color-text-muted);">Filter:</span>
+        <button class="filter-chip active">All</button>
+        <button class="filter-chip">🟢 Passing</button>
+        <button class="filter-chip">🟡 Warning</button>
+        <button class="filter-chip">🔴 Critical</button>
+        <button class="filter-chip">⏳ Unscanned</button>
+      </div>
+
+      <!-- Server/Container Rows -->
+      <div class="flex flex-col gap-1.5">
+        <!-- Each server has sub-rows for containers -->
+        <div class="server-row" style="border-left: 4px solid var(--color-success);">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style="background: rgba(16,185,129,0.12);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-success);"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium" style="color: var(--color-text);">peladen-central</p>
+              <p class="text-xs font-mono" style="color: var(--color-text-muted);">103.25.xx.xx</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 shrink-0">
+            <div class="text-center min-w-[40px]">
+              <span class="text-lg font-bold" style="color: var(--color-success);">92</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-xs">
+              <span class="severity-dot" style="background: var(--color-danger);"></span><span style="color: var(--color-danger); font-weight: 600;">1</span>
+              <span class="severity-dot" style="background: var(--color-warning);"></span><span style="color: var(--color-warning); font-weight: 600;">3</span>
+              <span class="severity-dot" style="background: var(--color-success);"></span><span style="color: var(--color-success); font-weight: 600;">48</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button class="filter-chip" style="padding: 2px 8px; font-size: 11px; color: #3b82f6; border-color: rgba(59,130,246,0.3);">🐳 Docker</button>
+            </div>
+            <div class="text-xs" style="color: var(--color-text-muted); min-width: 65px; text-align: right;">2h ago</div>
+          </div>
+        </div>
+        <!-- Container sub-rows under peladen-central -->
+        <div style="margin-left: 36px; display: flex; flex-direction: column; gap: 1px;">
+          <div class="server-row" style="padding: 8px 14px; border-left: 3px solid #3b82f6;">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div class="flex h-8 w-8 items-center justify-center rounded-lg shrink-0" style="background: rgba(59,130,246,0.1); color: #3b82f6;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium" style="color: var(--color-text);">anjungan-frontend</p>
+                <p class="text-xs" style="color: var(--color-text-muted);">nginx:alpine · port 80</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 shrink-0">
+              <span class="text-sm font-bold" style="color: #60a5fa;">87%</span>
+              <div class="flex items-center gap-1 text-xs">
+                <span class="pill-pill pill-pass" style="padding: 1px 6px; border-radius: 4px; font-size: 10px; background: rgba(16,185,129,0.1); color: var(--color-success);">22/26</span>
+              </div>
+              <button class="filter-chip" style="padding: 2px 6px; font-size: 10px; border: none; color: var(--color-text-muted);">🔍 Trivy</button>
+            </div>
+          </div>
+          <div class="server-row" style="padding: 8px 14px; border-left: 3px solid var(--color-warning);">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div class="flex h-8 w-8 items-center justify-center rounded-lg shrink-0" style="background: rgba(245,158,11,0.1); color: var(--color-warning);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium" style="color: var(--color-text);">anjungan-backend</p>
+                <p class="text-xs" style="color: var(--color-text-muted);">golang:1.23 · port 8080</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 shrink-0">
+              <span class="text-sm font-bold" style="color: var(--color-warning);">64%</span>
+              <div class="flex items-center gap-1 text-xs">
+                <span class="pill-pill pill-pass" style="padding: 1px 6px; border-radius: 4px; font-size: 10px; background: rgba(16,185,129,0.1); color: var(--color-success);">16/26</span>
+              </div>
+              <button class="filter-chip" style="padding: 2px 6px; font-size: 10px; border: none; color: var(--color-danger);">🔍 Trivy</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Another server -->
+        <div class="server-row" style="border-left: 4px solid var(--color-success);">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style="background: rgba(16,185,129,0.12);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-success);"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium" style="color: var(--color-text);">worker-01</p>
+              <p class="text-xs font-mono" style="color: var(--color-text-muted);">10.0.1.15</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 shrink-0">
+            <div class="text-center min-w-[40px]">
+              <span class="text-lg font-bold" style="color: var(--color-success);">95</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-xs">
+              <span class="severity-dot" style="background: var(--color-success);"></span><span style="color: var(--color-success); font-weight: 600;">52</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button class="filter-chip" style="padding: 2px 8px; font-size: 11px; color: #3b82f6; border-color: rgba(59,130,246,0.3);">🐳 Docker</button>
+            </div>
+            <div class="text-xs" style="color: var(--color-text-muted); min-width: 65px; text-align: right;">6h ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB B: DOCKER DETAIL ==================== -->
+    <div class="tab-content" id="tab-docker-detail">
+
+      <!-- Header -->
+      <div class="mb-4">
+        <div class="flex items-center gap-2 text-sm mb-1" style="color: var(--color-text-muted);">
+          <span style="cursor: pointer;">← Compliance</span>
+          <span>/</span>
+          <span style="color: var(--color-text);">CIS Docker Benchmark</span>
+        </div>
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h1 class="page-title">🐳 CIS Docker Benchmark</h1>
+            <p class="page-subtitle">Container runtime hardening — anjungan-backend (peladen-central)</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="text-right">
+              <span class="text-2xl font-bold" style="color: #60a5fa;">81%</span>
+              <p class="text-[10px]" style="color: var(--color-text-muted);">104/128 passed</p>
+            </div>
+            <button class="filter-chip" style="border-color: #3b82f6; color: #3b82f6;">
+              <span>⟳</span> Re-scan
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="grid gap-3 grid-cols-2 lg:grid-cols-6 mb-5">
+        <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-success);">
+          <div class="text-2xl font-bold" style="color: var(--color-success);">104</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Passed</div>
+        </div>
+        <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-warning);">
+          <div class="text-2xl font-bold" style="color: var(--color-warning);">16</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Warning</div>
+        </div>
+        <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-danger);">
+          <div class="text-2xl font-bold" style="color: var(--color-danger);">8</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Failed</div>
+        </div>
+        <div class="card !p-3 text-center" style="border-top: 3px solid #64748b;">
+          <div class="text-2xl font-bold" style="color: #64748b;">0</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Not Applicable</div>
+        </div>
+        <div class="card !p-3 text-center" style="border-top: 3px solid #3b82f6;">
+          <div class="text-2xl font-bold" style="color: #3b82f6;">5.2</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Risk Score</div>
+        </div>
+        <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-accent);">
+          <div class="text-2xl font-bold" style="color: var(--color-accent);">18</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Containers</div>
+        </div>
+      </div>
+
+      <!-- Section filter chips -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-xs font-medium" style="color: var(--color-text-muted);">Sections:</span>
+        <button class="filter-chip active">All (128)</button>
+        <button class="filter-chip">Host Config (14)</button>
+        <button class="filter-chip">Daemon Config (22)</button>
+        <button class="filter-chip">Daemon Files (18)</button>
+        <button class="filter-chip">Images & Build (26)</button>
+        <button class="filter-chip">Container Runtime (32)</button>
+        <button class="filter-chip">Swarm Ops (16)</button>
+      </div>
+
+      <!-- Check Legend -->
+      <div class="check-legend">
+        <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: rgba(16,185,129,0.3); margin-right: 4px;"></span> Pass</span>
+        <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: rgba(245,158,11,0.3); margin-right: 4px;"></span> Warning</span>
+        <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: rgba(239,68,68,0.3); margin-right: 4px;"></span> Fail</span>
+        <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: rgba(100,116,139,0.3); margin-right: 4px;"></span> N/A</span>
+      </div>
+
+      <!-- Checks list -->
+      <div class="card !p-0 overflow-hidden">
+        <div class="check-row" style="background: var(--color-surface); border-bottom: 1px solid var(--color-border); font-weight: 600; font-size: 12px;">
+          <div style="width: 20px;"></div>
+          <div style="flex: 1;" class="text-xs uppercase tracking-wider" style="color: var(--color-text-muted);">Check</div>
+          <div style="width: 80px; text-align: center;" class="text-xs uppercase tracking-wider" style="color: var(--color-text-muted);">Section</div>
+          <div style="width: 80px; text-align: center;" class="text-xs uppercase tracking-wider" style="color: var(--color-text-muted);">Status</div>
+        </div>
+
+        <!-- 1. Host Configuration -->
+        <div class="check-row" style="background: rgba(59,130,246,0.04);">
+          <div style="width: 20px;"></div>
+          <div style="flex: 1; font-weight: 600; font-size: 12px; color: #60a5fa;">Host Configuration</div>
+          <div style="width: 80px; text-align: center;"></div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill" style="background: rgba(59,130,246,0.12); color: #60a5fa; font-size: 11px;">10/14</span></div>
+        </div>
+
+        <div class="check-row">
+          <div class="check-icon check-pass">✓</div>
+          <div style="flex: 1;">1.1 — Separate partition for /var/lib/docker</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">1-Host</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-pass">Pass</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-fail">✗</div>
+          <div style="flex: 1;">1.2 — Use dedicated storage driver (overlay2)</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">1-Host</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-fail">Fail</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-pass">✓</div>
+          <div style="flex: 1;">1.3 — Audit docker daemon activities</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">1-Host</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-pass">Pass</span></div>
+        </div>
+
+        <!-- 4. Images & Build -->
+        <div class="check-row" style="background: rgba(59,130,246,0.04);">
+          <div style="width: 20px;"></div>
+          <div style="flex: 1; font-weight: 600; font-size: 12px; color: #60a5fa;">Images & Build</div>
+          <div style="width: 80px; text-align: center;"></div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill" style="background: rgba(245,158,11,0.12); color: var(--color-warning); font-size: 11px;">18/26</span></div>
+        </div>
+
+        <div class="check-row">
+          <div class="check-icon check-pass">✓</div>
+          <div style="flex: 1;">4.1 — Create a user for the container (USER directive)</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">4-Image</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-pass">Pass</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-fail">✗</div>
+          <div style="flex: 1;">4.2 — Use trusted base images</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">4-Image</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-fail">Fail</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-warn" style="background: rgba(245,158,11,0.15); color: var(--color-warning);">!</div>
+          <div style="flex: 1;">4.3 — Remove setuid/setgid bits from images</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">4-Image</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-warn">Warn</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-pass">✓</div>
+          <div style="flex: 1;">4.4 — Use COPY instead of ADD in Dockerfiles</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">4-Image</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-pass">Pass</span></div>
+        </div>
+
+        <!-- 5. Container Runtime -->
+        <div class="check-row" style="background: rgba(59,130,246,0.04);">
+          <div style="width: 20px;"></div>
+          <div style="flex: 1; font-weight: 600; font-size: 12px; color: #60a5fa;">Container Runtime</div>
+          <div style="width: 80px; text-align: center;"></div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill" style="background: rgba(239,68,68,0.12); color: var(--color-danger); font-size: 11px;">24/32</span></div>
+        </div>
+
+        <div class="check-row">
+          <div class="check-icon check-fail">✗</div>
+          <div style="flex: 1;">5.1 — Do not use --privileged flag</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">5-Run</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-fail">Fail</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-pass">✓</div>
+          <div style="flex: 1;">5.2 — Restrict capabilities (drop all, add specific)</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">5-Run</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-pass">Pass</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-fail">✗</div>
+          <div style="flex: 1;">5.12 — Mount Docker socket only when necessary</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">5-Run</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-fail">Fail</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-pass">✓</div>
+          <div style="flex: 1;">5.15 — Set read-only root filesystem</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">5-Run</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-pass">Pass</span></div>
+        </div>
+        <div class="check-row">
+          <div class="check-icon check-warn" style="background: rgba(245,158,11,0.15); color: var(--color-warning);">!</div>
+          <div style="flex: 1;">5.25 — PIDs cgroup limit (--pids-limit)</div>
+          <div style="width: 80px; text-align: center; font-size: 11px; color: var(--color-text-muted);">5-Run</div>
+          <div style="width: 80px; text-align: center;"><span class="severity-pill pill-warn">Warn</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB C: TRIVY VULNERABILITY ==================== -->
+    <div class="tab-content" id="tab-trivy">
+
+      <!-- Header -->
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+        <div>
+          <div class="flex items-center gap-2 text-sm mb-1" style="color: var(--color-text-muted);">
+            <span style="cursor: pointer;">← anjungan-backend</span>
+            <span>/</span>
+            <span style="color: var(--color-text);">Trivy Scan</span>
+          </div>
+          <h1 class="page-title">🔍 Vulnerability Scan</h1>
+          <p class="page-subtitle">Trivy results for image <strong style="color: var(--color-text);">anjungan-backend:latest</strong></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="text-xs px-3 py-1 rounded-full" style="background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2);">
+            <span>Scanned 2h ago</span>
+          </div>
+          <button class="filter-chip" style="border-color: var(--color-primary); color: var(--color-primary);">⟳ Scan Now</button>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-5">
+        <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-danger);">
+          <div class="text-2xl font-bold" style="color: var(--color-danger);">3</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Critical</div>
+        </div>
+        <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-warning);">
+          <div class="text-2xl font-bold" style="color: var(--color-warning);">7</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">High</div>
+        </div>
+        <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-accent);">
+          <div class="text-2xl font-bold" style="color: var(--color-accent);">12</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Medium</div>
+        </div>
+        <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-success);">
+          <div class="text-2xl font-bold" style="color: var(--color-success);">8</div>
+          <div class="text-[10px]" style="color: var(--color-text-muted);">Low</div>
+        </div>
+      </div>
+
+      <!-- Filter tabs for scan type -->
+      <div class="flex gap-2 mb-4">
+        <button class="filter-chip active">📦 Image (30 vulns)</button>
+        <button class="filter-chip">📄 Dockerfile (4 misconfigs)</button>
+        <button class="filter-chip">📚 Dependency (19 vulns)</button>
+        <button class="filter-chip">🔑 Secrets (2 found)</button>
+      </div>
+
+      <!-- Category summary -->
+      <div class="grid gap-3 grid-cols-1 md:grid-cols-3 mb-4">
+        <div class="card !p-4">
+          <div class="text-xs font-semibold uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">Vulnerability by Package</div>
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-xs">
+              <span style="color: var(--color-text);">golang stdlib</span>
+              <div class="flex gap-1.5">
+                <span class="severity-pill pill-critical" style="font-size: 10px; padding: 0 5px;">2 C</span>
+                <span class="severity-pill pill-high" style="font-size: 10px; padding: 0 5px;">3 H</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span style="color: var(--color-text);">libssl (Debian)</span>
+              <div class="flex gap-1.5">
+                <span class="severity-pill pill-critical" style="font-size: 10px; padding: 0 5px;">1 C</span>
+                <span class="severity-pill pill-high" style="font-size: 10px; padding: 0 5px;">2 H</span>
+                <span class="severity-pill pill-medium" style="font-size: 10px; padding: 0 5px;">4 M</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span style="color: var(--color-text);">PostgreSQL client</span>
+              <div class="flex gap-1.5">
+                <span class="severity-pill pill-high" style="font-size: 10px; padding: 0 5px;">1 H</span>
+                <span class="severity-pill pill-medium" style="font-size: 10px; padding: 0 5px;">3 M</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span style="color: var(--color-text);">curl/libcurl</span>
+              <div class="flex gap-1.5">
+                <span class="severity-pill pill-high" style="font-size: 10px; padding: 0 5px;">1 H</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span style="color: var(--color-text);">node_modules (dev)</span>
+              <div class="flex gap-1.5">
+                <span class="severity-pill pill-medium" style="font-size: 10px; padding: 0 5px;">5 M</span>
+                <span class="severity-pill pill-low" style="font-size: 10px; padding: 0 5px;">8 L</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card !p-4">
+          <div class="text-xs font-semibold uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">Dockerfile Misconfig</div>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2 text-xs">
+              <span class="severity-pill pill-high" style="font-size: 10px;">H</span>
+              <span style="color: var(--color-text);">Image tag ':latest' digunakan</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="severity-pill pill-medium" style="font-size: 10px;">M</span>
+              <span style="color: var(--color-text);">No HEALTHCHECK instruction</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="severity-pill pill-medium" style="font-size: 10px;">M</span>
+              <span style="color: var(--color-text);">No USER directive (runs as root)</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="severity-pill pill-low" style="font-size: 10px;">L</span>
+              <span style="color: var(--color-text);">No .dockerignore file</span>
+            </div>
+          </div>
+        </div>
+        <div class="card !p-4">
+          <div class="text-xs font-semibold uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">Fix Recommendations</div>
+          <div class="space-y-2">
+            <div class="text-xs" style="color: var(--color-text);">
+              <span class="font-medium">1. Update base image</span>
+              <p style="color: var(--color-text-muted);">golang:1.23 → golang:1.23.6 (fixes 3 CVEs)</p>
+            </div>
+            <div class="text-xs" style="color: var(--color-text);">
+              <span class="font-medium">2. Multi-stage build</span>
+              <p style="color: var(--color-text-muted);">450MB → ~25MB (scratch or distroless)</p>
+            </div>
+            <div class="text-xs" style="color: var(--color-text);">
+              <span class="font-medium">3. Use distroless base</span>
+              <p style="color: var(--color-text-muted);)= gcr.io/distroless/static-debian12</p>
+            </div>
+            <div class="text-xs" style="color: var(--color-text);">
+              <span class="font-medium">4. Pin image digest</span>
+              <p style="color: var(--color-text-muted);":latest → sha256:abc... (reproducible)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed findings list -->
+      <div class="flex items-center gap-2 mb-3">
+        <h3 class="text-sm font-semibold" style="color: var(--color-text);">All Findings</h3>
+        <span class="text-xs" style="color: var(--color-text-muted);">30 vulnerabilities found</span>
+      </div>
+
+      <div class="card !p-0 overflow-hidden">
+        <div class="check-row" style="background: var(--color-surface); border-bottom: 1px solid var(--color-border); font-weight: 600; font-size: 12px;">
+          <div style="width: 60px;" class="text-xs uppercase tracking-wider" style="color: var(--color-text-muted);">Severity</div>
+          <div style="flex: 1;" class="text-xs uppercase tracking-wider" style="color: var(--color-text-muted);">CVE / Package</div>
+          <div style="width: 100px;" class="text-xs uppercase tracking-wider" style="color: var(--color-text-muted);">Installed</div>
+          <div style="width: 100px;" class="text-xs uppercase tracking-wider" style="color: var(--color-text-muted);">Fixed</div>
+        </div>
+
+        <div class="trivy-finding" style="border: none; border-bottom: 1px solid var(--color-border); margin: 0; padding: 10px 16px;">
+          <span class="severity-pill pill-critical" style="width: 60px;">CRITICAL</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 500; color: var(--color-text); font-size: 13px;">CVE-2025-22869</div>
+            <div style="color: var(--color-text-muted); font-size: 12px;">golang.org/x/crypto · SSH handshake race condition</div>
+          </div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-text);">v0.28.0</div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-success);">v0.31.0</div>
+        </div>
+
+        <div class="trivy-finding" style="border: none; border-bottom: 1px solid var(--color-border); margin: 0; padding: 10px 16px;">
+          <span class="severity-pill pill-critical" style="width: 60px;">CRITICAL</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 500; color: var(--color-text); font-size: 13px;">CVE-2025-22868</div>
+            <div style="color: var(--color-text-muted); font-size: 12px;">golang.org/x/oauth2 · Token leak via request</div>
+          </div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-text);">v0.25.0</div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-success);">v0.27.0</div>
+        </div>
+
+        <div class="trivy-finding" style="border: none; border-bottom: 1px solid var(--color-border); margin: 0; padding: 10px 16px;">
+          <span class="severity-pill pill-high" style="width: 60px;">HIGH</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 500; color: var(--color-text); font-size: 13px;">CVE-2025-22870</div>
+            <div style="color: var(--color-text-muted); font-size: 12px;">golang/go · net/http: Request smuggling via chunked transfer</div>
+          </div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-text);">go1.23.0</div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-success);">go1.23.6</div>
+        </div>
+
+        <div class="trivy-finding" style="border: none; border-bottom: 1px solid var(--color-border); margin: 0; padding: 10px 16px;">
+          <span class="severity-pill pill-high" style="width: 60px;">HIGH</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 500; color: var(--color-text); font-size: 13px;">CVE-2025-0727</div>
+            <div style="color: var(--color-text-muted); font-size: 12px;">libssl3 · Buffer overflow in X.509 certificate chain</div>
+          </div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-text);">3.0.15</div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-success);">3.3.1</div>
+        </div>
+
+        <div class="trivy-finding" style="border: none; border: 0; margin: 0; padding: 10px 16px;">
+          <span class="severity-pill pill-medium" style="width: 60px;">MEDIUM</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 500; color: var(--color-text); font-size: 13px;">CVE-2025-26614</div>
+            <div style="color: var(--color-text-muted); font-size: 12px;">PostgreSQL client · Weakened TLS cert validation</div>
+          </div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-text);">16.4</div>
+          <div style="width: 100px; font-size: 12px; color: var(--color-success);">16.8</div>
+        </div>
+      </div>
+
+      <!-- Pipeline notes -->
+      <div class="mt-4 card !p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-accent);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span class="text-sm font-semibold" style="color: var(--color-text);">CI/CD Pipeline Integration</span>
+        </div>
+        <p class="text-xs" style="color: var(--color-text-muted); line-height: 1.7;">
+          Trivy scans run automatically on every push via CI/CD pipeline. Results are pushed to Anjungan via webhook.
+          Pipeline stages: <strong style="color: var(--color-text);">Dependency scan</strong> (go.mod, package.json) →
+          <strong style="color: var(--color-text);">Dockerfile lint</strong> → <strong style="color: var(--color-text);">Image scan</strong> →
+          <strong style="color: var(--color-text);">CIS Docker compliance</strong>.
+          Pipeline fails if any <span class="severity-pill pill-critical" style="font-size: 10px;">CRITICAL</span> or
+          <span class="severity-pill pill-high" style="font-size: 10px;">HIGH</span> vulnerability found.
+        </p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Filter chip toggles
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (chip.parentElement.querySelector('.filter-chip.active')) {
+        const siblings = chip.parentElement.querySelectorAll('.filter-chip');
+        let hasActiveGroup = false;
+        siblings.forEach(s => {
+          if (s.classList.contains('active')) hasActiveGroup = true;
+        });
+        if (hasActiveGroup) {
+          siblings.forEach(s => s.classList.remove('active'));
+        }
+      }
+      chip.classList.toggle('active');
+    });
+  });
+</script>
+
+</body>
+</html>

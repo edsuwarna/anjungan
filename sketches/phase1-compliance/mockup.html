@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Phase 1 Compliance Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #10b981;
+    --primary-hover: #059669;
+    --primary-dim: rgba(16,185,129,0.12);
+    --primary-glow: rgba(16,185,129,0.25);
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --success: #10b981;
+    --info: #3b82f6;
+  }
+
+  html.dark {
+    --bg: #1a1d23;
+    --bg-alt: #1e2128;
+    --card: #24272e;
+    --card-hover: #2a2d35;
+    --sidebar: #1e2128;
+    --sidebar-hover: #2a2d35;
+    --border: #2d3039;
+    --border-light: #353841;
+    --text: #e4e6ea;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --surface-hover: rgba(255,255,255,0.04);
+    --surface-alt: #1e2128;
+  }
+
+  html.light {
+    --bg: #f4f5f7;
+    --bg-alt: #eef0f3;
+    --card: #ffffff;
+    --card-hover: #f9fafb;
+    --sidebar: #ffffff;
+    --sidebar-hover: #f3f4f6;
+    --border: #e5e7eb;
+    --border-light: #f0f1f3;
+    --text: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --surface-hover: rgba(0,0,0,0.02);
+    --surface-alt: #f9fafb;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  /* Layout */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 240px;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .main { flex: 1; padding: 0; overflow-x: hidden; }
+
+  /* Sidebar */
+  .sidebar-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sidebar-logo {
+    width: 28px; height: 28px;
+    background: var(--primary);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .sidebar-brand { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+
+  .sidebar-section { padding: 12px 12px 4px; }
+  .sidebar-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    padding: 0 8px 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 1px;
+  }
+  .nav-item:hover { background: var(--sidebar-hover); color: var(--text); }
+  .nav-item.active { background: var(--primary-dim); color: var(--primary); }
+  .nav-item .icon { width: 18px; height: 18px; flex-shrink: 0; }
+  .nav-item .badge {
+    margin-left: auto;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: white;
+    font-weight: 600;
+  }
+
+  /* Top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--primary-dim);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Content */
+  .content { padding: 24px 28px; max-width: 1200px; }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  /* Stat cards */
+  .stat-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 24px; }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-label { font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+  .stat-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* Tables */
+  .data-table { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+  .data-table table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    padding: 10px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--surface-hover); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--surface-hover); color: var(--text); border-color: var(--text-muted); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-ghost { background: transparent; color: var(--text-secondary); padding: 6px 10px; }
+  .btn-ghost:hover { color: var(--text); background: var(--surface-hover); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-icon {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 7px; cursor: pointer; border: none;
+    background: transparent; color: var(--text-secondary);
+    transition: all 0.15s;
+  }
+  .btn-icon:hover { background: var(--surface-hover); color: var(--text); }
+
+  /* Severity badges */
+  .sev-critical {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(239,68,68,0.12); color: #ef4444;
+  }
+  .sev-high {
+    background: rgba(249,115,22,0.12); color: #f97316;
+  }
+  .sev-medium {
+    background: rgba(245,158,11,0.12); color: #f59e0b;
+  }
+  .sev-low {
+    background: rgba(59,130,246,0.12); color: #3b82f6;
+  }
+  .sev-pass {
+    background: rgba(16,185,129,0.12); color: #10b981;
+  }
+  .sev-info {
+    background: rgba(107,114,128,0.15); color: var(--text-muted);
+  }
+
+  /* Score circle */
+  .score-ring {
+    width: 72px; height: 72px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .score-ring svg { transform: rotate(-90deg); }
+  .score-ring .bg { fill: none; stroke: var(--border); stroke-width: 5; }
+  .score-ring .fg { fill: none; stroke-width: 5; stroke-linecap: round; }
+  .score-ring .fg.good { stroke: #10b981; }
+  .score-ring .fg.warn { stroke: #f59e0b; }
+  .score-ring .fg.bad { stroke: #ef4444; }
+  .score-value {
+    position: absolute;
+    font-size: 20px; font-weight: 700;
+  }
+
+  /* Finding row */
+  .finding-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .finding-row:last-child { border-bottom: none; }
+  .finding-icon { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
+  .finding-content { flex: 1; min-width: 0; }
+  .finding-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .finding-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .finding-meta {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 6px; flex-wrap: wrap;
+  }
+  .finding-remediation {
+    font-size: 12px; color: var(--primary); cursor: pointer;
+    text-decoration: underline; text-underline-offset: 2px;
+  }
+  .finding-remediation:hover { color: var(--primary-hover); }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .filter-input {
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    min-width: 140px;
+  }
+  .filter-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-dim); }
+  .filter-input::placeholder { color: var(--text-muted); }
+  select.filter-input { cursor: pointer; }
+
+  /* Tag */
+  .tag {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 500;
+    background: var(--primary-dim); color: var(--primary);
+  }
+
+  /* Tabs */
+  .mockup-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    padding: 4px;
+    background: var(--surface-alt);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .mockup-tab {
+    padding: 8px 16px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .mockup-tab:hover { color: var(--text); }
+  .mockup-tab.active { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  .mockup-screen { display: none; }
+  .mockup-screen.active { display: block; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    z-index: 999;
+    max-width: 360px;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Modal overlay */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-body { padding: 16px 20px; }
+  .modal-footer {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-light);
+  }
+
+  /* Login alert */
+  .login-alert {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .login-alert.error { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+  .login-alert.warning { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+  .login-alert.success { background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 6px; background: var(--border); border-radius: 999px;
+    overflow: hidden; margin-top: 8px;
+  }
+  .progress-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+
+  /* Checkbox */
+  .checkbox { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .content { padding: 16px; }
+    .topbar { padding: 10px 16px; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">A</div>
+      <span class="sidebar-brand">Anjungan</span>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Dashboard</div>
+      <a class="nav-item" onclick="switchScreen('compliance')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Compliance
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Infrastructure</div>
+      <a class="nav-item" onclick="switchScreen('server-detail')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        Servers
+      </a>
+      <a class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Containers
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Security</div>
+      <a class="nav-item active" onclick="switchScreen('compliance')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        Compliance Overview
+        <span class="badge">2</span>
+      </a>
+      <a class="nav-item" onclick="switchScreen('audit-log')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Audit Log
+      </a>
+    </div>
+
+    <div class="sidebar-section" style="margin-top: auto; padding-bottom: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+      <div class="sidebar-section-title">Administration</div>
+      <a class="nav-item" onclick="switchScreen('users')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Users
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <!-- Top Bar -->
+    <div class="topbar">
+      <div class="topbar-title" id="pageTitle">Compliance Overview</div>
+      <div class="topbar-right">
+        <button class="btn btn-secondary btn-sm" onclick="toggleTheme()">
+          <span id="themeIcon">🌙</span>
+        </button>
+        <div class="avatar">ES</div>
+      </div>
+    </div>
+
+    <!-- Screen: Compliance Overview Dashboard -->
+    <div class="content mockup-screen active" id="screen-compliance">
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
+        Security compliance status across all managed servers
+      </p>
+
+      <!-- Stat cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Servers</div>
+          <div class="stat-value" style="color: var(--text);">7</div>
+          <div class="stat-sub">5 scanned · 2 pending</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Average Score</div>
+          <div class="stat-value" style="color: #f59e0b;">72</div>
+          <div class="stat-sub">⬆️ +4 from last week</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Passing</div>
+          <div class="stat-value" style="color: #10b981;">3</div>
+          <div class="stat-sub">Score ≥ 80</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Action Required</div>
+          <div class="stat-value" style="color: #ef4444;">2</div>
+          <div class="stat-sub">Score &lt; 60</div>
+        </div>
+      </div>
+
+      <!-- Top Findings -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+          <h3 style="font-size: 14px; font-weight: 600;">Top Findings Across All Servers</h3>
+          <button class="btn btn-primary btn-sm" onclick="triggerScanAll()">🔄 Scan All</button>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">SSH Password Authentication Enabled</div>
+            <div class="finding-desc">3 servers allow password-based SSH login instead of key-only</div>
+            <div class="finding-meta">
+              <span class="sev sev-critical">🔴 Critical</span>
+              <span style="font-size: 12px; color: var(--text-muted);">3/5 servers</span>
+              <span class="finding-remediation" onclick="showRemediation('Disable PasswordAuthentication in /etc/ssh/sshd_config and restart sshd')">How to fix →</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">UFW Firewall Inactive</div>
+            <div class="finding-desc">2 servers have no active firewall — all ports exposed to public</div>
+            <div class="finding-meta">
+              <span class="sev sev-critical">🔴 Critical</span>
+              <span style="font-size: 12px; color: var(--text-muted);">2/5 servers</span>
+              <span class="finding-remediation" onclick="showRemediation('Enable UFW: sudo ufw --force enable && sudo ufw default deny incoming')">How to fix →</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">Outdated Kernel — Reboot Required</div>
+            <div class="finding-desc">2 servers haven't been rebooted after kernel update (vulnerable to CVE-2025-XXXX)</div>
+            <div class="finding-meta">
+              <span class="sev sev-medium">🟡 Medium</span>
+              <span style="font-size: 12px; color: var(--text-muted);">2/5 servers</span>
+              <span class="finding-remediation">How to fix →</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">Privileged Containers Running</div>
+            <div class="finding-desc">1 container running with --privileged flag on peladen-central</div>
+            <div class="finding-meta">
+              <span class="sev sev-high">🟠 High</span>
+              <span style="font-size: 12px; color: var(--text-muted);">1/5 servers</span>
+              <span class="finding-remediation">How to fix →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Server table -->
+      <div class="data-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Server</th>
+              <th>Score</th>
+              <th>Status</th>
+              <th class="hidden md:table-cell">Findings</th>
+              <th class="hidden md:table-cell">Last Scan</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="cursor: pointer;" onclick="switchScreen('server-detail')">
+              <td>
+                <div style="font-weight: 500;">peladen-central</div>
+                <div style="font-size: 11px; color: var(--text-muted);">192.168.1.10</div>
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="score-ring" style="width: 44px; height: 44px;">
+                    <svg width="44" height="44" viewBox="0 0 44 44">
+                      <circle class="bg" cx="22" cy="22" r="18"/>
+                      <circle class="fg warn" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="33.9" style="transition: stroke-dashoffset 0.5s;"/>
+                    </svg>
+                    <span class="score-value" style="font-size: 14px;">70</span>
+                  </div>
+                </div>
+              </td>
+              <td><span class="sev sev-medium">🟡 Warning</span></td>
+              <td class="hidden md:table-cell">
+                <span style="display: flex; gap: 4px; flex-wrap: wrap;">
+                  <span class="sev sev-critical" style="font-size: 10px;">2 Critical</span>
+                  <span class="sev sev-medium" style="font-size: 10px;">3 Medium</span>
+                  <span class="sev sev-low" style="font-size: 10px;">1 Low</span>
+                </span>
+              </td>
+              <td class="hidden md:table-cell" style="color: var(--text-secondary); font-size: 12px;">2 hours ago</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); triggerScan()">Scan</button></td>
+            </tr>
+            <tr>
+              <td>
+                <div style="font-weight: 500;">vps-prod-01</div>
+                <div style="font-size: 11px; color: var(--text-muted);">203.0.113.42</div>
+              </td>
+              <td>
+                <div class="score-ring" style="width: 44px; height: 44px;">
+                  <svg width="44" height="44" viewBox="0 0 44 44">
+                    <circle class="bg" cx="22" cy="22" r="18"/>
+                    <circle class="fg good" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="11.3"/>
+                    <span class="score-value" style="font-size: 14px;">90</span>
+                  </svg>
+                </div>
+              </td>
+              <td><span class="sev sev-pass">🟢 Good</span></td>
+              <td class="hidden md:table-cell">
+                <span class="sev sev-low" style="font-size: 10px;">1 Low</span>
+              </td>
+              <td class="hidden md:table-cell" style="color: var(--text-secondary); font-size: 12px;">1 day ago</td>
+              <td><button class="btn btn-ghost btn-sm">Scan</button></td>
+            </tr>
+            <tr>
+              <td>
+                <div style="font-weight: 500;">dev-box-01</div>
+                <div style="font-size: 11px; color: var(--text-muted);">10.0.0.5</div>
+              </td>
+              <td>
+                <div class="score-ring" style="width: 44px; height: 44px;">
+                  <svg width="44" height="44" viewBox="0 0 44 44">
+                    <circle class="bg" cx="22" cy="22" r="18"/>
+                    <circle class="fg bad" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="67.9"/>
+                    <span class="score-value" style="font-size: 14px;">40</span>
+                  </svg>
+                </div>
+              </td>
+              <td><span class="sev sev-critical">🔴 Critical</span></td>
+              <td class="hidden md:table-cell">
+                <span class="sev sev-critical" style="font-size: 10px;">4 Critical</span>
+                <span class="sev sev-high" style="font-size: 10px;">2 High</span>
+              </td>
+              <td class="hidden md:table-cell" style="color: var(--text-secondary); font-size: 12px;">3 days ago</td>
+              <td><button class="btn btn-ghost btn-sm">Scan</button></td>
+            </tr>
+            <tr>
+              <td>
+                <div style="font-weight: 500;">staging-01</div>
+                <div style="font-size: 11px; color: var(--text-muted);">192.168.2.20</div>
+              </td>
+              <td>
+                <div class="score-ring" style="width: 44px; height: 44px;">
+                  <svg width="44" height="44" viewBox="0 0 44 44">
+                    <circle class="bg" cx="22" cy="22" r="18"/>
+                    <circle class="fg good" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="5.7"/>
+                    <span class="score-value" style="font-size: 14px;">95</span>
+                  </svg>
+                </div>
+              </td>
+              <td><span class="sev sev-pass">🟢 Good</span></td>
+              <td class="hidden md:table-cell">
+                <span class="sev sev-info" style="font-size: 10px;">2 Info</span>
+              </td>
+              <td class="hidden md:table-cell" style="color: var(--text-secondary); font-size: 12px;">6 hours ago</td>
+              <td><button class="btn btn-ghost btn-sm">Scan</button></td>
+            </tr>
+            <tr>
+              <td>
+                <div style="font-weight: 500;">minikube-dev</div>
+                <div style="font-size: 11px; color: var(--text-muted);">10.0.1.100</div>
+              </td>
+              <td>
+                <span style="font-size: 13px; color: var(--text-muted);">—</span>
+              </td>
+              <td><span class="sev sev-info">⚪ Never Scanned</span></td>
+              <td class="hidden md:table-cell"><span style="font-size: 12px; color: var(--text-muted);">—</span></td>
+              <td class="hidden md:table-cell" style="color: var(--text-muted); font-size: 12px;">—</td>
+              <td><button class="btn btn-primary btn-sm">Scan Now</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Screen: Server Compliance Detail -->
+    <div class="content mockup-screen" id="screen-server-detail">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+        <button class="btn btn-ghost btn-sm" onclick="switchScreen('compliance')" style="padding: 4px 8px;">← Back</button>
+        <div>
+          <h2 style="font-size: 16px; font-weight: 600;">peladen-central</h2>
+          <p style="font-size: 12px; color: var(--text-secondary);">192.168.1.10 · Ubuntu 24.04 · Last scan: 2 hours ago</p>
+        </div>
+      </div>
+
+      <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
+        <div class="stat-card" style="padding: 14px 16px; align-items: center;">
+          <div class="score-ring" style="width: 64px; height: 64px;">
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle class="bg" cx="32" cy="32" r="26"/>
+              <circle class="fg warn" cx="32" cy="32" r="26" stroke-dasharray="163.36" stroke-dashoffset="49.0" style="transition: stroke-dashoffset 0.5s;"/>
+            </svg>
+            <span class="score-value" style="font-size: 18px;">70</span>
+          </div>
+          <div class="stat-label" style="margin-top: 4px;">Score</div>
+        </div>
+        <div class="stat-card" style="padding: 14px 16px;">
+          <div class="stat-label">Critical</div>
+          <div class="stat-value" style="font-size: 22px; color: #ef4444;">2</div>
+        </div>
+        <div class="stat-card" style="padding: 14px 16px;">
+          <div class="stat-label">High</div>
+          <div class="stat-value" style="font-size: 22px; color: #f97316;">0</div>
+        </div>
+        <div class="stat-card" style="padding: 14px 16px;">
+          <div class="stat-label">Medium</div>
+          <div class="stat-value" style="font-size: 22px; color: #f59e0b;">3</div>
+        </div>
+        <div class="stat-card" style="padding: 14px 16px;">
+          <div class="stat-label">Low</div>
+          <div class="stat-value" style="font-size: 22px; color: #3b82f6;">1</div>
+        </div>
+        <div class="stat-card" style="padding: 14px 16px;">
+          <div class="stat-label">Passed</div>
+          <div class="stat-value" style="font-size: 22px; color: #10b981;">12</div>
+        </div>
+      </div>
+
+      <!-- Action bar -->
+      <div class="filter-bar">
+        <button class="btn btn-primary" onclick="showToast('🔍 Scanning peladen-central...')">
+          <span>🔄</span> Run Scan
+        </button>
+        <button class="btn btn-secondary" onclick="showToast('📅 Scheduled daily scan at 03:00')">
+          <span>⏰</span> Schedule
+        </button>
+        <button class="btn btn-secondary">
+          <span>📊</span> Export PDF
+        </button>
+        <select class="filter-input" style="min-width: 120px;">
+          <option>All Categories</option>
+          <option>SSH</option>
+          <option>Firewall</option>
+          <option>Kernel</option>
+          <option>Docker</option>
+          <option>Users</option>
+        </select>
+        <select class="filter-input" style="min-width: 100px;">
+          <option>All Severities</option>
+          <option>Critical</option>
+          <option>High</option>
+          <option>Medium</option>
+        </select>
+      </div>
+
+      <!-- Findings list -->
+      <div class="card">
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">Findings (6)</div>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 14px;">Security issues detected on this server</p>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">SSH Password Authentication Enabled</div>
+            <div class="finding-desc">PasswordAuthentication is set to 'yes' in /etc/ssh/sshd_config. This allows brute-force attacks against SSH.</div>
+            <div class="finding-meta">
+              <span class="sev sev-critical">🔴 Critical</span>
+              <span class="tag">SSH</span>
+              <span class="finding-remediation">sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && sudo systemctl restart sshd</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">UFW Firewall Inactive</div>
+            <div class="finding-desc">Uncomplicated Firewall (UFW) is not active. All ports are exposed to the public internet.</div>
+            <div class="finding-meta">
+              <span class="sev sev-critical">🔴 Critical</span>
+              <span class="tag">Firewall</span>
+              <span class="finding-remediation">Enable UFW and set default deny incoming policy</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">Kernel Update Requires Reboot</div>
+            <div class="finding-desc">Server has pending kernel updates that require a reboot. /var/run/reboot-required exists.</div>
+            <div class="finding-meta">
+              <span class="sev sev-medium">🟡 Medium</span>
+              <span class="tag">Kernel</span>
+              <span class="finding-remediation">Schedule maintenance window and reboot</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">Fail2ban Not Running</div>
+            <div class="finding-desc">Fail2ban service is installed but not active. Brute-force protection is not enabled.</div>
+            <div class="finding-meta">
+              <span class="sev sev-medium">🟡 Medium</span>
+              <span class="tag">SSH</span>
+              <span class="finding-remediation">sudo systemctl enable --now fail2ban</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">Disk Usage at 87%</div>
+            <div class="finding-desc">Root partition is 87% full (231GB / 265GB). Risk of service disruption.</div>
+            <div class="finding-meta">
+              <span class="sev sev-medium">🟡 Medium</span>
+              <span class="tag">System</span>
+              <span class="finding-remediation">Clean up old logs and Docker build cache</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row">
+          <div class="finding-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </div>
+          <div class="finding-content">
+            <div class="finding-title">World-Writable Files in /home</div>
+            <div class="finding-desc">3 world-writable files found in /home. Low risk but good practice to secure them.</div>
+            <div class="finding-meta">
+              <span class="sev sev-low">🔵 Low</span>
+              <span class="tag">Files</span>
+              <span class="finding-remediation">chmod o-w on identified files</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen: Audit Log with Export -->
+    <div class="content mockup-screen" id="screen-audit-log">
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
+        Track all administrative actions across the platform
+      </p>
+
+      <!-- Filter Bar -->
+      <div class="card" style="margin-bottom: 16px;">
+        <div style="display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Action</label>
+            <select class="filter-input" style="width: 100%;">
+              <option>All Actions</option>
+              <option>auth.login</option>
+              <option>server.create</option>
+              <option>user.update</option>
+              <option>container.start</option>
+            </select>
+          </div>
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Entity</label>
+            <select class="filter-input" style="width: 100%;">
+              <option>All Entities</option>
+              <option>user</option>
+              <option>server</option>
+              <option>ssh-key</option>
+              <option>container</option>
+            </select>
+          </div>
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Search</label>
+            <input class="filter-input" style="width: 100%;" placeholder="Description, email, ID...">
+          </div>
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Start Date</label>
+            <input class="filter-input" style="width: 100%;" type="date" value="2026-05-01">
+          </div>
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">End Date</label>
+            <input class="filter-input" style="width: 100%;" type="date" value="2026-06-03">
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary btn-sm">🔍 Apply</button>
+            <button class="btn btn-ghost btn-sm">Clear</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="showToast('📥 Exporting CSV...')">
+              <span>📄</span> Export CSV
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="showToast('📥 Exporting JSON...')">
+              <span>{ }</span> Export JSON
+            </button>
+            <span style="font-size: 12px; color: var(--text-muted); align-self: center;">248 entries</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="data-table">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 28px;"><input type="checkbox" class="checkbox"></th>
+              <th>Action</th>
+              <th>Entity</th>
+              <th>Description</th>
+              <th class="hidden md:table-cell">User</th>
+              <th class="hidden lg:table-cell">IP</th>
+              <th class="hidden md:table-cell">Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox" class="checkbox"></td>
+              <td><span style="font-family: monospace; font-size: 12px; background: var(--surface-alt); padding: 1px 6px; border-radius: 4px;">auth.login</span></td>
+              <td><span class="tag">user</span></td>
+              <td>
+                <div style="font-size: 13px;">User logged in</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Endang Suwarna (admin)</div>
+              </td>
+              <td class="hidden md:table-cell" style="font-size: 13px;">endang@edsuwarna.id</td>
+              <td class="hidden lg:table-cell" style="font-family: monospace; font-size: 12px; color: var(--text-muted);">203.0.113.1</td>
+              <td class="hidden md:table-cell" style="font-size: 12px; color: var(--text-secondary);">2026-06-03 14:22</td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" class="checkbox"></td>
+              <td><span style="font-family: monospace; font-size: 12px; background: var(--surface-alt); padding: 1px 6px; border-radius: 4px;">server.create</span></td>
+              <td><span class="tag">server</span></td>
+              <td>
+                <div style="font-size: 13px;">Created server staging-01</div>
+                <div style="font-size: 11px; color: var(--text-muted);">port:22 · group:staging · region:id-east</div>
+              </td>
+              <td class="hidden md:table-cell" style="font-size: 13px;">budiman@team.com</td>
+              <td class="hidden lg:table-cell" style="font-family: monospace; font-size: 12px; color: var(--text-muted);">10.0.0.5</td>
+              <td class="hidden md:table-cell" style="font-size: 12px; color: var(--text-secondary);">2026-06-03 13:45</td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" class="checkbox"></td>
+              <td><span style="font-family: monospace; font-size: 12px; background: rgba(239,68,68,0.1); color: #ef4444; padding: 1px 6px; border-radius: 4px;">user.delete</span></td>
+              <td><span class="tag">user</span></td>
+              <td>
+                <div style="font-size: 13px;">Deleted user Rudi Hartono (rudi@team.com)</div>
+              </td>
+              <td class="hidden md:table-cell" style="font-size: 13px;">endang@edsuwarna.id</td>
+              <td class="hidden lg:table-cell" style="font-family: monospace; font-size: 12px; color: var(--text-muted);">203.0.113.1</td>
+              <td class="hidden md:table-cell" style="font-size: 12px; color: var(--text-secondary);">2026-06-03 11:02</td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" class="checkbox"></td>
+              <td><span style="font-family: monospace; font-size: 12px; background: var(--surface-alt); padding: 1px 6px; border-radius: 4px;">container.restart</span></td>
+              <td><span class="tag">container</span></td>
+              <td>
+                <div style="font-size: 13px;">Restarted container anjungan-api</div>
+                <div style="font-size: 11px; color: var(--text-muted);">container:anjungan-api</div>
+              </td>
+              <td class="hidden md:table-cell" style="font-size: 13px;">devops@team.com</td>
+              <td class="hidden lg:table-cell" style="font-family: monospace; font-size: 12px; color: var(--text-muted);">192.168.1.50</td>
+              <td class="hidden md:table-cell" style="font-size: 12px; color: var(--text-secondary);">2026-06-03 10:30</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px;">
+        <button class="btn-icon" disabled>‹</button>
+        <button class="btn-icon" style="background: var(--primary); color: white;">1</button>
+        <button class="btn-icon">2</button>
+        <button class="btn-icon">3</button>
+        <button class="btn-icon">…</button>
+        <button class="btn-icon">12</button>
+        <button class="btn-icon">›</button>
+      </div>
+    </div>
+
+    <!-- Screen: Users (for Login Security demo) -->
+    <div class="content mockup-screen" id="screen-users">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 16px; font-weight: 600;">Users</h2>
+          <p style="font-size: 13px; color: var(--text-secondary);">Manage registered users and security policies</p>
+        </div>
+        <button class="btn btn-primary btn-sm">+ Add User</button>
+      </div>
+
+      <!-- Security Policy Card -->
+      <div class="card" style="margin-bottom: 20px; border-left: 3px solid var(--primary);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h3 style="font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+              <span>🔐</span> Login Security Policy
+            </h3>
+            <p style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+              Rate limiting, account lockout, and password policies
+            </p>
+          </div>
+          <button class="btn btn-secondary btn-sm">⚙️ Configure</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-light);">
+          <div>
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Max Login Attempts</div>
+            <div style="font-size: 15px; font-weight: 600; margin-top: 2px;">5</div>
+            <div style="font-size: 11px; color: var(--text-secondary);">before lockout</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Lockout Duration</div>
+            <div style="font-size: 15px; font-weight: 600; margin-top: 2px;">30 min</div>
+            <div style="font-size: 11px; color: var(--text-secondary);">automatic unlock</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Rate Limit Window</div>
+            <div style="font-size: 15px; font-weight: 600; margin-top: 2px;">15 min</div>
+            <div style="font-size: 11px; color: var(--text-secondary);">rolling window</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Min Password Length</div>
+            <div style="font-size: 15px; font-weight: 600; margin-top: 2px;">8</div>
+            <div style="font-size: 11px; color: var(--text-secondary);">currently enforced</div>
+          </div>
+        </div>
+
+        <!-- Recent lockout events -->
+        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-light);">
+          <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">Recent Lockout Events</div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 8px; background: var(--surface-alt); border-radius: 6px;">
+              <span style="color: var(--warning);">🔒</span>
+              <span style="color: var(--text-secondary);">203.0.113.55</span>
+              <span style="color: var(--text-muted);">— 5 failed attempts —</span>
+              <span style="color: var(--text-muted);">14 min ago</span>
+              <span style="margin-left: auto; font-size: 11px; color: var(--text-muted);">Locked until 14:52</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 8px; background: var(--surface-alt); border-radius: 6px;">
+              <span style="color: var(--text-muted);">🔓</span>
+              <span style="color: var(--text-secondary);">10.0.0.99</span>
+              <span style="color: var(--text-muted);">— 3 failed attempts —</span>
+              <span style="color: var(--text-muted);">1 hour ago</span>
+              <span style="margin-left: auto; font-size: 11px; color: #10b981;">Unlocked</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Login Preview -->
+      <div class="card" style="margin-bottom: 20px;">
+        <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">🔑 Login Page Preview</h3>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          <!-- Normal login -->
+          <div style="flex: 1; min-width: 200px; max-width: 320px;">
+            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px;">
+              <div style="font-size: 14px; font-weight: 600; text-align: center; margin-bottom: 16px;">Sign In</div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <input class="filter-input" style="width: 100%;" placeholder="Email" value="user@example.com">
+                <input class="filter-input" style="width: 100%;" type="password" placeholder="Password" value="••••••••">
+                <button class="btn btn-primary" style="width: 100%; justify-content: center;">Sign In</button>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 6px;">✅ Normal login</div>
+          </div>
+          <!-- Rate limited -->
+          <div style="flex: 1; min-width: 200px; max-width: 320px;">
+            <div style="background: var(--bg); border: 1px solid rgba(239,68,68,0.3); border-radius: 10px; padding: 20px;">
+              <div style="font-size: 14px; font-weight: 600; text-align: center; margin-bottom: 16px;">Sign In</div>
+              <div class="login-alert warning" style="font-size: 12px;">
+                ⚠️ 3/5 attempts used. 2 remaining before lockout.
+                <div class="progress-bar" style="margin-top: 4px;">
+                  <div class="progress-fill" style="width: 60%; background: #f59e0b;"></div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <input class="filter-input" style="width: 100%; border-color: var(--warning);" placeholder="Email" value="user@example.com">
+                <input class="filter-input" style="width: 100%;" type="password" placeholder="Password">
+                <button class="btn btn-primary" style="width: 100%; justify-content: center;">Sign In</button>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 6px;">⚠️ Rate limit warning</div>
+          </div>
+          <!-- Locked -->
+          <div style="flex: 1; min-width: 200px; max-width: 320px;">
+            <div style="background: var(--bg); border: 1px solid rgba(239,68,68,0.3); border-radius: 10px; padding: 20px; opacity: 0.7;">
+              <div style="font-size: 14px; font-weight: 600; text-align: center; margin-bottom: 16px;">Sign In</div>
+              <div class="login-alert error" style="font-size: 12px;">
+                🔒 Account locked. Too many failed attempts.
+                <div style="font-size: 11px; margin-top: 4px; color: var(--warning);">Try again in 28 minutes</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <input class="filter-input" style="width: 100%;" placeholder="Email" value="user@example.com" disabled>
+                <input class="filter-input" style="width: 100%;" type="password" placeholder="Password" disabled>
+                <button class="btn btn-secondary" style="width: 100%; justify-content: center;" disabled>Sign In</button>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 6px;">🔒 Locked state</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast" style="display: none;"></div>
+
+<script>
+  let currentScreen = 'compliance';
+
+  function switchScreen(id) {
+    document.querySelectorAll('.mockup-screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + id).classList.add('active');
+    currentScreen = id;
+
+    const titles = {
+      'compliance': 'Compliance Overview',
+      'server-detail': 'peladen-central · Compliance',
+      'audit-log': 'Audit Log',
+      'users': 'Users & Security Policies',
+    };
+    document.getElementById('pageTitle').textContent = titles[id] || 'Anjungan';
+
+    // Update sidebar active state
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'flex';
+    t.style.animation = 'none';
+    t.offsetHeight;
+    t.style.animation = 'slideUp 0.3s ease';
+    setTimeout(() => { t.style.display = 'none'; }, 2500);
+  }
+
+  function showRemediation(cmd) {
+    showToast('🔧 ' + cmd);
+  }
+
+  function triggerScan() {
+    showToast('🔍 Scanning server...');
+    setTimeout(() => showToast('✅ Scan complete! 2 new findings detected'), 2000);
+  }
+
+  function triggerScanAll() {
+    showToast('🔍 Scanning all 5 servers...');
+    setTimeout(() => showToast('✅ Scan complete! 3 servers updated'), 3000);
+  }
+
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.classList.contains('dark');
+    if (isDark) {
+      html.classList.remove('dark');
+      html.classList.add('light');
+      document.getElementById('themeIcon').textContent = '☀️';
+    } else {
+      html.classList.remove('light');
+      html.classList.add('dark');
+      document.getElementById('themeIcon').textContent = '🌙';
+    }
+  }
+</script>
+
+</body>
+</html>

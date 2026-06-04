@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS alerts;
+DROP TABLE IF EXISTS server_metrics;
+DROP INDEX IF EXISTS idx_servers_server_group;
+DROP INDEX IF EXISTS idx_servers_region;
+DROP INDEX IF EXISTS idx_servers_server_type;
+DROP INDEX IF EXISTS idx_servers_last_seen;
+ALTER TABLE servers DROP COLUMN IF EXISTS tags;
+ALTER TABLE servers DROP COLUMN IF EXISTS labels;
+ALTER TABLE servers DROP COLUMN IF EXISTS server_group;
+ALTER TABLE servers DROP COLUMN IF EXISTS region;
+ALTER TABLE servers DROP COLUMN IF EXISTS server_type;
+ALTER TABLE servers DROP COLUMN IF EXISTS description;
+ALTER TABLE servers DROP COLUMN IF EXISTS os_info;
+ALTER TABLE servers DROP COLUMN IF EXISTS cpu_info;
+ALTER TABLE servers DROP COLUMN IF EXISTS last_seen_at;
+ALTER TABLE servers DROP COLUMN IF EXISTS monitoring;

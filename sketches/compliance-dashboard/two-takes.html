@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Compliance Dashboard Sketches</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; background: #1a1d23; color: #e5e7eb; line-height: 1.5; }
+
+  /* Tab switching */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .tab-btn.active { background: #10b981; color: #fff; border-color: #10b981; }
+
+  /* Emerge animation */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-in { animation: fadeIn 0.4s ease-out; }
+
+  /* Score colors */
+  .score-pass { color: #10b981; }
+  .score-warn { color: #f59e0b; }
+  .score-fail { color: #ef4444; }
+
+  .bg-pass { background: #10b981; }
+  .bg-warn { background: #f59e0b; }
+  .bg-fail { background: #ef4444; }
+  .bg-grayed { background: #4b5563; }
+
+  /* Severity badges */
+  .sev-critical { background: #ef4444; color: #fff; }
+  .sev-high { background: #f97316; color: #fff; }
+  .sev-medium { background: #f59e0b; color: #000; }
+  .sev-low { background: #6b7280; color: #fff; }
+  .sev-passed { background: #10b981; color: #fff; }
+
+  /* Distribution bar segments */
+  .seg-red { background: #ef4444; }
+  .seg-orange { background: #f97316; }
+  .seg-yellow { background: #f59e0b; }
+  .seg-green { background: #10b981; }
+
+  /* Progress bar */
+  .progress-bar { height: 6px; border-radius: 999px; background: #374151; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
+
+  /* Scrollbar custom */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #374151; border-radius: 999px; }
+
+  /* Hover card */
+  .server-card { transition: all 0.15s ease; }
+  .server-card:hover { border-color: #10b98140; background: #1f2937; }
+
+  /* Border left color status */
+  .b-l-pass { border-left: 3px solid #10b981; }
+  .b-l-warn { border-left: 3px solid #f59e0b; }
+  .b-l-fail { border-left: 3px solid #ef4444; }
+  .b-l-na { border-left: 3px solid #4b5563; }
+
+  .variant-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="sticky top-0 z-10 bg-[#1a1d23] border-b border-[#2d3039] px-6 py-4 flex items-center justify-between">
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg bg-[#10b981] flex items-center justify-center text-xs font-bold text-white">A</div>
+      <span class="text-sm font-semibold text-gray-300">Anjungan</span>
+    </div>
+    <div class="h-4 w-px bg-[#374151]"></div>
+    <h1 class="text-base font-semibold text-white">Compliance Dashboard</h1>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="text-xs text-gray-400 mr-2">Choose variant:</span>
+    <button onclick="switchTab('a')" class="tab-btn active text-xs font-medium px-3 py-1.5 rounded-md border border-[#374151] text-gray-300 hover:border-gray-500 transition-all" id="tab-a">A · Score Cards</button>
+    <button onclick="switchTab('b')" class="tab-btn text-xs font-medium px-3 py-1.5 rounded-md border border-[#374151] text-gray-300 hover:border-gray-500 transition-all" id="tab-b">B · Compact Table</button>
+  </div>
+</div>
+
+<!-- ============================== -->
+<!-- VARIANT A: SCORE CARDS         -->
+<!-- ============================== -->
+<div id="content-a" class="tab-content active p-6 animate-in">
+  <div class="max-w-6xl mx-auto">
+
+    <!-- GLOBAL FILTERS -->
+    <div class="flex flex-wrap items-center gap-2 mb-5">
+      <span class="text-xs text-gray-400 font-medium mr-1">Scan:</span>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#10b981] text-white border border-[#10b981] transition-all">All</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all">CIS L1</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all">CIS L2</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all">Lynis</button>
+      <div class="w-px h-5 bg-[#374151] mx-2"></div>
+      <span class="text-xs text-gray-400 font-medium mr-1">Status:</span>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#10b981] text-white border border-[#10b981]">All</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all">✅ Passing</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all">⚠️ Warning</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all">🔴 Critical</button>
+    </div>
+
+    <!-- KPI CARDS (4-col grid) -->
+    <div class="grid grid-cols-4 gap-4 mb-6">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+        <div class="text-xs text-gray-400 font-medium mb-1">Total Servers</div>
+        <div class="text-3xl font-bold text-white">12</div>
+        <div class="text-xs text-gray-400 mt-1"><span class="text-[#10b981]">10 scanned</span> · 2 pending</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+        <div class="text-xs text-gray-400 font-medium mb-1">Average Score</div>
+        <div class="text-3xl font-bold text-[#10b981]">84%</div>
+        <div class="text-xs text-gray-400 mt-1"><span class="text-[#f59e0b]">↑ 3%</span> from last week</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+        <div class="text-xs text-gray-400 font-medium mb-1">Passing (≥80)</div>
+        <div class="text-3xl font-bold text-[#10b981]">7</div>
+        <div class="text-xs text-gray-400 mt-1">of <strong class="text-white">10</strong> scanned servers</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+        <div class="text-xs text-gray-400 font-medium mb-1">Distribution</div>
+        <div class="h-2 rounded-full bg-[#374151] overflow-hidden mt-3 flex">
+          <div class="seg-green" style="width:58%"></div>
+          <div class="seg-yellow" style="width:17%"></div>
+          <div class="seg-orange" style="width:13%"></div>
+          <div class="seg-red" style="width:12%"></div>
+        </div>
+        <div class="flex text-[10px] text-gray-400 mt-1.5 justify-between">
+          <span>🟢 58%</span>
+          <span>🟡 17%</span>
+          <span>🟠 13%</span>
+          <span>🔴 12%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SERVER CARDS -->
+    <div class="space-y-3">
+      <!-- Card 1: Passing -->
+      <div class="server-card b-l-pass bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 cursor-pointer">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-[#10b981]/10 flex items-center justify-center text-lg shrink-0">🖥️</div>
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-white truncate">web-01.prod</div>
+              <div class="text-xs text-gray-400 truncate">web01.prod.anjungan.io · 10.0.1.10</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 shrink-0">
+            <div class="text-right">
+              <div class="text-2xl font-bold score-pass">92</div>
+              <span class="text-[10px] font-semibold text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded-full">Passing</span>
+            </div>
+            <div class="flex gap-1.5">
+              <span class="sev-critical text-[10px] font-semibold px-2 py-0.5 rounded-full">2 C</span>
+              <span class="sev-high text-[10px] font-semibold px-2 py-0.5 rounded-full">1 H</span>
+              <span class="sev-medium text-[10px] font-semibold px-2 py-0.5 rounded-full">3 M</span>
+              <span class="sev-passed text-[10px] font-semibold px-2 py-0.5 rounded-full">86 P</span>
+            </div>
+            <div class="text-[10px] text-gray-400 w-20 text-right">Scanned 2h ago</div>
+            <div class="flex gap-1.5">
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Scan</button>
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[#374151] text-gray-300 hover:bg-[#374151] transition-all">Detail</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Warning -->
+      <div class="server-card b-l-warn bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 cursor-pointer">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-[#f59e0b]/10 flex items-center justify-center text-lg shrink-0">🛢️</div>
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-white truncate">db-01.staging</div>
+              <div class="text-xs text-gray-400 truncate">db01.staging.anjungan.io · 10.0.2.20</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 shrink-0">
+            <div class="text-right">
+              <div class="text-2xl font-bold score-warn">67</div>
+              <span class="text-[10px] font-semibold text-[#f59e0b] bg-[#f59e0b]/10 px-2 py-0.5 rounded-full">⚠️ Warning</span>
+            </div>
+            <div class="flex gap-1.5">
+              <span class="sev-critical text-[10px] font-semibold px-2 py-0.5 rounded-full">0 C</span>
+              <span class="sev-high text-[10px] font-semibold px-2 py-0.5 rounded-full">3 H</span>
+              <span class="sev-medium text-[10px] font-semibold px-2 py-0.5 rounded-full">5 M</span>
+              <span class="sev-passed text-[10px] font-semibold px-2 py-0.5 rounded-full">52 P</span>
+            </div>
+            <div class="text-[10px] text-gray-400 w-20 text-right">Scanned 6h ago</div>
+            <div class="flex gap-1.5">
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Scan</button>
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[#374151] text-gray-300 hover:bg-[#374151] transition-all">Detail</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Critical -->
+      <div class="server-card b-l-fail bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 cursor-pointer">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-[#ef4444]/10 flex items-center justify-center text-lg shrink-0">📦</div>
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-white truncate">api-gw-01.prod</div>
+              <div class="text-xs text-gray-400 truncate">apigw01.prod.anjungan.io · 10.0.1.15</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 shrink-0">
+            <div class="text-right">
+              <div class="text-2xl font-bold score-fail">43</div>
+              <span class="text-[10px] font-semibold text-[#ef4444] bg-[#ef4444]/10 px-2 py-0.5 rounded-full">🔴 Critical</span>
+            </div>
+            <div class="flex gap-1.5">
+              <span class="sev-critical text-[10px] font-semibold px-2 py-0.5 rounded-full">3 C</span>
+              <span class="sev-high text-[10px] font-semibold px-2 py-0.5 rounded-full">8 H</span>
+              <span class="sev-medium text-[10px] font-semibold px-2 py-0.5 rounded-full">12 M</span>
+              <span class="sev-passed text-[10px] font-semibold px-2 py-0.5 rounded-full">30 P</span>
+            </div>
+            <div class="text-[10px] text-gray-400 w-20 text-right">Scanned 1h ago</div>
+            <div class="flex gap-1.5">
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Scan</button>
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[#374151] text-gray-300 hover:bg-[#374151] transition-all">Detail</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: Pending scan -->
+      <div class="server-card b-l-na bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 cursor-pointer">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-[#374151]/50 flex items-center justify-center text-lg shrink-0">📡</div>
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-white truncate">cache-01.prod</div>
+              <div class="text-xs text-gray-400 truncate">cache01.prod.anjungan.io · 10.0.1.22</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 shrink-0">
+            <div class="text-right">
+              <div class="text-2xl font-bold text-[#6b7280]">—</div>
+              <span class="text-[10px] font-semibold text-[#6b7280] bg-[#374151] px-2 py-0.5 rounded-full">Not scanned</span>
+            </div>
+            <div class="flex gap-1.5">
+              <span class="text-[10px] text-gray-500">—</span>
+            </div>
+            <div class="text-[10px] text-gray-500 w-20 text-right">Never</div>
+            <div class="flex gap-1.5">
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Scan</button>
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[#374151] text-gray-300 hover:bg-[#374151] transition-all">Detail</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 5: Passing -->
+      <div class="server-card b-l-pass bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 cursor-pointer">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-[#10b981]/10 flex items-center justify-center text-lg shrink-0">🗄️</div>
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-white truncate">redis-01.prod</div>
+              <div class="text-xs text-gray-400 truncate">redis01.prod.anjungan.io · 10.0.1.30</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 shrink-0">
+            <div class="text-right">
+              <div class="text-2xl font-bold score-pass">97</div>
+              <span class="text-[10px] font-semibold text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded-full">Passing</span>
+            </div>
+            <div class="flex gap-1.5">
+              <span class="sev-critical text-[10px] font-semibold px-2 py-0.5 rounded-full">0 C</span>
+              <span class="sev-high text-[10px] font-semibold px-2 py-0.5 rounded-full">0 H</span>
+              <span class="sev-medium text-[10px] font-semibold px-2 py-0.5 rounded-full">1 M</span>
+              <span class="sev-passed text-[10px] font-semibold px-2 py-0.5 rounded-full">99 P</span>
+            </div>
+            <div class="text-[10px] text-gray-400 w-20 text-right">Scanned 4h ago</div>
+            <div class="flex gap-1.5">
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Scan</button>
+              <button class="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[#374151] text-gray-300 hover:bg-[#374151] transition-all">Detail</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLLAPSIBLE: Top Findings -->
+    <details class="mt-5 bg-[#1f2937] rounded-xl border border-[#2d3039] overflow-hidden" open>
+      <summary class="px-4 py-3 text-sm font-semibold text-white cursor-pointer hover:bg-[#2d3039] transition-all flex items-center gap-2">
+        <span class="text-[#ef4444]">🔴</span> Top Findings
+        <span class="text-xs font-normal text-gray-400 ml-1">(4 unresolved)</span>
+      </summary>
+      <div class="border-t border-[#2d3039] divide-y divide-[#2d3039]">
+        <div class="px-4 py-2.5 flex items-start gap-3 hover:bg-[#2d3039]/50">
+          <span class="mt-0.5 text-sm">🔴</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-white">OpenSSH < 9.6 — CVE-2025-XXXX</div>
+            <div class="text-xs text-gray-400">Affects: <span class="text-[#ef4444]">api-gw-01.prod</span>, <span class="text-[#f97316]">db-01.staging</span></div>
+          </div>
+          <span class="sev-critical text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0">Critical</span>
+        </div>
+        <div class="px-4 py-2.5 flex items-start gap-3 hover:bg-[#2d3039]/50">
+          <span class="mt-0.5 text-sm">🟠</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-white">Nginx — outdated version (1.24.x vs 1.26.x)</div>
+            <div class="text-xs text-gray-400">Affects: <span class="text-[#f97316]">api-gw-01.prod</span>, <span class="text-[#10b981]">web-01.prod</span></div>
+          </div>
+          <span class="sev-high text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0">High</span>
+        </div>
+        <div class="px-4 py-2.5 flex items-start gap-3 hover:bg-[#2d3039]/50">
+          <span class="mt-0.5 text-sm">🟠</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-white">PostgreSQL 15 — missing security patches</div>
+            <div class="text-xs text-gray-400">Affects: <span class="text-[#f97316]">db-01.staging</span></div>
+          </div>
+          <span class="sev-high text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0">High</span>
+        </div>
+        <div class="px-4 py-2.5 flex items-start gap-3 hover:bg-[#2d3039]/50">
+          <span class="mt-0.5 text-sm">🟡</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-white">Redis — no auth configured (bind 127.0.0.1 only)</div>
+            <div class="text-xs text-gray-400">Affects: <span class="text-[#f59e0b]">redis-01.prod</span></div>
+          </div>
+          <span class="sev-medium text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0">Medium</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- COLLAPSIBLE: Scan History -->
+    <details class="mt-3 bg-[#1f2937] rounded-xl border border-[#2d3039] overflow-hidden">
+      <summary class="px-4 py-3 text-sm font-semibold text-white cursor-pointer hover:bg-[#2d3039] transition-all">
+        📋 Scan History
+        <span class="text-xs font-normal text-gray-400 ml-1">(last 10 scans)</span>
+      </summary>
+      <div class="border-t border-[#2d3039] divide-y divide-[#2d3039] text-xs">
+        <div class="px-4 py-2 flex items-center gap-3 text-gray-400">
+          <span class="text-[10px] text-gray-500 w-16">12:30 PM</span>
+          <span class="text-[10px] font-medium text-gray-300 bg-[#2d3039] px-1.5 py-0.5 rounded">CIS L2</span>
+          <span class="font-medium text-white">api-gw-01.prod</span>
+          <span class="score-fail font-bold">43%</span>
+          <span>🔴3 🟠8 🟡12 🟢30</span>
+        </div>
+        <div class="px-4 py-2 flex items-center gap-3 text-gray-400">
+          <span class="text-[10px] text-gray-500 w-16">11:15 AM</span>
+          <span class="text-[10px] font-medium text-gray-300 bg-[#2d3039] px-1.5 py-0.5 rounded">Lynis</span>
+          <span class="font-medium text-white">db-01.staging</span>
+          <span class="score-warn font-bold">67%</span>
+          <span>🔴0 🟠3 🟡5 🟢52</span>
+        </div>
+        <div class="px-4 py-2 flex items-center gap-3 text-gray-400">
+          <span class="text-[10px] text-gray-500 w-16">10:00 AM</span>
+          <span class="text-[10px] font-medium text-gray-300 bg-[#2d3039] px-1.5 py-0.5 rounded">CIS L1</span>
+          <span class="font-medium text-white">web-01.prod</span>
+          <span class="score-pass font-bold">92%</span>
+          <span>🔴2 🟠1 🟡3 🟢86</span>
+        </div>
+        <div class="px-4 py-2 flex items-center gap-3 text-gray-400">
+          <span class="text-[10px] text-gray-500 w-16">08:45 AM</span>
+          <span class="text-[10px] font-medium text-gray-300 bg-[#2d3039] px-1.5 py-0.5 rounded">CIS L2</span>
+          <span class="font-medium text-white">redis-01.prod</span>
+          <span class="score-pass font-bold">97%</span>
+          <span>🔴0 🟠0 🟡1 🟢99</span>
+        </div>
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<!-- ============================== -->
+<!-- VARIANT B: COMPACT TABLE       -->
+<!-- ============================== -->
+<div id="content-b" class="tab-content p-6 animate-in">
+  <div class="max-w-6xl mx-auto">
+
+    <!-- COMPACT FILTERS (tabs style) -->
+    <div class="flex items-center gap-1 bg-[#1f2937] rounded-xl p-1 border border-[#2d3039] mb-5 w-fit">
+      <button class="text-xs font-medium px-4 py-1.5 rounded-lg bg-[#10b981] text-white transition-all">All Servers</button>
+      <button class="text-xs font-medium px-4 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#374151] transition-all">Passing</button>
+      <button class="text-xs font-medium px-4 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#374151] transition-all">Warning</button>
+      <button class="text-xs font-medium px-4 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#374151] transition-all">Critical</button>
+      <button class="text-xs font-medium px-4 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#374151] transition-all">Unscanned</button>
+    </div>
+
+    <!-- COMPACT KPI (4 mini cards) -->
+    <div class="grid grid-cols-4 gap-3 mb-5">
+      <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] px-3 py-2.5">
+        <div class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total</div>
+        <div class="text-lg font-bold text-white">12</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] px-3 py-2.5">
+        <div class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Avg Score</div>
+        <div class="text-lg font-bold text-[#10b981]">84%</div>
+        <div class="text-[10px] text-gray-500">+3% from last wk</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] px-3 py-2.5">
+        <div class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Passing</div>
+        <div class="text-lg font-bold text-[#10b981]">7/10</div>
+        <div class="text-[10px] text-gray-500">scored ≥80</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] px-3 py-2.5">
+        <div class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Findings</div>
+        <div class="text-lg font-bold">5 <span class="text-[#ef4444] text-sm">🔴</span> 12 <span class="text-[#f97316] text-sm">🟠</span></div>
+        <div class="text-[10px] text-gray-500">Critical · High</div>
+      </div>
+    </div>
+
+    <!-- TABLES: Framework tabs -->
+    <div class="flex items-center gap-1 mb-3">
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#10b981] text-white border border-[#10b981]" onclick="switchFramework('b', 'all')">All Scans</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all" onclick="switchFramework('b', 'cisl1')">CIS L1</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all" onclick="switchFramework('b', 'cisl2')">CIS L2</button>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all" onclick="switchFramework('b', 'lynis')">Lynis</button>
+    </div>
+
+    <!-- TABLE -->
+    <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-[#2d3039] bg-[#22252e]">
+            <th class="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-4 py-3">Server</th>
+            <th class="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-3">Score</th>
+            <th class="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-3">Progress</th>
+            <th class="text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-3">🔴 C</th>
+            <th class="text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-3">🟠 H</th>
+            <th class="text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-3">🟡 M</th>
+            <th class="text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-3">🟢 P</th>
+            <th class="text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-3">Status</th>
+            <th class="text-right text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-4 py-3">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[#2d3039]">
+          <!-- web-01.prod -->
+          <tr class="hover:bg-[#2d3039]/50 transition-all">
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span>🖥️</span>
+                <div>
+                  <div class="text-sm font-medium text-white">web-01.prod</div>
+                  <div class="text-[10px] text-gray-400">10.0.1.10</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-2 py-3">
+              <span class="text-base font-bold text-[#10b981]">92</span>
+            </td>
+            <td class="px-2 py-3 w-28">
+              <div class="progress-bar">
+                <div class="progress-fill bg-[#10b981]" style="width:92%"></div>
+              </div>
+            </td>
+            <td class="px-2 py-3 text-center text-[#ef4444] font-medium">2</td>
+            <td class="px-2 py-3 text-center text-[#f97316] font-medium">1</td>
+            <td class="px-2 py-3 text-center text-[#f59e0b] font-medium">3</td>
+            <td class="px-2 py-3 text-center text-[#10b981] font-medium">86</td>
+            <td class="px-2 py-3 text-center">
+              <span class="text-[10px] font-semibold text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded-full">Passing</span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <button class="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Detail</button>
+            </td>
+          </tr>
+          <!-- db-01.staging -->
+          <tr class="hover:bg-[#2d3039]/50 transition-all">
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span>🛢️</span>
+                <div>
+                  <div class="text-sm font-medium text-white">db-01.staging</div>
+                  <div class="text-[10px] text-gray-400">10.0.2.20</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-2 py-3">
+              <span class="text-base font-bold text-[#f59e0b]">67</span>
+            </td>
+            <td class="px-2 py-3 w-28">
+              <div class="progress-bar">
+                <div class="progress-fill bg-[#f59e0b]" style="width:67%"></div>
+              </div>
+            </td>
+            <td class="px-2 py-3 text-center text-[#ef4444] font-medium">0</td>
+            <td class="px-2 py-3 text-center text-[#f97316] font-medium">3</td>
+            <td class="px-2 py-3 text-center text-[#f59e0b] font-medium">5</td>
+            <td class="px-2 py-3 text-center text-[#10b981] font-medium">52</td>
+            <td class="px-2 py-3 text-center">
+              <span class="text-[10px] font-semibold text-[#f59e0b] bg-[#f59e0b]/10 px-2 py-0.5 rounded-full">⚠️ Warning</span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <button class="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Detail</button>
+            </td>
+          </tr>
+          <!-- api-gw-01.prod -->
+          <tr class="hover:bg-[#2d3039]/50 transition-all">
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span>📦</span>
+                <div>
+                  <div class="text-sm font-medium text-white">api-gw-01.prod</div>
+                  <div class="text-[10px] text-gray-400">10.0.1.15</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-2 py-3">
+              <span class="text-base font-bold text-[#ef4444]">43</span>
+            </td>
+            <td class="px-2 py-3 w-28">
+              <div class="progress-bar">
+                <div class="progress-fill bg-[#ef4444]" style="width:43%"></div>
+              </div>
+            </td>
+            <td class="px-2 py-3 text-center text-[#ef4444] font-medium">3</td>
+            <td class="px-2 py-3 text-center text-[#f97316] font-medium">8</td>
+            <td class="px-2 py-3 text-center text-[#f59e0b] font-medium">12</td>
+            <td class="px-2 py-3 text-center text-[#10b981] font-medium">30</td>
+            <td class="px-2 py-3 text-center">
+              <span class="text-[10px] font-semibold text-[#ef4444] bg-[#ef4444]/10 px-2 py-0.5 rounded-full">🔴 Critical</span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <button class="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Detail</button>
+            </td>
+          </tr>
+          <!-- redis-01.prod -->
+          <tr class="hover:bg-[#2d3039]/50 transition-all">
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span>🗄️</span>
+                <div>
+                  <div class="text-sm font-medium text-white">redis-01.prod</div>
+                  <div class="text-[10px] text-gray-400">10.0.1.30</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-2 py-3">
+              <span class="text-base font-bold text-[#10b981]">97</span>
+            </td>
+            <td class="px-2 py-3 w-28">
+              <div class="progress-bar">
+                <div class="progress-fill bg-[#10b981]" style="width:97%"></div>
+              </div>
+            </td>
+            <td class="px-2 py-3 text-center text-[#ef4444] font-medium">0</td>
+            <td class="px-2 py-3 text-center text-[#f97316] font-medium">0</td>
+            <td class="px-2 py-3 text-center text-[#f59e0b] font-medium">1</td>
+            <td class="px-2 py-3 text-center text-[#10b981] font-medium">99</td>
+            <td class="px-2 py-3 text-center">
+              <span class="text-[10px] font-semibold text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded-full">Passing</span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <button class="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Detail</button>
+            </td>
+          </tr>
+          <!-- cache-01.prod -->
+          <tr class="hover:bg-[#2d3039]/50 transition-all">
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span>📡</span>
+                <div>
+                  <div class="text-sm font-medium text-white">cache-01.prod</div>
+                  <div class="text-[10px] text-gray-400">10.0.1.22</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-2 py-3">
+              <span class="text-base font-bold text-[#6b7280]">—</span>
+            </td>
+            <td class="px-2 py-3 w-28">
+              <div class="progress-bar">
+                <div class="progress-fill bg-[#374151]" style="width:0%"></div>
+              </div>
+            </td>
+            <td class="px-2 py-3 text-center text-gray-500" colspan="4">— not scanned —</td>
+            <td class="px-2 py-3 text-center">
+              <span class="text-[10px] font-semibold text-[#6b7280] bg-[#374151] px-2 py-0.5 rounded-full">Pending</span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <button class="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] transition-all">Scan</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- FINDINGS ROW (inline badges) -->
+    <div class="mt-3 flex items-center gap-2 flex-wrap">
+      <span class="text-xs text-gray-400 font-medium">Recent: </span>
+      <span class="sev-critical text-[10px] font-semibold px-2 py-0.5 rounded-full">CVE-2025-XXXX</span>
+      <span class="text-xs text-gray-400">OpenSSH < 9.6 · </span>
+      <span class="sev-high text-[10px] font-semibold px-2 py-0.5 rounded-full">Nginx outdated</span>
+      <span class="text-xs text-gray-400">· </span>
+      <span class="sev-medium text-[10px] font-semibold px-2 py-0.5 rounded-full">Redis no auth</span>
+      <span class="text-xs text-gray-400 ml-1">+2 more</span>
+    </div>
+
+    <!-- COMPACT HISTORY -->
+    <details class="mt-4 bg-[#1f2937] rounded-xl border border-[#2d3039] overflow-hidden">
+      <summary class="px-4 py-2.5 text-sm font-semibold text-white cursor-pointer hover:bg-[#2d3039] transition-all text-xs">
+        📋 Last 5 Scans
+      </summary>
+      <div class="border-t border-[#2d3039] divide-y divide-[#2d3039] text-xs">
+        <div class="px-4 py-1.5 flex items-center gap-3 text-gray-400">
+          <span class="text-gray-500 w-14">12:30 PM</span>
+          <span class="text-gray-300 bg-[#2d3039] px-1.5 rounded text-[10px] font-medium">CIS L2</span>
+          <span class="text-white font-medium">api-gw-01.prod</span>
+          <span class="score-fail font-bold">43%</span>
+          <span>🔴3🟠8🟡12🟢30</span>
+        </div>
+        <div class="px-4 py-1.5 flex items-center gap-3 text-gray-400">
+          <span class="text-gray-500 w-14">11:15 AM</span>
+          <span class="text-gray-300 bg-[#2d3039] px-1.5 rounded text-[10px] font-medium">Lynis</span>
+          <span class="text-white font-medium">db-01.staging</span>
+          <span class="score-warn font-bold">67%</span>
+          <span>🔴0🟠3🟡5🟢52</span>
+        </div>
+        <div class="px-4 py-1.5 flex items-center gap-3 text-gray-400">
+          <span class="text-gray-500 w-14">10:00 AM</span>
+          <span class="text-gray-300 bg-[#2d3039] px-1.5 rounded text-[10px] font-medium">CIS L1</span>
+          <span class="text-white font-medium">web-01.prod</span>
+          <span class="score-pass font-bold">92%</span>
+          <span>🔴2🟠1🟡3🟢86</span>
+        </div>
+        <div class="px-4 py-1.5 flex items-center gap-3 text-gray-400">
+          <span class="text-gray-500 w-14">08:45 AM</span>
+          <span class="text-gray-300 bg-[#2d3039] px-1.5 rounded text-[10px] font-medium">CIS L2</span>
+          <span class="text-white font-medium">redis-01.prod</span>
+          <span class="score-pass font-bold">97%</span>
+          <span>🔴0🟠0🟡1🟢99</span>
+        </div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('content-' + tab).classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+  }
+  // Framework tabs placeholder for variant B (visual only)
+  function switchFramework(variant, framework) {
+    // Visual-only demo: just update button styles
+    const container = document.getElementById('content-' + variant);
+    container.querySelectorAll('[onclick*="switchFramework"]').forEach(el => {
+      el.className = 'text-xs font-medium px-3 py-1.5 rounded-full bg-[#2d3039] text-gray-300 border border-[#374151] hover:border-gray-500 transition-all';
+    });
+    // Highlight clicked one
+    event.target.className = 'text-xs font-medium px-3 py-1.5 rounded-full bg-[#10b981] text-white border border-[#10b981]';
+  }
+</script>
+
+</body>
+</html>

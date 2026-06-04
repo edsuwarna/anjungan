@@ -1,0 +1,1 @@
+cd /home/ubuntu/projects/anjungan/sketches/server-cards && NODE_PATH=/home/ubuntu/.npm/_npx/e41f203b7505f1fb/node_modules node screenshot.js 2>&1

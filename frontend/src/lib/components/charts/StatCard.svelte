@@ -1,18 +1,21 @@
 <script>
-	let { title = '', value = 0, icon = '', color = '#10b981' } = $props();
+	import Icon from '@iconify/svelte';
+	let { title = '', value = 0, icon = '', style = '' } = $props();
 </script>
 
-<div
-	class="rounded-xl border p-5 transition-all hover:shadow-md animate-fade-in"
-	style="background-color: var(--color-sidebar); border-color: var(--color-border);"
->
+<div class="stat-card" {style}>
 	<div class="flex items-center justify-between">
 		<div>
 			<p class="text-sm font-medium" style="color: var(--color-text-secondary);">{title}</p>
-			<p class="mt-1 text-2xl font-bold">{value}</p>
+			<p class="mt-1 text-2xl font-bold" style="color: var(--color-text);">{value}</p>
 		</div>
-		<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: {color}15;">
-			<span class="icon-[{icon}] h-5 w-5" style="color: {color};"></span>
-		</div>
+		{#if icon}
+			<div
+				class="flex h-10 w-10 items-center justify-center rounded-lg"
+				style="background-color: var(--color-primary-subtle);"
+			>
+				<Icon icon={icon} class="h-5 w-5" style="color: var(--color-primary);" />
+			</div>
+		{/if}
 	</div>
 </div>

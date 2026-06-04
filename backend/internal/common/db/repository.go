@@ -2,6 +2,9 @@ package db
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/edsuwarna/anjungan/internal/common/model"
 )
@@ -11,9 +14,9 @@ import (
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
 	u := &model.User{}
 	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, email, name, password_hash, totp_secret, totp_enabled, role, created_at, updated_at
+		`SELECT id, email, name, password_hash, totp_secret, totp_enabled, role, locked_until, failed_login_attempts, created_at, updated_at
 		 FROM users WHERE email = $1`, email,
-	).Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.TOTPSecret, &u.TOTPEnabled, &u.Role, &u.CreatedAt, &u.UpdatedAt)
+	).Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.TOTPSecret, &u.TOTPEnabled, &u.Role, &u.LockedUntil, &u.FailedLoginAttempts, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -23,9 +26,9 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*model.U
 func (r *Repository) GetUserByID(ctx context.Context, id string) (*model.User, error) {
 	u := &model.User{}
 	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, email, name, password_hash, totp_secret, totp_enabled, role, created_at, updated_at
+		`SELECT id, email, name, password_hash, totp_secret, totp_enabled, role, locked_until, failed_login_attempts, created_at, updated_at
 		 FROM users WHERE id = $1`, id,
-	).Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.TOTPSecret, &u.TOTPEnabled, &u.Role, &u.CreatedAt, &u.UpdatedAt)
+	).Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.TOTPSecret, &u.TOTPEnabled, &u.Role, &u.LockedUntil, &u.FailedLoginAttempts, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -39,6 +42,30 @@ func (r *Repository) CreateUser(ctx context.Context, u *model.User) error {
 		u.ID, u.Email, u.Name, u.PasswordHash, u.TOTPSecret, u.TOTPEnabled, u.Role, u.CreatedAt, u.UpdatedAt,
 	)
 	return err
+}
+
+func (r *Repository) UpdateUserLockout(ctx context.Context, userID string, lockedUntil *time.Time, failedAttempts int) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET locked_until = $1, failed_login_attempts = $2, updated_at = NOW() WHERE id = $3`,
+		lockedUntil, failedAttempts, userID,
+	)
+	return err
+}
+
+func (r *Repository) ResetUserLockout(ctx context.Context, userID string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET locked_until = NULL, failed_login_attempts = 0, updated_at = NOW() WHERE id = $1`,
+		userID,
+	)
+	return err
+}
+
+func (r *Repository) CountRecentFailedLogins(ctx context.Context, since time.Time) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM users WHERE failed_login_attempts > 0 AND updated_at >= $1`, since,
+	).Scan(&count)
+	return count, err
 }
 
 func (r *Repository) ListUsers(ctx context.Context) ([]*model.User, error) {
@@ -65,16 +92,59 @@ func (r *Repository) ListUsers(ctx context.Context) ([]*model.User, error) {
 
 func (r *Repository) CreateServer(ctx context.Context, s *model.Server) error {
 	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO servers (id, name, host, port, status, created_by, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		s.ID, s.Name, s.Host, s.Port, s.Status, s.CreatedBy, s.CreatedAt, s.UpdatedAt,
+		`INSERT INTO servers (id, name, host, port, ssh_user, ssh_auth_type, ssh_key, ssh_key_id, ssh_password,
+		 status, tags, server_group, region, server_type, description, monitoring, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+		s.ID, s.Name, s.Host, s.Port, s.SSHUser, s.SSHAuthType, s.SSHKey, s.SSHKeyID, s.SSHPassword,
+		s.Status, s.Tags, s.ServerGroup, s.Region, s.ServerType, s.Description,
+		s.Monitoring, s.CreatedBy, s.CreatedAt, s.UpdatedAt,
 	)
 	return err
 }
 
+const serverColumns = `id, name, host, port, ssh_user, ssh_auth_type, status, container_count,
+	COALESCE(tags, '{}'), COALESCE(labels, '{}')::text, COALESCE(server_group, ''),
+	COALESCE(region, ''), COALESCE(server_type, ''), COALESCE(description, ''),
+	COALESCE(os_info, ''), COALESCE(cpu_info, ''), last_seen_at, COALESCE(monitoring, false),
+	created_by, created_at, updated_at,	COALESCE(ssh_key_id::text, '')`
+
+func scanServer(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*model.Server, error) {
+	s := &model.Server{}
+	err := scanner.Scan(
+		&s.ID, &s.Name, &s.Host, &s.Port, &s.SSHUser, &s.SSHAuthType,
+		&s.Status, &s.ContainerCount, &s.Tags, &s.Labels,
+		&s.ServerGroup, &s.Region, &s.ServerType, &s.Description,
+		&s.OSInfo, &s.CPUInfo, &s.LastSeenAt, &s.Monitoring,
+		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt, &s.SSHKeyID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func scanServerFull(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*model.Server, error) {
+	s := &model.Server{}
+	err := scanner.Scan(
+		&s.ID, &s.Name, &s.Host, &s.Port, &s.SSHUser, &s.SSHAuthType,
+		&s.SSHKey, &s.SSHPassword, &s.SSHKeyID, &s.Status, &s.ContainerCount,
+		&s.Tags, &s.Labels, &s.ServerGroup, &s.Region, &s.ServerType,
+		&s.Description, &s.OSInfo, &s.CPUInfo, &s.LastSeenAt, &s.Monitoring,
+		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 func (r *Repository) ListServers(ctx context.Context) ([]*model.Server, error) {
 	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, name, host, port, status, created_by, created_at, updated_at FROM servers ORDER BY name`,
+		`SELECT `+serverColumns+` FROM servers ORDER BY name`,
 	)
 	if err != nil {
 		return nil, err
@@ -83,8 +153,159 @@ func (r *Repository) ListServers(ctx context.Context) ([]*model.Server, error) {
 
 	var servers []*model.Server
 	for rows.Next() {
-		s := &model.Server{}
-		if err := rows.Scan(&s.ID, &s.Name, &s.Host, &s.Port, &s.Status, &s.CreatedBy, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		s, err := scanServer(rows)
+		if err != nil {
+			return nil, err
+		}
+		servers = append(servers, s)
+	}
+	return servers, nil
+}
+
+func (r *Repository) ListServersPaginated(ctx context.Context, q model.ServerListQuery, allowedGroups []string) (*model.ServerListResponse, error) {
+	// Build WHERE clauses
+	var conditions []string
+	var args []interface{}
+	argIdx := 1
+
+	if q.Status != "" {
+		conditions = append(conditions, fmt.Sprintf("s.status = $%d", argIdx))
+		args = append(args, q.Status)
+		argIdx++
+	}
+	if q.Search != "" {
+		conditions = append(conditions, fmt.Sprintf("(LOWER(s.name) LIKE $%d OR LOWER(s.host) LIKE $%d)", argIdx, argIdx))
+		args = append(args, "%"+strings.ToLower(q.Search)+"%")
+		argIdx++
+	}
+	if q.ServerGroup != "" {
+		conditions = append(conditions, fmt.Sprintf("s.server_group = $%d", argIdx))
+		args = append(args, q.ServerGroup)
+		argIdx++
+	}
+	if q.Region != "" {
+		conditions = append(conditions, fmt.Sprintf("s.region = $%d", argIdx))
+		args = append(args, q.Region)
+		argIdx++
+	}
+	if q.ServerType != "" {
+		conditions = append(conditions, fmt.Sprintf("s.server_type = $%d", argIdx))
+		args = append(args, q.ServerType)
+		argIdx++
+	}
+	// Filter by allowed groups if set (non-admin users)
+	if len(allowedGroups) > 0 {
+		placeholders := make([]string, len(allowedGroups))
+		for i, g := range allowedGroups {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, g)
+			argIdx++
+		}
+		conditions = append(conditions, fmt.Sprintf("s.server_group IN (%s)", strings.Join(placeholders, ",")))
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Count
+	countQuery := "SELECT COUNT(*) FROM servers s " + whereClause
+	var total int
+	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	// Sort
+	allowedSorts := map[string]string{
+		"name": "s.name", "host": "s.host", "status": "s.status",
+		"created_at": "s.created_at", "updated_at": "s.updated_at",
+		"server_group": "s.server_group", "region": "s.region", "server_type": "s.server_type",
+	}
+	sortCol, ok := allowedSorts[q.Sort]
+	if !ok {
+		sortCol = "s.name"
+	}
+	order := "ASC"
+	if strings.EqualFold(q.Order, "desc") {
+		order = "DESC"
+	}
+
+	// Pagination
+	page := q.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := q.Limit
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := (page - 1) * limit
+
+	dataQuery := fmt.Sprintf(
+		`SELECT `+serverColumns+` FROM servers s %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		whereClause, sortCol, order, argIdx, argIdx+1,
+	)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Pool.Query(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var servers []model.ServerResponse
+	for rows.Next() {
+		s, err := scanServer(rows)
+		if err != nil {
+			return nil, err
+		}
+		servers = append(servers, s.ToResponse())
+	}
+	if servers == nil {
+		servers = []model.ServerResponse{}
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return &model.ServerListResponse{
+		Servers:    servers,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (r *Repository) ListServersByGroups(ctx context.Context, allowedGroups []string) ([]*model.Server, error) {
+	var query string
+	var args []interface{}
+	if len(allowedGroups) > 0 {
+		placeholders := make([]string, len(allowedGroups))
+		for i, g := range allowedGroups {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args = append(args, g)
+		}
+		query = fmt.Sprintf(`SELECT `+serverColumns+` FROM servers WHERE server_group IN (%s) ORDER BY name`, strings.Join(placeholders, ","))
+	} else {
+		query = `SELECT `+serverColumns+` FROM servers ORDER BY name`
+	}
+	rows, err := r.db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var servers []*model.Server
+	for rows.Next() {
+		s, err := scanServer(rows)
+		if err != nil {
 			return nil, err
 		}
 		servers = append(servers, s)
@@ -93,17 +314,1404 @@ func (r *Repository) ListServers(ctx context.Context) ([]*model.Server, error) {
 }
 
 func (r *Repository) GetServerByID(ctx context.Context, id string) (*model.Server, error) {
-	s := &model.Server{}
+	row := r.db.Pool.QueryRow(ctx,
+		`SELECT `+serverColumns+` FROM servers WHERE id = $1`, id,
+	)
+	return scanServer(row)
+}
+
+func (r *Repository) GetServerByIDFull(ctx context.Context, id string) (*model.Server, error) {
+	row := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, host, port, ssh_user, ssh_auth_type, ssh_key, ssh_password, COALESCE(ssh_key_id::text, ''), status, container_count,
+		 COALESCE(tags, '{}'), COALESCE(labels, '{}')::text, COALESCE(server_group, ''),
+		 COALESCE(region, ''), COALESCE(server_type, ''), COALESCE(description, ''),
+		 COALESCE(os_info, ''), COALESCE(cpu_info, ''), last_seen_at, COALESCE(monitoring, false), created_by, created_at, updated_at
+		 FROM servers WHERE id = $1`, id,
+	)
+	return scanServerFull(row)
+}
+
+func (r *Repository) UpdateServer(ctx context.Context, s *model.Server) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE servers SET name=$1, host=$2, port=$3, ssh_user=$4, ssh_auth_type=$5, ssh_key=$6,
+		 ssh_password=$7, ssh_key_id=$8, status=$9, container_count=$10, tags=$11, server_group=$12, region=$13,
+		 server_type=$14, description=$15, os_info=$16, cpu_info=$17, monitoring=$18, updated_at=NOW()
+		 WHERE id=$19`,
+		s.Name, s.Host, s.Port, s.SSHUser, s.SSHAuthType, s.SSHKey, s.SSHPassword,
+		s.SSHKeyID, s.Status, s.ContainerCount, s.Tags, s.ServerGroup, s.Region,
+		s.ServerType, s.Description, s.OSInfo, s.CPUInfo, s.Monitoring, s.ID,
+	)
+	return err
+}
+
+func (r *Repository) UpdateServerStatus(ctx context.Context, id string, status string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE servers SET status=$1, last_seen_at=NOW(), updated_at=NOW() WHERE id=$2`, status, id,
+	)
+	return err
+}
+
+func (r *Repository) UpdateServerContainerCount(ctx context.Context, id string, count int) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE servers SET container_count=$1, updated_at=NOW() WHERE id=$2`, count, id,
+	)
+	return err
+}
+
+func (r *Repository) UpdateServerInfo(ctx context.Context, id, osInfo, cpuInfo string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE servers SET os_info=$1, cpu_info=$2, updated_at=NOW() WHERE id=$3`, osInfo, cpuInfo, id,
+	)
+	return err
+}
+
+func (r *Repository) DeleteServer(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, "DELETE FROM servers WHERE id = $1", id)
+	return err
+}
+
+func (r *Repository) BulkDeleteServers(ctx context.Context, ids []string) error {
+	_, err := r.db.Pool.Exec(ctx, "DELETE FROM servers WHERE id = ANY($1)", ids)
+	return err
+}
+
+func (r *Repository) CountServers(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM servers").Scan(&count)
+	return count, err
+}
+
+func (r *Repository) ListRecentServers(ctx context.Context, limit int) ([]*model.Server, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT `+serverColumns+` FROM servers ORDER BY created_at DESC LIMIT $1`, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var servers []*model.Server
+	for rows.Next() {
+		s, err := scanServer(rows)
+		if err != nil {
+			return nil, err
+		}
+		servers = append(servers, s)
+	}
+	return servers, nil
+}
+
+func (r *Repository) CountServersByStatus(ctx context.Context) (map[string]int, error) {
+	rows, err := r.db.Pool.Query(ctx, "SELECT status, COUNT(*) FROM servers GROUP BY status")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		result[status] = count
+	}
+	return result, nil
+}
+
+func (r *Repository) CountUsers(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
+	return count, err
+}
+
+func (r *Repository) SumContainerCount(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, "SELECT COALESCE(SUM(container_count), 0) FROM servers").Scan(&count)
+	return count, err
+}
+
+// ─── Server Metrics Repository ─────────────────────────────────────────────
+
+func (r *Repository) SaveMetrics(ctx context.Context, m *model.ServerMetricsPoint) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO server_metrics (server_id, cpu_load_1, cpu_load_5, cpu_load_15,
+		 mem_used_bytes, mem_total_bytes, disk_used_bytes, disk_total_bytes, disk_used_pct,
+		 net_rx_bytes, net_tx_bytes, collected_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		m.ServerID, m.CPULoad1, m.CPULoad5, m.CPULoad15,
+		m.MemUsedBytes, m.MemTotalBytes, m.DiskUsedBytes, m.DiskTotalBytes, m.DiskUsedPct,
+		m.NetRXBytes, m.NetTXBytes, m.CollectedAt,
+	)
+	return err
+}
+
+func (r *Repository) GetHistoricalMetrics(ctx context.Context, serverID string, since time.Time, limit int) ([]*model.ServerMetricsPoint, error) {
+	if limit < 1 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, server_id, cpu_load_1, cpu_load_5, cpu_load_15,
+		 mem_used_bytes, mem_total_bytes, disk_used_bytes, disk_total_bytes, disk_used_pct,
+		 net_rx_bytes, net_tx_bytes, collected_at
+		 FROM server_metrics
+		 WHERE server_id = $1 AND collected_at >= $2
+		 ORDER BY collected_at DESC LIMIT $3`,
+		serverID, since, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []*model.ServerMetricsPoint
+	for rows.Next() {
+		p := &model.ServerMetricsPoint{}
+		if err := rows.Scan(&p.ID, &p.ServerID, &p.CPULoad1, &p.CPULoad5, &p.CPULoad15,
+			&p.MemUsedBytes, &p.MemTotalBytes, &p.DiskUsedBytes, &p.DiskTotalBytes, &p.DiskUsedPct,
+			&p.NetRXBytes, &p.NetTXBytes, &p.CollectedAt); err != nil {
+			return nil, err
+		}
+		points = append(points, p)
+	}
+	return points, nil
+}
+
+// ─── Alerts Repository ─────────────────────────────────────────────────────
+
+func (r *Repository) CreateAlert(ctx context.Context, a *model.Alert) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO alerts (id, server_id, type, severity, message, value, threshold, acknowledged, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		a.ID, a.ServerID, a.Type, a.Severity, a.Message, a.Value, a.Threshold, a.Acknowledged, a.CreatedAt,
+	)
+	return err
+}
+
+func (r *Repository) ListAlerts(ctx context.Context, limit int, unreadOnly bool) ([]*model.Alert, error) {
+	if limit < 1 {
+		limit = 50
+	}
+
+	query := `SELECT id, server_id, type, severity, message, value, threshold, acknowledged, created_at
+		FROM alerts`
+	if unreadOnly {
+		query += " WHERE NOT acknowledged"
+	}
+	query += " ORDER BY created_at DESC LIMIT $1"
+
+	if unreadOnly {
+		var count int
+		if err := r.db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM alerts WHERE NOT acknowledged").Scan(&count); err != nil {
+			return nil, err
+		}
+	}
+
+	rows, err := r.db.Pool.Query(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alerts []*model.Alert
+	for rows.Next() {
+		a := &model.Alert{}
+		if err := rows.Scan(&a.ID, &a.ServerID, &a.Type, &a.Severity, &a.Message, &a.Value, &a.Threshold, &a.Acknowledged, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		alerts = append(alerts, a)
+	}
+	return alerts, nil
+}
+
+func (r *Repository) CountUnacknowledgedAlerts(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM alerts WHERE NOT acknowledged").Scan(&count)
+	return count, err
+}
+
+func (r *Repository) AcknowledgeAlert(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, "UPDATE alerts SET acknowledged=TRUE WHERE id=$1", id)
+	return err
+}
+
+func (r *Repository) CountAlertsBySeverity(ctx context.Context) (map[string]int, error) {
+	rows, err := r.db.Pool.Query(ctx, "SELECT severity, COUNT(*) FROM alerts WHERE NOT acknowledged GROUP BY severity")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var sev string
+		var count int
+		if err := rows.Scan(&sev, &count); err != nil {
+			return nil, err
+		}
+		result[sev] = count
+	}
+	return result, nil
+}
+
+// ─── Distinct values for filter dropdowns ──────────────────────────────────
+
+func (r *Repository) ListServerGroups(ctx context.Context) ([]string, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		"SELECT DISTINCT server_group FROM servers WHERE server_group != '' ORDER BY server_group")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var groups []string
+	for rows.Next() {
+		var g string
+		if err := rows.Scan(&g); err != nil {
+			return nil, err
+		}
+		groups = append(groups, g)
+	}
+	return groups, nil
+}
+
+func (r *Repository) ListRegions(ctx context.Context) ([]string, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		"SELECT DISTINCT region FROM servers WHERE region != '' ORDER BY region")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var regions []string
+	for rows.Next() {
+		var reg string
+		if err := rows.Scan(&reg); err != nil {
+			return nil, err
+		}
+		regions = append(regions, reg)
+	}
+	return regions, nil
+}
+
+func (r *Repository) ListServerTypes(ctx context.Context) ([]string, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		"SELECT DISTINCT server_type FROM servers WHERE server_type != '' ORDER BY server_type")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var types []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		types = append(types, t)
+	}
+	return types, nil
+}
+
+// ─── Activity / Recent Events ──────────────────────────────────────────────
+
+func (r *Repository) SaveActivity(ctx context.Context, activityType, message, userID string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO activity_log (type, message, user_id, created_at)
+		 VALUES ($1,$2,$3,NOW())`,
+		activityType, message, userID,
+	)
+	return err
+}
+
+func (r *Repository) ListRecentActivity(ctx context.Context, limit int) ([]struct {
+	Type      string    `json:"type"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp"`
+}, error) {
+	if limit < 1 {
+		limit = 20
+	}
+
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT type, message, created_at FROM activity_log ORDER BY created_at DESC LIMIT $1`, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var activities []struct {
+		Type      string    `json:"type"`
+		Message   string    `json:"message"`
+		Timestamp time.Time `json:"timestamp"`
+	}
+	for rows.Next() {
+		var a struct {
+			Type      string    `json:"type"`
+			Message   string    `json:"message"`
+			Timestamp time.Time `json:"timestamp"`
+		}
+		if err := rows.Scan(&a.Type, &a.Message, &a.Timestamp); err != nil {
+			return nil, err
+		}
+		activities = append(activities, a)
+	}
+	return activities, nil
+}
+
+// ─── SSH Keys Repository ──────────────────────────────────────────────────
+
+func (r *Repository) CreateSSHKey(ctx context.Context, k *model.SSHKey) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO ssh_keys (id, name, key_type, private_key, public_key, fingerprint, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		k.ID, k.Name, k.KeyType, k.PrivateKey, k.PublicKey, k.Fingerprint, k.CreatedBy, k.CreatedAt, k.UpdatedAt,
+	)
+	return err
+}
+
+const sshKeyColumns = `id, name, key_type, COALESCE(public_key, ''), COALESCE(fingerprint, ''), created_by, created_at, updated_at`
+
+func scanSSHKey(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*model.SSHKey, error) {
+	k := &model.SSHKey{}
+	err := scanner.Scan(&k.ID, &k.Name, &k.KeyType, &k.PublicKey, &k.Fingerprint, &k.CreatedBy, &k.CreatedAt, &k.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return k, nil
+}
+
+func scanSSHKeyFull(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*model.SSHKey, error) {
+	k := &model.SSHKey{}
+	err := scanner.Scan(&k.ID, &k.Name, &k.KeyType, &k.PrivateKey, &k.PublicKey, &k.Fingerprint, &k.CreatedBy, &k.CreatedAt, &k.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return k, nil
+}
+
+func (r *Repository) ListSSHKeys(ctx context.Context) ([]*model.SSHKey, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT `+sshKeyColumns+` FROM ssh_keys ORDER BY name`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []*model.SSHKey
+	for rows.Next() {
+		k, err := scanSSHKey(rows)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (r *Repository) GetSSHKeyByID(ctx context.Context, id string) (*model.SSHKey, error) {
+	row := r.db.Pool.QueryRow(ctx,
+		`SELECT `+sshKeyColumns+` FROM ssh_keys WHERE id = $1`, id,
+	)
+	return scanSSHKey(row)
+}
+
+func (r *Repository) GetSSHKeyByIDFull(ctx context.Context, id string) (*model.SSHKey, error) {
+	row := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, key_type, private_key, COALESCE(public_key, ''), COALESCE(fingerprint, ''), created_by, created_at, updated_at FROM ssh_keys WHERE id = $1`, id,
+	)
+	return scanSSHKeyFull(row)
+}
+
+func (r *Repository) UpdateSSHKey(ctx context.Context, k *model.SSHKey) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE ssh_keys SET name=$1, key_type=$2, private_key=$3, public_key=$4, fingerprint=$5, updated_at=NOW() WHERE id=$6`,
+		k.Name, k.KeyType, k.PrivateKey, k.PublicKey, k.Fingerprint, k.ID,
+	)
+	return err
+}
+
+func (r *Repository) DeleteSSHKey(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM ssh_keys WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) CountServersUsingSSHKey(ctx context.Context, keyID string) (int, error) {
+	var count int
 	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, name, host, port, status, created_by, created_at, updated_at FROM servers WHERE id = $1`, id,
-	).Scan(&s.ID, &s.Name, &s.Host, &s.Port, &s.Status, &s.CreatedBy, &s.CreatedAt, &s.UpdatedAt)
+		`SELECT COUNT(*) FROM servers WHERE ssh_key_id = $1`, keyID,
+	).Scan(&count)
+	return count, err
+}
+
+// ─── User Server Groups ──────────────────────────────────────────────────
+
+func (r *Repository) SetUserServerGroups(ctx context.Context, userID string, groups []string) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// Delete existing
+	if _, err := tx.Exec(ctx, `DELETE FROM user_server_groups WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
+
+	// Insert new
+	for _, g := range groups {
+		if g == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO user_server_groups (user_id, server_group) VALUES ($1, $2)`,
+			userID, g,
+		); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (r *Repository) GetUserServerGroups(ctx context.Context, userID string) ([]string, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT server_group FROM user_server_groups WHERE user_id = $1 ORDER BY server_group`, userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var groups []string
+	for rows.Next() {
+		var g string
+		if err := rows.Scan(&g); err != nil {
+			return nil, err
+		}
+		groups = append(groups, g)
+	}
+	if groups == nil {
+		groups = []string{}
+	}
+	return groups, nil
+}
+
+func (r *Repository) DeleteUserServerGroups(ctx context.Context, userID string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM user_server_groups WHERE user_id = $1`, userID)
+	return err
+}
+
+// ─── User Management (Admin) ──────────────────────────────────────────────
+
+func (r *Repository) UpdateUser(ctx context.Context, u *model.User) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET name=$1, email=$2, role=$3, updated_at=NOW() WHERE id=$4`,
+		u.Name, u.Email, u.Role, u.ID,
+	)
+	return err
+}
+
+func (r *Repository) UpdateUserPassword(ctx context.Context, id, passwordHash string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2`,
+		passwordHash, id,
+	)
+	return err
+}
+
+func (r *Repository) DeleteUser(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) CountAdminUsers(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM users WHERE role = 'admin'`,
+	).Scan(&count)
+	return count, err
+}
+
+// ─── Audit Log Repository ─────────────────────────────────────────────────
+
+func (r *Repository) CreateAuditLog(ctx context.Context, e *model.AuditLogEntry) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO audit_logs (id, action, entity_type, entity_id, description, user_id, user_email, ip_address, metadata, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		e.ID, e.Action, e.EntityType, e.EntityID, e.Description,
+		e.UserID, e.UserEmail, e.IPAddress, e.Metadata, e.CreatedAt,
+	)
+	return err
+}
+
+func (r *Repository) ListAuditLogs(ctx context.Context, q model.AuditLogQuery) (*model.AuditLogListResponse, error) {
+	var conditions []string
+	var args []interface{}
+	argIdx := 1
+
+	if q.Action != "" {
+		conditions = append(conditions, fmt.Sprintf("a.action = $%d", argIdx))
+		args = append(args, q.Action)
+		argIdx++
+	}
+	if q.EntityType != "" {
+		conditions = append(conditions, fmt.Sprintf("a.entity_type = $%d", argIdx))
+		args = append(args, q.EntityType)
+		argIdx++
+	}
+	if q.UserID != "" {
+		conditions = append(conditions, fmt.Sprintf("a.user_id = $%d", argIdx))
+		args = append(args, q.UserID)
+		argIdx++
+	}
+	if q.Search != "" {
+		conditions = append(conditions, fmt.Sprintf(
+			"(LOWER(a.description) LIKE $%d OR LOWER(a.user_email) LIKE $%d OR LOWER(a.entity_id) LIKE $%d)",
+			argIdx, argIdx, argIdx,
+		))
+		args = append(args, "%"+strings.ToLower(q.Search)+"%")
+		argIdx++
+	}
+	if q.StartDate != nil && *q.StartDate != "" {
+		conditions = append(conditions, fmt.Sprintf("a.created_at >= $%d::timestamptz", argIdx))
+		args = append(args, *q.StartDate)
+		argIdx++
+	}
+	if q.EndDate != nil && *q.EndDate != "" {
+		conditions = append(conditions, fmt.Sprintf("a.created_at <= $%d::timestamptz", argIdx))
+		args = append(args, *q.EndDate)
+		argIdx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Count
+	countQuery := "SELECT COUNT(*) FROM audit_logs a " + whereClause
+	var total int
+	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	// Pagination
+	page := q.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := q.Limit
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := (page - 1) * limit
+
+	dataQuery := fmt.Sprintf(
+		`SELECT a.id, a.action, a.entity_type, COALESCE(a.entity_id, ''), a.description,
+		 COALESCE(a.user_id::text, ''), COALESCE(a.user_email, ''), COALESCE(a.ip_address, ''),
+		 COALESCE(a.metadata, '{}'), a.created_at
+		 FROM audit_logs a %s ORDER BY a.created_at DESC LIMIT $%d OFFSET $%d`,
+		whereClause, argIdx, argIdx+1,
+	)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Pool.Query(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []*model.AuditLogEntry
+	for rows.Next() {
+		e := &model.AuditLogEntry{}
+		if err := rows.Scan(&e.ID, &e.Action, &e.EntityType, &e.EntityID,
+			&e.Description, &e.UserID, &e.UserEmail, &e.IPAddress,
+			&e.Metadata, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	if entries == nil {
+		entries = []*model.AuditLogEntry{}
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return &model.AuditLogListResponse{
+		Entries:    entries,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (r *Repository) ListAuditActions(ctx context.Context) ([]string, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT DISTINCT action FROM audit_logs ORDER BY action`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var actions []string
+	for rows.Next() {
+		var a string
+		if err := rows.Scan(&a); err != nil {
+			return nil, err
+		}
+		actions = append(actions, a)
+	}
+	return actions, nil
+}
+
+func (r *Repository) ListAuditEntityTypes(ctx context.Context) ([]string, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT DISTINCT entity_type FROM audit_logs ORDER BY entity_type`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var types []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		types = append(types, t)
+	}
+	return types, nil
+}
+
+// ─── Lockout Events ───────────────────────────────────────────────────
+
+type LockoutEvent struct {
+	IP             string    `json:"ip"`
+	FailedAttempts int       `json:"failed_attempts"`
+	LastAttempt    time.Time `json:"last_attempt"`
+	Status         string    `json:"status"` // "locked" or "unlocked"
+}
+
+func (r *Repository) ListRecentLockoutEvents(ctx context.Context, limit int) ([]LockoutEvent, error) {
+	// This is a simplified view - for real implementation we'd query audit_logs for auth.login failures
+	// For now, return users with failed_login_attempts > 0
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT email, failed_login_attempts, updated_at,
+			CASE WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 'locked' ELSE 'unlocked' END as status
+		 FROM users WHERE failed_login_attempts > 0
+		 ORDER BY updated_at DESC LIMIT $1`, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []LockoutEvent
+	for rows.Next() {
+		var e LockoutEvent
+		if err := rows.Scan(&e.IP, &e.FailedAttempts, &e.LastAttempt, &e.Status); err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+	return events, nil
+}
+
+// ─── Compliance Scan ───────────────────────────────────────────────────
+
+func (r *Repository) CreateScanResult(ctx context.Context, s *model.ScanResult) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO scan_results (id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, started_at, completed_at, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		s.ID, s.ServerID, s.ScanType, s.Status, s.Score, s.TotalChecks,
+		s.Passed, s.Warnings, s.Criticals, s.StartedAt, s.CompletedAt, s.CreatedAt,
+	)
+	return err
+}
+
+func (r *Repository) UpdateScanResult(ctx context.Context, s *model.ScanResult) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE scan_results SET status=$1, score=$2, total_checks=$3, passed=$4, warnings=$5, criticals=$6, completed_at=$7, error_message=$8
+		 WHERE id=$9`,
+		s.Status, s.Score, s.TotalChecks, s.Passed, s.Warnings, s.Criticals, s.CompletedAt, s.ErrorMessage, s.ID,
+	)
+	return err
+}
+
+func (r *Repository) GetLatestScanResult(ctx context.Context, serverID string) (*model.ScanResult, error) {
+	s := &model.ScanResult{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+		 FROM scan_results WHERE server_id = $1 ORDER BY created_at DESC LIMIT 1`, serverID,
+	).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+		&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-func (r *Repository) DeleteServer(ctx context.Context, id string) error {
-	_, err := r.db.Pool.Exec(ctx, "DELETE FROM servers WHERE id = $1", id)
-	return err
+func (r *Repository) GetLatestScanResultByType(ctx context.Context, serverID, scanType string) (*model.ScanResult, error) {
+	s := &model.ScanResult{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+		 FROM scan_results WHERE server_id = $1 AND scan_type = $2 ORDER BY created_at DESC LIMIT 1`, serverID, scanType,
+	).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+		&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (r *Repository) GetScanResultByID(ctx context.Context, id string) (*model.ScanResult, error) {
+	s := &model.ScanResult{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+		 FROM scan_results WHERE id = $1`, id,
+	).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+		&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// GetScanResultWithFindings returns a scan result with its findings loaded.
+func (r *Repository) GetScanResultWithFindings(ctx context.Context, id string) (*model.ScanResult, error) {
+	s, err := r.GetScanResultByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	findings, err := r.GetFindingsByScanID(ctx, s.ID)
+	if err != nil {
+		s.Findings = []model.ScanFinding{}
+	} else {
+		s.Findings = findings
+	}
+	return s, nil
+}
+
+func (r *Repository) ListScanResults(ctx context.Context, serverID string, scanType string, page, limit int) (*model.ScanResultsListResponse, error) {
+	// Count
+	var total int
+	var countQuery string
+	var countArgs []interface{}
+	countArgs = append(countArgs, serverID)
+	if scanType != "" && scanType != "all" {
+		countQuery = `SELECT COUNT(*) FROM scan_results WHERE server_id = $1 AND scan_type = $2`
+		countArgs = append(countArgs, scanType)
+	} else {
+		countQuery = `SELECT COUNT(*) FROM scan_results WHERE server_id = $1`
+	}
+	err := r.db.Pool.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+	if err != nil {
+		return nil, err
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	offset := (page - 1) * limit
+
+	var query string
+	var queryArgs []interface{}
+	queryArgs = append(queryArgs, serverID)
+	if scanType != "" && scanType != "all" {
+		query = `SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+			 FROM scan_results WHERE server_id = $1 AND scan_type = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4`
+		queryArgs = append(queryArgs, scanType, limit, offset)
+	} else {
+		query = `SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+			 FROM scan_results WHERE server_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+		queryArgs = append(queryArgs, limit, offset)
+	}
+
+	rows, err := r.db.Pool.Query(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*model.ScanResult
+	for rows.Next() {
+		s := &model.ScanResult{}
+		if err := rows.Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+			&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		results = append(results, s)
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return &model.ScanResultsListResponse{
+		Results:    results,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (r *Repository) CreateScanFindings(ctx context.Context, findings []model.ScanFinding) error {
+	if len(findings) == 0 {
+		return nil
+	}
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, f := range findings {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO scan_findings (id, scan_id, check_id, category, severity, title, description, remediation, raw_output, status, created_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			f.ID, f.ScanID, f.CheckID, f.Category, f.Severity, f.Title,
+			f.Description, f.Remediation, f.RawOutput, f.Status, f.CreatedAt,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *Repository) GetFindingsByScanID(ctx context.Context, scanID string) ([]model.ScanFinding, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, scan_id, check_id, category, severity, title, COALESCE(description,''), COALESCE(remediation,''), status, created_at
+		 FROM scan_findings WHERE scan_id = $1 ORDER BY
+		    CASE severity
+		        WHEN 'critical' THEN 1
+		        WHEN 'high' THEN 2
+		        WHEN 'medium' THEN 3
+		        WHEN 'low' THEN 4
+		        ELSE 5
+		    END, created_at`, scanID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var findings []model.ScanFinding
+	for rows.Next() {
+		f := model.ScanFinding{}
+		if err := rows.Scan(&f.ID, &f.ScanID, &f.CheckID, &f.Category, &f.Severity,
+			&f.Title, &f.Description, &f.Remediation, &f.Status, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		findings = append(findings, f)
+	}
+	return findings, nil
+}
+
+// GetFindingsByScanIDAndCategory returns findings for a scan filtered by category.
+func (r *Repository) GetFindingsByScanIDAndCategory(ctx context.Context, scanID, category string) ([]model.ScanFinding, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, scan_id, check_id, category, severity, title, COALESCE(description,''), COALESCE(remediation,''), status, created_at
+		 FROM scan_findings WHERE scan_id = $1 AND category = $2 ORDER BY
+		    CASE severity
+		        WHEN 'critical' THEN 1
+		        WHEN 'high' THEN 2
+		        WHEN 'medium' THEN 3
+		        WHEN 'low' THEN 4
+		        ELSE 5
+		    END, created_at`, scanID, category,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var findings []model.ScanFinding
+	for rows.Next() {
+		f := model.ScanFinding{}
+		if err := rows.Scan(&f.ID, &f.ScanID, &f.CheckID, &f.Category, &f.Severity,
+			&f.Title, &f.Description, &f.Remediation, &f.Status, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		findings = append(findings, f)
+	}
+	return findings, nil
+}
+
+// GetCategoryBreakdowns returns per-category summaries for a given scan.
+func (r *Repository) GetCategoryBreakdowns(ctx context.Context, scanID string) ([]model.CategoryBreakdown, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT category,
+		        COUNT(*) AS total,
+		        COUNT(*) FILTER (WHERE status = 'pass') AS passed,
+		        COUNT(*) FILTER (WHERE status = 'warn') AS warnings,
+		        COUNT(*) FILTER (WHERE status = 'fail') AS criticals
+		 FROM scan_findings WHERE scan_id = $1
+		 GROUP BY category ORDER BY category`, scanID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var breakdowns []model.CategoryBreakdown
+	for rows.Next() {
+		b := model.CategoryBreakdown{}
+		if err := rows.Scan(&b.Category, &b.Total, &b.Passed, &b.Warnings, &b.Criticals); err != nil {
+			return nil, err
+		}
+		breakdowns = append(breakdowns, b)
+	}
+	return breakdowns, nil
+}
+
+// GetCategoryHistory returns per-category history across scans for a server.
+func (r *Repository) GetCategoryHistory(ctx context.Context, serverID, category string, limit int) (*model.CategoryHistoryResponse, error) {
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	// First get scan IDs for this server (most recent first)
+	scanRows, err := r.db.Pool.Query(ctx,
+		`SELECT id, scan_type, score, completed_at, created_at
+		 FROM scan_results WHERE server_id = $1 AND status = 'completed'
+		 ORDER BY created_at DESC LIMIT $2`, serverID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer scanRows.Close()
+
+	type scanMeta struct {
+		ID          string
+		ScanType    string
+		Score       *int
+		CompletedAt *time.Time
+		CreatedAt   time.Time
+	}
+	var scans []scanMeta
+	for scanRows.Next() {
+		s := scanMeta{}
+		if err := scanRows.Scan(&s.ID, &s.ScanType, &s.Score, &s.CompletedAt, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		scans = append(scans, s)
+	}
+
+	// Aggregate findings by category for each scan
+	var items []model.CategoryHistoryItem
+	for _, s := range scans {
+		var total, passed, warnings, criticals int
+		err := r.db.Pool.QueryRow(ctx,
+			`SELECT
+				COUNT(*),
+				COUNT(*) FILTER (WHERE status = 'pass'),
+				COUNT(*) FILTER (WHERE status = 'warn'),
+				COUNT(*) FILTER (WHERE status = 'fail')
+			 FROM scan_findings WHERE scan_id = $1 AND category = $2`,
+			s.ID, category,
+		).Scan(&total, &passed, &warnings, &criticals)
+		if err != nil {
+			continue
+		}
+		if total == 0 {
+			continue
+		}
+		items = append(items, model.CategoryHistoryItem{
+			ScanID:      s.ID,
+			ServerID:    serverID,
+			ScanType:    s.ScanType,
+			Total:       total,
+			Passed:      passed,
+			Warnings:    warnings,
+			Criticals:   criticals,
+			Score:       s.Score,
+			CreatedAt:   s.CreatedAt,
+			CompletedAt: s.CompletedAt,
+		})
+	}
+
+	// Also get server name
+	var serverName string
+	_ = r.db.Pool.QueryRow(ctx, `SELECT name FROM servers WHERE id = $1`, serverID).Scan(&serverName)
+	for i := range items {
+		items[i].ServerName = serverName
+	}
+
+	return &model.CategoryHistoryResponse{
+		Results:  items,
+		Total:    len(items),
+		Category: category,
+	}, nil
+}
+
+func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string, page, limit int) (*model.GlobalHistoryResponse, error) {
+	var total int
+	var countQuery string
+	var countArgs []interface{}
+	if scanType != "" && scanType != "all" {
+		countQuery = `SELECT COUNT(*) FROM scan_results WHERE scan_type = $1`
+		countArgs = append(countArgs, scanType)
+	} else {
+		countQuery = `SELECT COUNT(*) FROM scan_results`
+	}
+	err := r.db.Pool.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+	if err != nil {
+		return nil, err
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	offset := (page - 1) * limit
+
+	var query string
+	var args []interface{}
+	if scanType != "" && scanType != "all" {
+		query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+		       sr.started_at, sr.completed_at, sr.created_at
+		 FROM scan_results sr
+		 LEFT JOIN servers s ON sr.server_id = s.id
+		 WHERE sr.scan_type = $1
+		 ORDER BY sr.created_at DESC LIMIT $2 OFFSET $3`
+		args = append(args, scanType, limit, offset)
+	} else {
+		query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+		       sr.started_at, sr.completed_at, sr.created_at
+		 FROM scan_results sr
+		 LEFT JOIN servers s ON sr.server_id = s.id
+		 ORDER BY sr.created_at DESC LIMIT $1 OFFSET $2`
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []model.GlobalScanHistoryItem
+	for rows.Next() {
+		item := model.GlobalScanHistoryItem{}
+		if err := rows.Scan(&item.ID, &item.ServerID, &item.ServerName, &item.ServerHost,
+			&item.ScanType, &item.Status, &item.Score, &item.TotalChecks,
+			&item.Passed, &item.Warnings, &item.Criticals,
+			&item.StartedAt, &item.CompletedAt, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		results = append(results, item)
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return &model.GlobalHistoryResponse{
+		Results:    results,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (r *Repository) GetComplianceSummary(ctx context.Context) (*model.ComplianceSummary, error) {
+	summary := &model.ComplianceSummary{
+		ByStatus: make(map[string]int),
+	}
+
+	// Total servers
+	err := r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM servers`).Scan(&summary.TotalServers)
+	if err != nil {
+		return nil, err
+	}
+
+	// Latest scan per server
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT s.id, s.name, s.host,
+		       sr.score, COALESCE(sr.criticals,0), COALESCE(sr.warnings,0), COALESCE(sr.passed,0), sr.completed_at
+		FROM servers s
+		LEFT JOIN LATERAL (
+		    SELECT score, criticals, warnings, passed, completed_at
+		    FROM scan_results
+		    WHERE server_id = s.id AND status = 'completed'
+		    ORDER BY created_at DESC LIMIT 1
+		) sr ON true
+		ORDER BY s.name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var totalScore int
+	var scoreCount int
+
+	for rows.Next() {
+		cs := model.ComplianceServerSummary{}
+		if err := rows.Scan(&cs.ID, &cs.Name, &cs.Host, &cs.Score, &cs.Criticals, &cs.Warnings, &cs.Passed, &cs.LastScan); err != nil {
+			return nil, err
+		}
+		summary.Servers = append(summary.Servers, cs)
+
+		if cs.Score != nil {
+			scoreCount++
+			totalScore += *cs.Score
+			if *cs.Score >= 80 {
+				summary.ByStatus["good"]++
+			} else if *cs.Score >= 60 {
+				summary.ByStatus["warning"]++
+			} else {
+				summary.ByStatus["critical"]++
+			}
+		} else {
+			summary.ByStatus["unscanned"]++
+		}
+	}
+
+	if scoreCount > 0 {
+		avg := totalScore / scoreCount
+		summary.AverageScore = &avg
+	}
+	summary.ScannedServers = scoreCount
+
+	// Top findings across all servers
+	topRows, err := r.db.Pool.Query(ctx, `
+		SELECT f.check_id, f.title, f.severity, COUNT(DISTINCT sr.server_id) as affected
+		FROM scan_findings f
+		JOIN scan_results sr ON f.scan_id = sr.id
+		WHERE f.status = 'fail' AND sr.id IN (
+		    SELECT id FROM (
+		        SELECT id, ROW_NUMBER() OVER (PARTITION BY server_id ORDER BY created_at DESC) as rn
+		        FROM scan_results WHERE status = 'completed'
+		    ) sub WHERE rn = 1
+		)
+		GROUP BY f.check_id, f.title, f.severity
+		ORDER BY affected DESC, CASE f.severity
+		    WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END
+		LIMIT 10
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer topRows.Close()
+
+	for topRows.Next() {
+		tf := model.ComplianceTopFinding{}
+		if err := topRows.Scan(&tf.CheckID, &tf.Title, &tf.Severity, &tf.ServersAffected); err != nil {
+			return nil, err
+		}
+		summary.TopFindings = append(summary.TopFindings, tf)
+	}
+	if summary.TopFindings == nil {
+		summary.TopFindings = []model.ComplianceTopFinding{}
+	}
+
+	return summary, nil
+}
+
+// ListActiveScans returns all running scans and recently completed scans
+// (within the last 5 minutes) that the user has access to.
+func (r *Repository) ListActiveScans(ctx context.Context, allowedGroups []string, isAdmin bool) (*model.ActiveScansResponse, error) {
+	resp := &model.ActiveScansResponse{
+		Running: []model.ActiveScanItem{},
+		Recent:  []model.ActiveScanItem{},
+	}
+
+	// Build the server filter clause
+	var serverFilter string
+	var args []interface{}
+	argIdx := 1
+
+	if !isAdmin {
+		serverFilter = fmt.Sprintf("s.server_group = ANY($%d::text[])", argIdx)
+		args = append(args, allowedGroups)
+		argIdx++
+	}
+
+	// Running scans
+	runningQuery := fmt.Sprintf(`
+		SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+		       sr.started_at, sr.completed_at, sr.created_at
+		FROM scan_results sr
+		JOIN servers s ON sr.server_id = s.id
+		WHERE sr.status = 'running'
+		%s
+		ORDER BY sr.created_at DESC
+	`, func() string {
+		if serverFilter != "" {
+			return "AND " + serverFilter
+		}
+		return ""
+	}())
+
+	rows, err := r.db.Pool.Query(ctx, runningQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		item := model.ActiveScanItem{}
+		if err := rows.Scan(&item.ID, &item.ServerID, &item.ServerName, &item.ServerHost,
+			&item.ScanType, &item.Status, &item.Score, &item.TotalChecks,
+			&item.Passed, &item.Warnings, &item.Criticals,
+			&item.StartedAt, &item.CompletedAt, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		resp.Running = append(resp.Running, item)
+	}
+
+	// Recent scans (completed/failed within last 5 minutes)
+	sinceFilter := fmt.Sprintf(" AND sr.completed_at >= NOW() - interval '5 minutes'")
+	recentQuery := fmt.Sprintf(`
+		SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+		       sr.started_at, sr.completed_at, sr.created_at
+		FROM scan_results sr
+		JOIN servers s ON sr.server_id = s.id
+		WHERE sr.status IN ('completed', 'failed')
+		%s
+		%s
+		ORDER BY sr.completed_at DESC
+		LIMIT 20
+	`, func() string {
+		if serverFilter != "" {
+			return "AND " + serverFilter
+		}
+		return ""
+	}(), sinceFilter)
+
+	recentRows, err := r.db.Pool.Query(ctx, recentQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer recentRows.Close()
+	for recentRows.Next() {
+		item := model.ActiveScanItem{}
+		if err := recentRows.Scan(&item.ID, &item.ServerID, &item.ServerName, &item.ServerHost,
+			&item.ScanType, &item.Status, &item.Score, &item.TotalChecks,
+			&item.Passed, &item.Warnings, &item.Criticals,
+			&item.StartedAt, &item.CompletedAt, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		resp.Recent = append(resp.Recent, item)
+	}
+
+	return resp, nil
+}
+
+// ─── Audit Log Export ──────────────────────────────────────────────────
+
+func (r *Repository) ListAuditLogsAll(ctx context.Context, q model.AuditLogQuery) ([]*model.AuditLogEntry, error) {
+	// Same query as ListAuditLogs but without pagination limit/offset
+	var conditions []string
+	var args []interface{}
+	argIdx := 1
+
+	if q.Action != "" {
+		conditions = append(conditions, fmt.Sprintf("a.action = $%d", argIdx))
+		args = append(args, q.Action)
+		argIdx++
+	}
+	if q.EntityType != "" {
+		conditions = append(conditions, fmt.Sprintf("a.entity_type = $%d", argIdx))
+		args = append(args, q.EntityType)
+		argIdx++
+	}
+	if q.UserID != "" {
+		conditions = append(conditions, fmt.Sprintf("a.user_id::text = $%d", argIdx))
+		args = append(args, q.UserID)
+		argIdx++
+	}
+	if q.Search != "" {
+		conditions = append(conditions, fmt.Sprintf("(a.description ILIKE $%d OR a.user_email ILIKE $%d OR a.action ILIKE $%d)", argIdx, argIdx, argIdx))
+		args = append(args, "%"+q.Search+"%")
+		argIdx++
+	}
+	if q.StartDate != nil && *q.StartDate != "" {
+		conditions = append(conditions, fmt.Sprintf("a.created_at >= $%d::timestamptz", argIdx))
+		args = append(args, *q.StartDate)
+		argIdx++
+	}
+	if q.EndDate != nil && *q.EndDate != "" {
+		conditions = append(conditions, fmt.Sprintf("a.created_at <= $%d::timestamptz + interval '1 day'", argIdx))
+		args = append(args, *q.EndDate)
+		argIdx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	dataQuery := fmt.Sprintf(
+		`SELECT a.id, a.action, a.entity_type, COALESCE(a.entity_id, ''), a.description,
+		 COALESCE(a.user_id::text, ''), COALESCE(a.user_email, ''), COALESCE(a.ip_address, ''),
+		 COALESCE(a.metadata, '{}'), a.created_at
+		 FROM audit_logs a %s ORDER BY a.created_at DESC`,
+		whereClause,
+	)
+
+	rows, err := r.db.Pool.Query(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []*model.AuditLogEntry
+	for rows.Next() {
+		e := &model.AuditLogEntry{}
+		if err := rows.Scan(&e.ID, &e.Action, &e.EntityType, &e.EntityID,
+			&e.Description, &e.UserID, &e.UserEmail, &e.IPAddress,
+			&e.Metadata, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	if entries == nil {
+		entries = []*model.AuditLogEntry{}
+	}
+	return entries, nil
 }

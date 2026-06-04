@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Scan Detail Report</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #1a1d23;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  :root {
+    --color-primary: #10b981;
+    --color-primary-subtle: rgba(16,185,129,0.12);
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-accent: #8b5cf6;
+    --color-surface: #1e2128;
+    --color-card: #22262e;
+    --color-border: #2a2e36;
+    --color-border-light: #333842;
+    --color-text: #e2e8f0;
+    --color-text-muted: #8892a6;
+    --color-text-secondary: #a0a8b8;
+  }
+
+  body { max-width: 1100px; margin: 0 auto; }
+
+  .card {
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .page-title { font-size: 22px; font-weight: 700; color: var(--color-text); }
+  .page-subtitle { font-size: 13px; color: var(--color-text-muted); margin-top: 2px; }
+
+  .severity-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-critical { background: rgba(239,68,68,0.12); color: var(--color-danger); }
+  .pill-high { background: rgba(245,158,11,0.12); color: var(--color-warning); }
+  .pill-medium { background: rgba(139,92,246,0.12); color: var(--color-accent); }
+  .pill-low { background: rgba(16,185,129,0.12); color: var(--color-success); }
+  .pill-pass { background: rgba(16,185,129,0.1); color: var(--color-success); }
+  .pill-fail { background: rgba(239,68,68,0.1); color: var(--color-danger); }
+
+  .source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .source-ci { background: rgba(59,130,246,0.1); color: #60a5fa; }
+  .source-live { background: rgba(16,185,129,0.1); color: var(--color-success); }
+
+  .filter-chip {
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+    background: transparent;
+  }
+  .filter-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .filter-chip.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+  .filter-chip.active-severity.active-critical { background: rgba(239,68,68,0.15); color: var(--color-danger); border-color: rgba(239,68,68,0.3); }
+  .filter-chip.active-severity.active-high { background: rgba(245,158,11,0.15); color: var(--color-warning); border-color: rgba(245,158,11,0.3); }
+  .filter-chip.active-severity.active-medium { background: rgba(139,92,246,0.15); color: var(--color-accent); border-color: rgba(139,92,246,0.3); }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 20px;
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn:hover { color: var(--color-text); }
+  .tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .sub-tab-content { display: none; }
+  .sub-tab-content.active { display: block; }
+
+  /* Finding row */
+  .finding-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 13px;
+    transition: all 0.1s;
+  }
+  .finding-row:last-child { border-bottom: none; }
+  .finding-row:hover { background: rgba(255,255,255,0.02); }
+
+  .finding-expanded {
+    display: none;
+    padding: 0 14px 12px 44px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    line-height: 1.7;
+    border-bottom: 1px solid var(--color-border);
+    background: rgba(0,0,0,0.08);
+  }
+  .finding-expanded.show { display: block; }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-bottom: 6px;
+  }
+
+  .badge-new {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(239,68,68,0.15);
+    color: var(--color-danger);
+  }
+  .badge-fixed {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(16,185,129,0.15);
+    color: var(--color-success);
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .info-label { font-size: 10px; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .info-value { font-size: 13px; font-weight: 600; color: var(--color-text); }
+</style>
+</head>
+<body>
+
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 text-sm mb-4" style="color: var(--color-text-muted);">
+  <span style="cursor: pointer;">← Vulnerabilities</span>
+  <span>/</span>
+  <span style="cursor: pointer;">Scan History</span>
+  <span>/</span>
+  <span style="color: var(--color-text);">Scan #005 — Detail</span>
+</div>
+
+<!-- HEADER -->
+<div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+  <div>
+    <h1 class="page-title">🔍 Scan Detail Report</h1>
+    <p class="page-subtitle"><strong style="color: var(--color-text);">anjungan-backend:latest</strong> — Full vulnerability, misconfig & secrets report</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="source-badge source-live">Live Scan</span>
+    <span class="text-xs font-mono" style="color: var(--color-text-muted);">sha:abc1234</span>
+    <div class="text-xs flex items-center gap-1 px-3 py-1 rounded-full" style="background: var(--color-surface); border: 1px solid var(--color-border-light);">
+      <span>Scan #005</span>
+      <span style="color: var(--color-text-muted);">|</span>
+      <span style="color: var(--color-text-muted);">15 min ago</span>
+    </div>
+    <button class="filter-chip">⟳ Re-scan</button>
+  </div>
+</div>
+
+<!-- SCAN INFO BAR -->
+<div class="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-4">
+  <div class="card !p-3" style="border-left: 3px solid #3b82f6;">
+    <div class="info-label">Target</div>
+    <div class="info-value" style="font-size: 14px;">anjungan-backend:latest</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">Docker image (linux/amd64)</div>
+  </div>
+  <div class="card !p-3" style="border-left: 3px solid var(--color-accent);">
+    <div class="info-label">Trivy Version</div>
+    <div class="info-value" style="font-size: 14px;">v0.60.0</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">scanner: aquasec/trivy</div>
+  </div>
+  <div class="card !p-3" style="border-left: 3px solid var(--color-primary);">
+    <div class="info-label">OS / Arch</div>
+    <div class="info-value" style="font-size: 14px;">debian 12.10</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">bookworm-slim</div>
+  </div>
+  <div class="card !p-3" style="border-left: 3px solid var(--color-warning);">
+    <div class="info-label">Pipeline</div>
+    <div class="info-value" style="font-size: 14px;">GitHub Actions</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">run #4821 · branch: main</div>
+  </div>
+</div>
+
+<!-- SEVERITY SUMMARY -->
+<div class="grid gap-3 grid-cols-5 mb-5">
+  <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-danger);">
+    <div class="text-2xl font-bold" style="color: var(--color-danger);">3</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">Critical</div>
+  </div>
+  <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-warning);">
+    <div class="text-2xl font-bold" style="color: var(--color-warning);">9</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">High</div>
+  </div>
+  <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-accent);">
+    <div class="text-2xl font-bold" style="color: var(--color-accent);">12</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">Medium</div>
+  </div>
+  <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-success);">
+    <div class="text-2xl font-bold" style="color: var(--color-success);">8</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">Low</div>
+  </div>
+  <div class="card !p-3 text-center" style="border-top: 3px solid #f97316;">
+    <div class="text-2xl font-bold" style="color: #f97316;">4</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">Misconfigs</div>
+  </div>
+</div>
+
+<!-- SUB TABS: Vulnerabilities / Misconfigurations / Secrets / Raw JSON -->
+<div class="tab-bar">
+  <button class="tab-btn active" data-subtab="vulns">🛡️ Vulnerabilities <span class="text-xs" style="color: var(--color-text-muted);">(32)</span></button>
+  <button class="tab-btn" data-subtab="misconfig">📄 Misconfigurations <span class="text-xs" style="color: var(--color-text-muted);">(4)</span></button>
+  <button class="tab-btn" data-subtab="secrets">🔑 Secrets Found <span class="text-xs" style="color: var(--color-text-muted);">(2)</span></button>
+  <button class="tab-btn" data-subtab="raw">📋 Raw JSON</button>
+</div>
+
+<!-- ==================== VULNERABILITIES ==================== -->
+<div class="sub-tab-content active" id="subtab-vulns">
+
+  <!-- Filter chips -->
+  <div class="flex flex-wrap items-center gap-2 mb-4">
+    <span class="text-xs font-medium" style="color: var(--color-text-muted);">Severity:</span>
+    <button class="filter-chip active-severity active-critical active">Critical (3)</button>
+    <button class="filter-chip active-severity active-high active">High (9)</button>
+    <button class="filter-chip active-severity active-medium active">Medium (12)</button>
+    <button class="filter-chip active-severity" style="border-color: var(--color-border);">Low (8)</button>
+    <span class="text-xs font-medium ml-4" style="color: var(--color-text-muted);">Status:</span>
+    <button class="filter-chip active">All</button>
+    <button class="filter-chip"><span class="badge-new">NEW</span></button>
+    <button class="filter-chip">Fixable</button>
+    <button class="filter-chip"><span class="badge-fixed">FIXED</span> in CI/CD</button>
+    <span class="text-xs ml-auto" style="color: var(--color-text-muted);">Click row for details</span>
+  </div>
+
+  <!-- Results Table -->
+  <div class="card !p-0 overflow-hidden">
+
+    <!-- Table header -->
+    <div style="display: grid; grid-template-columns: 70px 40px 1fr 120px 100px 60px; gap: 8px; padding: 10px 14px; background: var(--color-surface); font-size: 11px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--color-border);">
+      <span>Severity</span>
+      <span style="text-align: center;">Δ</span>
+      <span>CVE / Package</span>
+      <span>Installed</span>
+      <span>Fixed</span>
+      <span style="text-align: right;"></span>
+    </div>
+
+    <!-- === CRITICAL === -->
+    <div class="finding-row" onclick="this.nextElementSibling.classList.toggle('show')" style="cursor: pointer;">
+      <span class="severity-pill pill-critical" style="width: 62px; font-size: 10px;">CRITICAL</span>
+      <div style="text-align: center; width: 24px;"><span class="badge-new">NEW</span></div>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">CVE-2025-31555</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">libcrypto · openssl 3.0.15</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text);">3.0.15</div>
+      <div style="font-size: 12px; color: var(--color-text-muted);">—</div>
+      <div style="text-align: right;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-text-muted);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="finding-expanded">
+      <div class="grid gap-2" style="grid-template-columns: 1fr 1fr;">
+        <div><span class="info-label">Description</span><p style="color: var(--color-text);">Buffer overflow in OpenSSL X.509 certificate verification allows remote code execution via crafted certificate chain. Published: Jun 2, 2026. No patch available yet.</p></div>
+        <div>
+          <div><span class="info-label">References</span></div>
+          <div style="font-size: 11px; color: #60a5fa;">https://avd.aquasec.com/nvd/cve-2025-31555</div>
+          <div style="font-size: 11px; color: #60a5fa;">https://nvd.nist.gov/vuln/detail/CVE-2025-31555</div>
+        </div>
+      </div>
+      <div class="mt-2 flex items-center gap-2 text-xs p-2 rounded-lg" style="background: rgba(239,68,68,0.06);">
+        <span style="color: var(--color-danger); font-weight: 600;">⚠️ No fix available</span>
+        <span style="color: var(--color-text-muted);">— Monitor vendor advisory. Consider WAF/IDS rules as mitigation.</span>
+      </div>
+    </div>
+
+    <div class="finding-row" onclick="this.nextElementSibling.classList.toggle('show')" style="cursor: pointer;">
+      <span class="severity-pill pill-critical" style="width: 62px; font-size: 10px;">CRITICAL</span>
+      <div style="text-align: center; width: 24px;">—</div>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">CVE-2025-22869</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">golang.org/x/crypto</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text);">v0.28.0</div>
+      <div style="font-size: 12px; color: var(--color-success);">v0.31.0</div>
+      <div style="text-align: right;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-text-muted);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="finding-expanded">
+      <div><span class="info-label">Description</span><p style="color: var(--color-text);">SSH handshake race condition allows man-in-the-middle attacks when using specific cipher suites. Published: Apr 15, 2025.</p></div>
+      <div class="mt-1"><span class="info-label">Layer</span><span style="color: var(--color-text); font-size: 12px;"> go mod · <span style="color: var(--color-text-muted);">build layer: go build -o /app/server</span></span></div>
+      <div class="mt-2 flex items-center gap-2 p-2 rounded-lg" style="background: rgba(16,185,129,0.06);">
+        <span style="color: var(--color-success); font-weight: 600;">✅ Fix:</span>
+        <span style="color: var(--color-text-muted);">Run <code style="color: var(--color-primary);">go get golang.org/x/crypto@v0.31.0</code> and rebuild</span>
+      </div>
+    </div>
+
+    <div class="finding-row" onclick="this.nextElementSibling.classList.toggle('show')" style="cursor: pointer;">
+      <span class="severity-pill pill-critical" style="width: 62px; font-size: 10px;">CRITICAL</span>
+      <div style="text-align: center; width: 24px;">—</div>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">CVE-2025-22868</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">golang.org/x/oauth2</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text);">v0.25.0</div>
+      <div style="font-size: 12px; color: var(--color-success);">v0.27.0</div>
+      <div style="text-align: right;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-text-muted);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="finding-expanded">
+      <div><span class="info-label">Description</span><p style="color: var(--color-text);">OAuth2 token leak via crafted request — attacker can read access tokens from logs when debug mode enabled.</p></div>
+      <div class="mt-1"><span class="info-label">CVSS Score</span><span style="color: var(--color-danger); font-size: 12px; font-weight: 600;"> 9.1</span></div>
+      <div class="mt-2 flex items-center gap-2 p-2 rounded-lg" style="background: rgba(16,185,129,0.06);">
+        <span style="color: var(--color-success); font-weight: 600;">✅ Fix:</span>
+        <span style="color: var(--color-text-muted);">Update golang.org/x/oauth2 to v0.27.0</span>
+      </div>
+    </div>
+
+    <!-- === HIGH section title === -->
+    <div style="padding: 8px 14px; background: rgba(245,158,11,0.04); border-bottom: 1px solid var(--color-border);">
+      <span class="text-xs font-semibold" style="color: var(--color-warning);">HIGH — 9 findings</span>
+    </div>
+
+    <div class="finding-row" onclick="this.nextElementSibling.classList.toggle('show')" style="cursor: pointer;">
+      <span class="severity-pill pill-high" style="width: 62px; font-size: 10px;">HIGH</span>
+      <div style="text-align: center; width: 24px;">—</div>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">CVE-2025-22870</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">net/http (golang stdlib)</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text);">go1.23.0</div>
+      <div style="font-size: 12px; color: var(--color-success);">go1.23.6</div>
+      <div style="text-align: right;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-text-muted);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="finding-expanded">
+      <div><span class="info-label">Description</span><p style="color: var(--color-text);">HTTP Request Smuggling via chunked transfer encoding in net/http server. Affects Go applications behind reverse proxy.</p></div>
+      <div class="mt-1"><span class="info-label">Layer</span><span style="color: var(--color-text); font-size: 12px;"> golang base image <span style="color: var(--color-text-muted);">· golang:1.23-alpine</span></span></div>
+      <div class="mt-2 flex items-center gap-2 p-2 rounded-lg" style="background: rgba(16,185,129,0.06);">
+        <span style="color: var(--color-success); font-weight: 600;">✅ Fix:</span>
+        <span style="color: var(--color-text-muted);">Update base image to golang:1.23.6-alpine</span>
+      </div>
+    </div>
+
+    <div class="finding-row" onclick="this.nextElementSibling.classList.toggle('show')" style="cursor: pointer;">
+      <span class="severity-pill pill-high" style="width: 62px; font-size: 10px;">HIGH</span>
+      <div style="text-align: center; width: 24px;"><span class="badge-new" style="font-size: 8px;">NEW</span></div>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">CVE-2026-0012</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">libssl3 · debian:bookworm-slim</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text);">3.0.15</div>
+      <div style="font-size: 12px; color: var(--color-success);">3.3.1</div>
+      <div style="text-align: right;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-text-muted);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="finding-expanded">
+      <div><span class="info-label">Description</span><p style="color: var(--color-text);">TLS certificate validation bypass in libssl3 when using specific cipher suites. Published: May 28, 2026.</p></div>
+      <div class="mt-1 flex items-center gap-2 p-2 rounded-lg" style="background: rgba(16,185,129,0.06);">
+        <span style="color: var(--color-success); font-weight: 600;">✅ Fix:</span>
+        <span style="color: var(--color-text-muted);">apt-get upgrade libssl3 to 3.3.1 and rebuild image</span>
+      </div>
+    </div>
+
+    <div class="finding-row" onclick="this.nextElementSibling.classList.toggle('show')" style="cursor: pointer;">
+      <span class="severity-pill pill-high" style="width: 62px; font-size: 10px;">HIGH</span>
+      <div style="text-align: center; width: 24px;">—</div>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">CVE-2025-0727</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">libssl3 · debian:bookworm-slim</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text);">3.0.15</div>
+      <div style="font-size: 12px; color: var(--color-success);">3.3.1</div>
+      <div style="text-align: right;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-text-muted);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="finding-expanded">
+      <div><span class="info-label">Description</span><p style="color: var(--color-text);">Buffer overflow in X.509 certificate chain processing allows denial of service via crafted certificate.</p></div>
+    </div>
+
+    <!-- === MEDIUM section title === -->
+    <div style="padding: 8px 14px; background: rgba(139,92,246,0.04); border-bottom: 1px solid var(--color-border);">
+      <span class="text-xs font-semibold" style="color: var(--color-accent);">MEDIUM — 12 findings</span>
+    </div>
+
+    <div class="finding-row" onclick="this.nextElementSibling.classList.toggle('show')" style="cursor: pointer;">
+      <span class="severity-pill pill-medium" style="width: 62px; font-size: 10px;">MEDIUM</span>
+      <div style="text-align: center; width: 24px;">—</div>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">CVE-2025-26614</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">PostgreSQL client lib</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text);">16.4</div>
+      <div style="font-size: 12px; color: var(--color-success);">16.8</div>
+      <div style="text-align: right;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-text-muted);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="finding-expanded">
+      <div><span class="info-label">Description</span><p style="color: var(--color-text);">PostgreSQL client does not properly validate TLS certificate hostname when connecting over SSL, enabling MITM attacks.</p></div>
+    </div>
+
+    <div class="finding-row" onclick="this.nextElementSibling.classList.toggle('show')" style="cursor: pointer;">
+      <span class="severity-pill pill-medium" style="width: 62px; font-size: 10px;">MEDIUM</span>
+      <div style="text-align: center; width: 24px;"><span class="badge-fixed" style="font-size: 8px;">FIXED</span></div>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">CVE-2025-0933</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">curl · debian:bookworm-slim</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text);">8.10.0</div>
+      <div style="font-size: 12px; color: var(--color-success);">—</div>
+      <div style="text-align: right;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-text-muted);"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+    <div class="finding-expanded">
+      <div><span class="info-label">Description</span><p style="color: var(--color-text);">cURL cookie injection via malformed Set-Cookie header. <span style="color: var(--color-success); font-weight: 600;">✓ Fixed in latest CI/CD build (golang:1.23.6-alpine)</span> but still present in Live image due to outdated base.</p></div>
+      <div class="mt-1 flex items-center gap-2 p-2 rounded-lg" style="background: rgba(239,68,68,0.06);">
+        <span style="color: var(--color-danger); font-weight: 600;">🚨 Present in Live but fixed in CI/CD</span>
+        <span style="color: var(--color-text-muted);">— Re-deploy latest build to production.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="flex items-center justify-between mt-4 text-xs" style="color: var(--color-text-muted);">
+    <span>Showing 8 of 32 findings (filtered)</span>
+    <div class="flex items-center gap-1">
+      <button class="filter-chip active">1</button>
+      <button class="filter-chip">2</button>
+      <button class="filter-chip">3</button>
+      <button class="filter-chip">4</button>
+      <span style="color: var(--color-text-muted);">…</span>
+      <button class="filter-chip">8</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MISCONFIGURATIONS ==================== -->
+<div class="sub-tab-content" id="subtab-misconfig">
+
+  <div class="card !p-0 overflow-hidden">
+    <div style="display: grid; grid-template-columns: 70px 1fr 80px 100px; gap: 8px; padding: 10px 14px; background: var(--color-surface); font-size: 11px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--color-border);">
+      <span>Severity</span>
+      <span>Misconfiguration</span>
+      <span>Type</span>
+      <span style="text-align: right;">Cause</span>
+    </div>
+
+    <div class="finding-row">
+      <span class="severity-pill pill-high" style="width: 48px; font-size: 10px;">HIGH</span>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">DS002 — Image tag ':latest' digunakan</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">Gunakan tag versi eksplisit untuk reproducibility</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-accent);">Dockerfile</div>
+      <div style="text-align: right; font-size: 12px; color: var(--color-text-muted);" class="font-mono">FROM golang:1.23</div>
+    </div>
+
+    <div class="finding-row">
+      <span class="severity-pill pill-medium" style="width: 48px; font-size: 10px;">MEDIUM</span>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">DS006 — No HEALTHCHECK instruction</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">Container tanpa HEALTHCHECK tidak bisa di-monitor statusnya</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-accent);">Dockerfile</div>
+      <div style="text-align: right; font-size: 12px; color: var(--color-success);">Tambahkan HEALTHCHECK</div>
+    </div>
+
+    <div class="finding-row">
+      <span class="severity-pill pill-medium" style="width: 48px; font-size: 10px;">MEDIUM</span>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">DS012 — No USER directive (runs as root)</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">Container berjalan sebagai root — gunakan USER non-root</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-accent);">Dockerfile</div>
+      <div style="text-align: right; font-size: 12px; color: var(--color-success);">Tambahkan USER appuser</div>
+    </div>
+
+    <div class="finding-row">
+      <span class="severity-pill pill-low" style="width: 48px; font-size: 10px;">LOW</span>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">DS022 — No .dockerignore file</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">Build context lebih besar dari optimal</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-accent);">Dockerfile</div>
+      <div style="text-align: right; font-size: 12px; color: var(--color-success);">Buat .dockerignore</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SECRETS ==================== -->
+<div class="sub-tab-content" id="subtab-secrets">
+
+  <div class="card !p-0 overflow-hidden">
+    <div style="display: grid; grid-template-columns: 70px 1fr 100px 120px; gap: 8px; padding: 10px 14px; background: var(--color-surface); font-size: 11px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--color-border);">
+      <span>Severity</span>
+      <span>Secret</span>
+      <span>Category</span>
+      <span style="text-align: right;">Location</span>
+    </div>
+
+    <div class="finding-row">
+      <span class="severity-pill pill-critical" style="width: 62px; font-size: 10px;">CRITICAL</span>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">GitHub Personal Access Token</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">ghp_*****1234 — Detected in image layer</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text-muted);">GitHub Token</div>
+      <div style="text-align: right; font-size: 11px; color: var(--color-warning);" class="font-mono">/app/.netrc</div>
+    </div>
+
+    <div class="finding-row">
+      <span class="severity-pill pill-high" style="width: 62px; font-size: 10px;">HIGH</span>
+      <div style="flex: 1;">
+        <div class="font-medium" style="color: var(--color-text);">Private SSH Key</div>
+        <div style="font-size: 11px; color: var(--color-text-muted);">RSA 4096-bit key — Detected in image layer</div>
+      </div>
+      <div style="font-size: 12px; color: var(--color-text-muted);">SSH Key</div>
+      <div style="text-align: right; font-size: 11px; color: var(--color-warning);" class="font-mono">/root/.ssh/id_rsa</div>
+    </div>
+  </div>
+
+  <div class="mt-3 card !p-4" style="background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.15);">
+    <div class="flex items-center gap-2 text-sm font-semibold mb-1" style="color: var(--color-danger);">
+      <span>🚨 Secrets in Image — Immediate Action Required</span>
+    </div>
+    <p class="text-xs" style="color: var(--color-text-muted); line-height: 1.7;">
+      2 secrets ditemukan di dalam image layer. Ini berarti secret ikut ter-bake ke dalam image saat build. 
+      <strong>Rekomendasi:</strong> (1) Rebuild image menggunakan build args atau secret mount (<code style="color: var(--color-primary);">--secret</code>) — jangan COPY. 
+      (2) Rotate semua credential yang terlanjur terekspos. (3) Tambahkan aturan secret scanning di pipeline agar build gagal jika ada secret terdeteksi.
+    </p>
+  </div>
+</div>
+
+<!-- ==================== RAW JSON ==================== -->
+<div class="sub-tab-content" id="subtab-raw">
+
+  <div class="flex items-center justify-between mb-3">
+    <span class="text-xs" style="color: var(--color-text-muted);">Full Trivy JSON output · <span style="color: var(--color-text);">4,281 lines</span></span>
+    <div class="flex gap-2">
+      <button class="filter-chip">📋 Copy</button>
+      <button class="filter-chip">⬇ Download JSON</button>
+      <button class="filter-chip">⬇ Download SBOM</button>
+    </div>
+  </div>
+
+  <div class="card !p-0 overflow-hidden">
+    <pre style="padding: 16px; font-size: 11px; line-height: 1.6; color: var(--color-text-muted); overflow-x: auto; max-height: 500px; overflow-y: auto;">
+<span style="color: #64748b;">{</span>
+  <span style="color: #64748b;">"SchemaVersion"</span>: <span style="color: #22c55e;">2</span>,
+  <span style="color: #64748b;">"ArtifactName"</span>: <span style="color: #e2e8f0;">"anjungan-backend:latest"</span>,
+  <span style="color: #64748b;">"ArtifactType"</span>: <span style="color: #e2e8f0;">"container_image"</span>,
+  <span style="color: #64748b;">"Metadata"</span>: {
+    <span style="color: #64748b;">"OS"</span>: { <span style="color: #64748b;">"Family"</span>: <span style="color: #e2e8f0;">"debian"</span>, <span style="color: #64748b;">"Name"</span>: <span style="color: #e2e8f0;">"12.10"</span> },
+    <span style="color: #64748b;">"ImageConfig"</span>: {
+      <span style="color: #64748b;">"architecture"</span>: <span style="color: #e2e8f0;">"amd64"</span>,
+      <span style="color: #64748b;">"created"</span>: <span style="color: #e2e8f0;">"2026-06-03T04:15:30Z"</span>,
+      <span style="color: #64748b;">"os"</span>: <span style="color: #e2e8f0;">"linux"</span>
+    }
+  },
+  <span style="color: #64748b;">"Results"</span>: [
+    {
+      <span style="color: #64748b;">"Target"</span>: <span style="color: #e2e8f0;">"debian:12.10 (debian 12.10)"</span>,
+      <span style="color: #64748b;">"Class"</span>: <span style="color: #e2e8f0;">"os-pkgs"</span>,
+      <span style="color: #64748b;">"Type"</span>: <span style="color: #e2e8f0;">"debian"</span>,
+      <span style="color: #64748b;">"Vulnerabilities"</span>: [
+        {
+          <span style="color: #64748b;">"VulnerabilityID"</span>: <span style="color: #e2e8f0;">"CVE-2025-31555"</span>,
+          <span style="color: #64748b;">"PkgName"</span>: <span style="color: #e2e8f0;">"libcrypto3"</span>,
+          <span style="color: #64748b;">"Severity"</span>: <span style="color: #ef4444;">"CRITICAL"</span>,
+          <span style="color: #64748b;">"InstalledVersion"</span>: <span style="color: #e2e8f0;">"3.0.15"</span>,
+          <span style="color: #64748b;">"FixedVersion"</span>: <span style="color: #e2e8f0;">""</span>,
+          <span style="color: #64748b;">"Title"</span>: <span style="color: #e2e8f0;">"openssl: buffer overflow in X.509 certificate verification"</span>,
+          <span style="color: #64748b;">"PublishedDate"</span>: <span style="color: #e2e8f0;">"2026-06-02T00:00:00Z"</span>,
+          <span style="color: #64748b;">"CVSS"</span>: { <span style="color: #64748b;">"nvd"</span>: { <span style="color: #64748b;">"V3Score"</span>: <span style="color: #22c55e;">9.8</span> } }
+        }
+      ]
+    }
+  ]
+}</pre>
+  </div>
+</div>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.sub-tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('subtab-' + btn.dataset.subtab).classList.add('active');
+    });
+  });
+
+  // Filter chips
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (chip.classList.contains('active') || chip.classList.contains('active-severity')) {
+        chip.classList.toggle('active');
+      } else {
+        chip.classList.add('active');
+      }
+    });
+  });
+</script>
+</body>
+</html>

@@ -9,4 +9,4 @@ CREATE TABLE IF NOT EXISTS servers (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_servers_status ON servers(status);
+CREATE INDEX IF NOT EXISTS idx_servers_status ON servers(status);

@@ -26,7 +26,7 @@
                │
 ┌──────────────┴──────────────────────────────────────┐
 │              Infrastructure Layer                    │
-│  Docker · SSH · Zot · VictoriaMetrics · Grafana     │
+│  Docker · SSH · Zot · VictoriaMetrics              │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -68,7 +68,7 @@ make dev-frontend
 | Backend | Go 1.25, Chi router, pgx |
 | Database | PostgreSQL 17, Redis 7 |
 | Container Registry | Zot (optional) |
-| Monitoring | VictoriaMetrics, Grafana (optional) |
+| Monitoring | VictoriaMetrics (optional, custom viz coming) |
 | Deployment | Docker Compose, Dockerfiles |
 
 ## Project Structure
@@ -94,7 +94,6 @@ anjungan/
 │   └── src/
 │       ├── lib/           # Components, stores, API
 │       └── routes/        # Pages
-├── grafana/               # Grafana provisioning
 ├── docker-compose.yml     # All services
 ├── Dockerfile.backend     # Multi-stage Go build
 ├── Dockerfile.frontend    # Nginx static SPA

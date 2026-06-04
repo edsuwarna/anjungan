@@ -12,6 +12,7 @@ import (
 
 	"github.com/edsuwarna/anjungan/internal/common/model"
 	"github.com/edsuwarna/anjungan/internal/config"
+	ratelimit "github.com/edsuwarna/anjungan/internal/ratelimit"
 )
 
 // ─── Repository interface (implemented by common/db) ──────────────────────
@@ -24,24 +25,50 @@ type UserRepository interface {
 // ─── Service ───────────────────────────────────────────────────────────────
 
 type Service struct {
-	users UserRepository
-	cfg   config.JWTConfig
-	rdb   *redis.Client
+	users       UserRepository
+	cfg         config.JWTConfig
+	rdb         *redis.Client
+	rateLimiter *ratelimit.RateLimiter
+	securityCfg config.SecurityConfig
 }
 
-func NewService(users UserRepository, cfg config.JWTConfig, rdb *redis.Client) *Service {
-	return &Service{users: users, cfg: cfg, rdb: rdb}
+func NewService(users UserRepository, cfg config.JWTConfig, rdb *redis.Client, rl *ratelimit.RateLimiter, secCfg config.SecurityConfig) *Service {
+	return &Service{users: users, cfg: cfg, rdb: rdb, rateLimiter: rl, securityCfg: secCfg}
 }
 
-func (s *Service) Login(ctx context.Context, email, password, totpCode string) (*TokenResponse, error) {
+func (s *Service) Login(ctx context.Context, email, password, totpCode, ip string) (*TokenResponse, error) {
+	// 1. Check account-level lockout
+	locked, _, err := s.rateLimiter.IsLocked(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if locked {
+		return nil, ErrAccountLocked
+	}
+
+	// 2. Check IP+email rate limit
+	status, err := s.rateLimiter.CheckLogin(ctx, ip, email)
+	if err != nil {
+		return nil, err
+	}
+	if !status.Allowed {
+		return nil, ErrAccountLocked
+	}
+
 	user, err := s.users.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		// Record the failed attempt — may trigger lockout
+		s.rateLimiter.RecordFailed(ctx, ip, email)
+		// Return vague error to avoid revealing account existence or lock state
 		return nil, ErrInvalidCredentials
 	}
+
+	// 3. Clear rate limit counters on successful login
+	s.rateLimiter.RecordSuccess(ctx, ip, email)
 
 	if user.TOTPEnabled && totpCode == "" {
 		return nil, ErrTOTPRequired
@@ -51,6 +78,10 @@ func (s *Service) Login(ctx context.Context, email, password, totpCode string) (
 }
 
 func (s *Service) Register(ctx context.Context, email, name, password string) (*model.User, error) {
+	if len(password) < s.securityCfg.MinPasswordLength {
+		return nil, ErrPasswordTooShort
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
@@ -154,7 +185,9 @@ type Claims struct {
 // ─── Error sentinels ────────────────────────────────────────────────────────
 
 var (
-	ErrTOTPRequired      = errors.New("totp code required")
-	ErrInvalidToken      = errors.New("invalid or expired token")
+	ErrTOTPRequired       = errors.New("totp code required")
+	ErrInvalidToken       = errors.New("invalid or expired token")
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrAccountLocked      = errors.New("account locked due to too many failed attempts")
+	ErrPasswordTooShort   = errors.New("password does not meet minimum length requirement")
 )

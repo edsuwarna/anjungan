@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan Compliance Redesign Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#10b981',
+        'primary-hover': '#059669',
+        'primary-subtle': '#ecfdf5',
+        card: '#ffffff',
+        surface: '#f8fafc',
+        border: '#e2e8f0',
+        'border-light': '#f1f5f9',
+        muted: '#6b7280',
+        'text-secondary': '#4b5563',
+        text: '#1a1a1a',
+        danger: '#ef4444',
+        warning: '#f59e0b',
+        accent: '#8b5cf6',
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #f4f5f7;
+    color: #1a1a1a;
+    line-height: 1.5;
+    padding: 40px 24px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  
+  /* Screenshot nav */
+  .screen-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    padding: 4px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow-x: auto;
+  }
+  .screen-tab {
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    color: #6b7280;
+    background: transparent;
+  }
+  .screen-tab:hover { background: #f1f5f9; color: #1a1a1a; }
+  .screen-tab.active {
+    background: #10b981;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+  }
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── Component styles ── */
+  .kpi-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .kpi-card .value { font-size: 32px; font-weight: 700; line-height: 1.2; }
+  .kpi-card .label { font-size: 12px; color: #6b7280; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  
+  .category-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .category-card.purple { border-left: 3px solid #8b5cf6; }
+  .category-card.emerald { border-left: 3px solid #10b981; }
+  .category-card.amber { border-left: 3px solid #f59e0b; }
+
+  .server-card {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .server-card:hover { border-color: #10b981; box-shadow: 0 2px 8px rgba(16,185,129,0.1); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .badge.green { background: #ecfdf5; color: #059669; }
+  .badge.red { background: #fef2f2; color: #dc2626; }
+  .badge.amber { background: #fffbeb; color: #d97706; }
+  .badge.gray { background: #f3f4f6; color: #6b7280; }
+  .badge.purple { background: #f5f3ff; color: #7c3aed; }
+  .badge.blue { background: #eff6ff; color: #2563eb; }
+  .badge.emerald { background: #ecfdf5; color: #059669; }
+
+  .severity-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    gap: 2px;
+    background: #f1f5f9;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  .tab-btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    color: #6b7280;
+    background: transparent;
+    transition: all 0.15s;
+  }
+  .tab-btn.active { background: #fff; color: #10b981; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .tab-btn:hover { color: #1a1a1a; }
+
+  /* Progress */
+  .progress-bar { height: 6px; border-radius: 3px; background: #f1f5f9; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+
+  /* Findings */
+  .finding-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+  }
+  .finding-row.critical { border-left: 3px solid #ef4444; }
+  .finding-row.warning { border-left: 3px solid #f59e0b; }
+  .finding-row.passed { border-left: 3px solid #10b981; }
+
+  /* History */
+  .history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .history-row:last-child { border-bottom: none; }
+
+  .whats-scanned {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .whats-scanned summary {
+    padding: 14px 18px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: #059669;
+  }
+  .whats-scanned[open] summary { border-bottom: 1px solid #bbf7d0; }
+  .whats-scanned .content { padding: 16px 18px; }
+  .category-item { 
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .category-item .icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Screen Navigation -->
+  <div class="screen-tabs">
+    <button class="screen-tab active" onclick="switchScreen('overview')">📊 Compliance Overview</button>
+    <button class="screen-tab" onclick="switchScreen('server')">🖥️ Server Detail</button>
+    <button class="screen-tab" onclick="switchScreen('compliance')">🛡️ Server · Compliance Tab</button>
+    <button class="screen-tab" onclick="switchScreen('lynis')">🔍 Server · Lynis Tab</button>
+  </div>
+
+  <p style="font-size: 13px; color: #6b7280; margin-bottom: 20px; text-align: center;">
+    Click tabs above to switch between mockup screens · <span style="color: #10b981;">Anjungan Compliance Redesign</span>
+  </p>
+
+  <!-- ════════════════════════════════ SCREEN 1: OVERVIEW ════════════════════════════════ -->
+  <div class="screen active" id="screen-overview">
+    <div style="background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden;">
+
+      <!-- Breadcrumb -->
+      <div style="padding: 16px 24px 0; font-size: 13px; color: #6b7280;">
+        <span style="color: #10b981;">Compliance</span>
+      </div>
+
+      <!-- Header -->
+      <div style="padding: 12px 24px 20px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <h2 style="font-size: 22px; font-weight: 700;">Compliance Overview</h2>
+          <p style="font-size: 13px; color: #6b7280; margin-top: 2px;">Fleet security posture at a glance</p>
+        </div>
+        <div class="badge blue" style="font-size: 13px; padding: 6px 16px;">Scan All Servers →</div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div style="padding: 0 24px 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;">
+        <div class="kpi-card">
+          <div class="value" style="color: #1a1a1a;">12</div>
+          <div class="label">Total Servers</div>
+          <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">9 scanned · 3 unscanned</div>
+        </div>
+        <div class="kpi-card">
+          <div class="value" style="color: #10b981;">84</div>
+          <div class="label">Average Score</div>
+          <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">↑ 3% from last month</div>
+        </div>
+        <div class="kpi-card">
+          <div class="value" style="color: #059669;">7</div>
+          <div class="label">Passing Servers</div>
+          <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Score ≥ 80</div>
+        </div>
+        <div class="kpi-card" style="justify-content: flex-start;">
+          <div class="label" style="margin-top: 0;">Distribution</div>
+          <div style="width: 100%; margin-top: 10px;">
+            <div style="display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: #f1f5f9;">
+              <div style="flex: 7; background: #10b981;"></div>
+              <div style="flex: 2; background: #f59e0b;"></div>
+              <div style="flex: 1; background: #ef4444;"></div>
+              <div style="flex: 2; background: #e2e8f0;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #6b7280; margin-top: 6px;">
+              <span>🟢 7 Passing</span>
+              <span>🟡 2 Warning</span>
+              <span>🔴 1 Critical</span>
+              <span>⚪ 2 Unscanned</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan Category Cards (Entry Points) -->
+      <div style="padding: 0 24px 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+        <div class="category-card emerald">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="badge emerald" style="font-size: 13px; padding: 4px 14px;">CIS Level 1</span>
+            <span style="font-size: 24px; font-weight: 700; color: #10b981;">86%</span>
+          </div>
+          <p style="font-size: 13px; color: #6b7280; margin-top: 8px;">58 checks · 7 categories</p>
+          <div class="progress-bar" style="margin-top: 10px;">
+            <div class="progress-fill" style="width: 86%; background: #10b981;"></div>
+          </div>
+          <p style="font-size: 12px; color: #10b981; font-weight: 600; margin-top: 10px;">Click to view →</p>
+        </div>
+        <div class="category-card amber">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="badge amber" style="font-size: 13px; padding: 4px 14px;">CIS Level 2</span>
+            <span style="font-size: 24px; font-weight: 700; color: #f59e0b;">62%</span>
+          </div>
+          <p style="font-size: 13px; color: #6b7280; margin-top: 8px;">92 checks · 10 categories</p>
+          <div class="progress-bar" style="margin-top: 10px;">
+            <div class="progress-fill" style="width: 62%; background: #f59e0b;"></div>
+          </div>
+          <p style="font-size: 12px; color: #f59e0b; font-weight: 600; margin-top: 10px;">Click to view →</p>
+        </div>
+        <div class="category-card purple">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="badge purple" style="font-size: 13px; padding: 4px 14px;">Lynis Audit</span>
+            <span style="font-size: 24px; font-weight: 700; color: #8b5cf6;">72</span>
+          </div>
+          <p style="font-size: 13px; color: #6b7280; margin-top: 8px;">Hardening Index · 12 categories</p>
+          <div class="progress-bar" style="margin-top: 10px;">
+            <div class="progress-fill" style="width: 72%; background: #8b5cf6;"></div>
+          </div>
+          <p style="font-size: 12px; color: #8b5cf6; font-weight: 600; margin-top: 10px;">Click to view →</p>
+        </div>
+      </div>
+
+      <!-- Server Cards Grid -->
+      <div style="padding: 0 24px 24px;">
+        <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px;">Servers <span style="color: #6b7280; font-weight: 400;">· 12 servers</span></h3>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Server 1 -->
+          <div class="server-card" style="border-left: 4px solid #10b981;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: #ecfdf5; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">🖥️</div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 600; font-size: 14px;">web-01-prod</span>
+                <span class="badge green" style="font-size: 10px;">Online</span>
+              </div>
+              <p style="font-size: 12px; color: #6b7280; font-family: monospace;">192.168.1.10:22</p>
+            </div>
+            <div style="font-size: 28px; font-weight: 700; color: #10b981; min-width: 60px; text-align: center;">92</div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; min-width: 100px;">
+              <span class="badge red">2</span>
+              <span class="badge amber">1</span>
+              <span class="badge green">45</span>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <span class="badge emerald">L1</span>
+              <span class="badge amber">L2</span>
+              <span class="badge purple">Lyn</span>
+            </div>
+            <div style="font-size: 11px; color: #6b7280; text-align: right;">
+              <div>2h ago</div>
+              <div style="color: #10b981; font-weight: 600;">View →</div>
+            </div>
+          </div>
+
+          <!-- Server 2 -->
+          <div class="server-card" style="border-left: 4px solid #f59e0b;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: #fffbeb; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">🖥️</div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 600; font-size: 14px;">db-01-staging</span>
+                <span class="badge green" style="font-size: 10px;">Online</span>
+              </div>
+              <p style="font-size: 12px; color: #6b7280; font-family: monospace;">192.168.1.20:22</p>
+            </div>
+            <div style="font-size: 28px; font-weight: 700; color: #f59e0b; min-width: 60px; text-align: center;">67</div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; min-width: 100px;">
+              <span class="badge red">5</span>
+              <span class="badge amber">3</span>
+              <span class="badge green">32</span>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <span class="badge emerald">L1</span>
+              <span class="badge amber">L2</span>
+              <span class="badge purple">Lyn</span>
+            </div>
+            <div style="font-size: 11px; color: #6b7280; text-align: right;">
+              <div>6h ago</div>
+              <div style="color: #f59e0b; font-weight: 600;">View →</div>
+            </div>
+          </div>
+
+          <!-- Server 3 -->
+          <div class="server-card" style="border-left: 4px solid #ef4444;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: #fef2f2; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">🖥️</div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 600; font-size: 14px;">redis-cache-01</span>
+                <span class="badge green" style="font-size: 10px;">Online</span>
+              </div>
+              <p style="font-size: 12px; color: #6b7280; font-family: monospace;">10.0.0.5:22</p>
+            </div>
+            <div style="font-size: 28px; font-weight: 700; color: #ef4444; min-width: 60px; text-align: center;">34</div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; min-width: 100px;">
+              <span class="badge red">14</span>
+              <span class="badge amber">6</span>
+              <span class="badge green">18</span>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <span class="badge emerald">L1</span>
+              <span class="badge amber">L2</span>
+            </div>
+            <div style="font-size: 11px; color: #6b7280; text-align: right;">
+              <div>1d ago</div>
+              <div style="color: #ef4444; font-weight: 600;">View →</div>
+            </div>
+          </div>
+
+          <!-- Server 4 (unscanned) -->
+          <div class="server-card" style="border-left: 4px solid #e2e8f0; opacity: 0.7;">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">🖥️</div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-weight: 600; font-size: 14px;">new-server-01</span>
+                <span class="badge gray" style="font-size: 10px;">Offline</span>
+              </div>
+              <p style="font-size: 12px; color: #6b7280; font-family: monospace;">—</p>
+            </div>
+            <div style="font-size: 28px; font-weight: 700; color: #e2e8f0; min-width: 60px; text-align: center;">—</div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; min-width: 100px;">
+              <span style="font-size: 11px; color: #9ca3af;">Unscanned</span>
+            </div>
+            <div style="display: flex; gap: 4px;"></div>
+            <div style="font-size: 11px; color: #9ca3af; text-align: right;">
+              <div>—</div>
+              <div style="color: #9ca3af; font-weight: 600;">View →</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 14px;">
+          <span style="font-size: 13px; color: #10b981; font-weight: 600; cursor: pointer;">Show all 12 servers →</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ SCREEN 2: SERVER DETAIL ════════════════════════════════ -->
+  <div class="screen" id="screen-server">
+    <div style="background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden;">
+
+      <!-- Breadcrumb -->
+      <div style="padding: 16px 24px 0; font-size: 13px; color: #6b7280;">
+        <a style="color: #6b7280; text-decoration: none;">Servers</a> <span style="color: #cbd5e1;">/</span>
+        <span style="color: #1a1a1a;">web-01-prod</span>
+      </div>
+
+      <!-- Status bar -->
+      <div style="margin: 8px 24px 0; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #10b981, #059669);"></div>
+
+      <!-- Header -->
+      <div style="padding: 14px 24px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div>
+            <h2 style="font-size: 22px; font-weight: 700;">web-01-prod</h2>
+            <p style="font-size: 13px; color: #6b7280;">192.168.1.10:22</p>
+          </div>
+          <span class="badge green" style="font-size: 12px; padding: 4px 12px;">🟢 Online</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <span class="badge" style="background: #f1f5f9; color: #6b7280; font-size: 12px; padding: 6px 14px;">🧪 Test</span>
+          <span class="badge" style="background: #f1f5f9; color: #6b7280; font-size: 12px; padding: 6px 14px;">✏️ Edit</span>
+          <span class="badge" style="background: #fef2f2; color: #dc2626; font-size: 12px; padding: 6px 14px;">🗑️ Delete</span>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div style="padding: 0 24px 16px; display: flex; gap: 8px;">
+        <span class="badge" style="background: #f1f5f9; color: #4b5563; font-size: 12px; padding: 6px 14px;">⌨️ Terminal</span>
+        <span class="badge" style="background: #f1f5f9; color: #4b5563; font-size: 12px; padding: 6px 14px;">📋 Copy SSH Cmd</span>
+        <span class="badge" style="background: #f1f5f9; color: #4b5563; font-size: 12px; padding: 6px 14px;">🔄 Refresh</span>
+      </div>
+
+      <!-- Tab Bar -->
+      <div style="padding: 0 24px 16px;">
+        <div class="tab-bar">
+          <button class="tab-btn active">📋 Overview</button>
+          <button class="tab-btn">📊 Metrics</button>
+          <button class="tab-btn">📦 Containers</button>
+          <button class="tab-btn">🛡️ Compliance</button>
+        </div>
+      </div>
+
+      <!-- Overview Tab Content -->
+      <div style="padding: 0 24px 24px;">
+        <!-- Connection Info -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+          <div style="background: #f8fafc; border-radius: 10px; padding: 14px; border: 1px solid #f1f5f9; border-left: 3px solid #10b981;">
+            <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: #10b981;">Host</p>
+            <p style="font-size: 14px; font-weight: 600; font-family: monospace; margin-top: 4px;">192.168.1.10</p>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 14px; border: 1px solid #f1f5f9; border-left: 3px solid #8b5cf6;">
+            <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: #8b5cf6;">Port</p>
+            <p style="font-size: 14px; font-weight: 600; font-family: monospace; margin-top: 4px;">22</p>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 14px; border: 1px solid #f1f5f9; border-left: 3px solid #f59e0b;">
+            <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: #f59e0b;">SSH User</p>
+            <p style="font-size: 14px; font-weight: 600; font-family: monospace; margin-top: 4px;">ubuntu</p>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 14px; border: 1px solid #f1f5f9; border-left: 3px solid #10b981;">
+            <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: #10b981;">Auth</p>
+            <p style="font-size: 14px; font-weight: 600; margin-top: 4px;">🔑 SSH Key</p>
+          </div>
+        </div>
+
+        <!-- Organization + System Info -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+          <div>
+            <h4 style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: #6b7280; margin-bottom: 10px;">Organization</h4>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+              <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #f1f5f9;">
+                <p style="font-size: 10px; text-transform: uppercase; color: #10b981; font-weight: 600;">Group</p>
+                <p style="font-size: 13px; font-weight: 600; margin-top: 2px;">Production</p>
+              </div>
+              <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #f1f5f9;">
+                <p style="font-size: 10px; text-transform: uppercase; color: #8b5cf6; font-weight: 600;">Region</p>
+                <p style="font-size: 13px; font-weight: 600; margin-top: 2px;">us-east-1</p>
+              </div>
+              <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #f1f5f9;">
+                <p style="font-size: 10px; text-transform: uppercase; color: #f59e0b; font-weight: 600;">Type</p>
+                <p style="font-size: 13px; font-weight: 600; margin-top: 2px;">Web Server</p>
+              </div>
+              <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #f1f5f9;">
+                <p style="font-size: 10px; text-transform: uppercase; color: #10b981; font-weight: 600;">Added</p>
+                <p style="font-size: 13px; font-weight: 600; margin-top: 2px;">12 Jan 2025</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h4 style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: #6b7280; margin-bottom: 10px;">System Info</h4>
+            <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #f1f5f9;">
+              <p style="font-size: 10px; text-transform: uppercase; color: #8b5cf6; font-weight: 600;">OS</p>
+              <p style="font-size: 13px; margin-top: 2px;">Ubuntu 22.04 LTS</p>
+              <p style="font-size: 10px; text-transform: uppercase; color: #f59e0b; font-weight: 600; margin-top: 8px;">CPU</p>
+              <p style="font-size: 13px; margin-top: 2px;">8 vCPU · Intel Xeon</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ SCREEN 3: COMPLIANCE TAB ════════════════════════════════ -->
+  <div class="screen" id="screen-compliance">
+    <div style="background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden;">
+
+      <!-- Breadcrumb -->
+      <div style="padding: 16px 24px 0; font-size: 13px; color: #6b7280;">
+        <a style="color: #6b7280; text-decoration: none;">Servers</a> <span style="color: #cbd5e1;">/</span>
+        <span style="color: #10b981; font-weight: 600;">web-01-prod</span>
+      </div>
+
+      <!-- Status bar (green) -->
+      <div style="margin: 8px 24px 0; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #10b981, #059669);"></div>
+
+      <!-- Header -->
+      <div style="padding: 14px 24px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div>
+            <h2 style="font-size: 22px; font-weight: 700;">web-01-prod</h2>
+            <p style="font-size: 13px; color: #6b7280;">192.168.1.10:22</p>
+          </div>
+          <span class="badge green" style="font-size: 12px; padding: 4px 12px;">🟢 Online</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <span class="badge" style="background: #ecfdf5; color: #059669; font-size: 12px; padding: 6px 14px; border: 1px solid #bbf7d0;">▶️ Run CIS L1</span>
+          <span class="badge" style="background: #fffbeb; color: #d97706; font-size: 12px; padding: 6px 14px; border: 1px solid #fde68a;">▶️ Run CIS L2</span>
+          <span class="badge" style="background: #f5f3ff; color: #7c3aed; font-size: 12px; padding: 6px 14px; border: 1px solid #ddd6fe;">🔍 Run Lynis</span>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div style="padding: 0 24px 16px;">
+        <div class="tab-bar">
+          <button class="tab-btn">📋 Overview</button>
+          <button class="tab-btn">📊 Metrics</button>
+          <button class="tab-btn">📦 Containers</button>
+          <button class="tab-btn active">🛡️ Compliance</button>
+        </div>
+      </div>
+
+      <!-- Compliance Tab Content -->
+      <div style="padding: 0 24px 24px;">
+
+        <!-- Profile selector -->
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <span class="badge" style="background: #ecfdf5; color: #059669; font-size: 13px; padding: 6px 16px; border: 2px solid #10b981; font-weight: 700;">CIS L1</span>
+          <span class="badge" style="background: #f1f5f9; color: #6b7280; font-size: 13px; padding: 6px 16px; cursor: pointer;">CIS L2</span>
+          <span class="badge" style="background: #f1f5f9; color: #6b7280; font-size: 13px; padding: 6px 16px; cursor: pointer;">Lynis</span>
+        </div>
+
+        <!-- What's Scanned (collapsible) -->
+        <details class="whats-scanned" open>
+          <summary>🔍 What's scanned in CIS Level 1?</summary>
+          <div class="content">
+            <p style="font-size: 13px; color: #4b5563; margin-bottom: 12px;">
+              CIS Level 1 scans <strong>58 checks</strong> across <strong>7 categories</strong> to verify basic security hardening. These are foundational controls every production server should implement.
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+              <div class="category-item">
+                <div class="icon" style="background: #eff6ff; color: #2563eb;">🔒</div>
+                <div><strong>SSH</strong> <span style="color: #6b7280;">· 12 checks</span><br><span style="font-size: 12px; color: #6b7280;">SSH config, key-based auth, root login restrictions</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #f5f3ff; color: #7c3aed;">⚙️</div>
+                <div><strong>Kernel</strong> <span style="color: #6b7280;">· 8 checks</span><br><span style="font-size: 12px; color: #6b7280;">sysctl params, network hardening, ASLR</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #fffbeb; color: #d97706;">📁</div>
+                <div><strong>Filesystem</strong> <span style="color: #6b7280;">· 8 checks</span><br><span style="font-size: 12px; color: #6b7280;">Partition mounts, sticky bits, world-writable files</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #ecfdf5; color: #059669;">🌐</div>
+                <div><strong>Network</strong> <span style="color: #6b7280;">· 6 checks</span><br><span style="font-size: 12px; color: #6b7280;">Firewall rules, IP forwarding, network params</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #fef2f2; color: #dc2626;">🔐</div>
+                <div><strong>Authentication</strong> <span style="color: #6b7280;">· 8 checks</span><br><span style="font-size: 12px; color: #6b7280;">Password policies, lockout, PAM configuration</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #fdf4ff; color: #c026d3;">📋</div>
+                <div><strong>Logging</strong> <span style="color: #6b7280;">· 8 checks</span><br><span style="font-size: 12px; color: #6b7280;">Auditd, syslog, log rotation</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #fefce8; color: #ca8a04;">👥</div>
+                <div><strong>Users</strong> <span style="color: #6b7280;">· 8 checks</span><br><span style="font-size: 12px; color: #6b7280;">UID/GID, empty passwords, root accounts</span></div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Score + Stats -->
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; margin-top: 16px;">
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center;">
+            <div style="font-size: 32px; font-weight: 700; color: #10b981;">92</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Score</div>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #6b7280;">
+            <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">48</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Total Checks</div>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #10b981;">
+            <div style="font-size: 24px; font-weight: 700; color: #10b981;">45</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Passed</div>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #f59e0b;">
+            <div style="font-size: 24px; font-weight: 700; color: #f59e0b;">1</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Warnings</div>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #ef4444;">
+            <div style="font-size: 24px; font-weight: 700; color: #ef4444;">2</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Failed</div>
+          </div>
+        </div>
+
+        <!-- Score Trend -->
+        <div style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="font-size: 13px; font-weight: 600;">Score Trend (L1)</h4>
+            <span style="font-size: 11px; color: #6b7280;">Last 10 scans</span>
+          </div>
+          <div style="background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; padding: 12px; display: flex; align-items: flex-end; gap: 6px; height: 64px;">
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 82%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 78%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 85%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 80%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 86%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #fef3c7; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 62%; background: #f59e0b; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 88%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 90%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 88%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #d1fae5; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 92%; background: #10b981; border-radius: 3px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Cards Grid -->
+        <h4 style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">Categories <span style="color: #6b7280; font-weight: 400;">· 7 categories · 48 checks</span></h4>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;">
+          <!-- SSH -->
+          <div class="category-card" style="border-left: 3px solid #3b82f6; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;"><span>🔒</span> SSH</span>
+              <span style="font-size: 18px; font-weight: 700; color: #3b82f6;">92%</span>
+            </div>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">12 checks</p>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 2px;">✓10 ⚠1 ✗1</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 92%; background: #3b82f6;"></div>
+            </div>
+          </div>
+          <!-- Kernel -->
+          <div class="category-card" style="border-left: 3px solid #8b5cf6; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;"><span>⚙️</span> Kernel</span>
+              <span style="font-size: 18px; font-weight: 700; color: #8b5cf6;">88%</span>
+            </div>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">8 checks</p>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 2px;">✓6 ⚠2</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 88%; background: #8b5cf6;"></div>
+            </div>
+          </div>
+          <!-- Filesystem -->
+          <div class="category-card" style="border-left: 3px solid #f59e0b; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;"><span>📁</span> Filesystem</span>
+              <span style="font-size: 18px; font-weight: 700; color: #f59e0b;">75%</span>
+            </div>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">8 checks</p>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 2px;">✓5 ⚠2 ✗1</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 75%; background: #f59e0b;"></div>
+            </div>
+          </div>
+          <!-- Network -->
+          <div class="category-card" style="border-left: 3px solid #10b981; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;"><span>🌐</span> Network</span>
+              <span style="font-size: 18px; font-weight: 700; color: #10b981;">100%</span>
+            </div>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">6 checks</p>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 2px;">✓6</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 100%; background: #10b981;"></div>
+            </div>
+          </div>
+          <!-- Auth -->
+          <div class="category-card" style="border-left: 3px solid #ef4444; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;"><span>🔐</span> Auth</span>
+              <span style="font-size: 18px; font-weight: 700; color: #ef4444;">62%</span>
+            </div>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">8 checks</p>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 2px;">✓5 ⚠2 ✗1</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 62%; background: #ef4444;"></div>
+            </div>
+          </div>
+          <!-- Logging -->
+          <div class="category-card" style="border-left: 3px solid #c084fc; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;"><span>📋</span> Logging</span>
+              <span style="font-size: 18px; font-weight: 700; color: #c084fc;">100%</span>
+            </div>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">8 checks</p>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 2px;">✓8</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 100%; background: #c084fc;"></div>
+            </div>
+          </div>
+          <!-- Users -->
+          <div class="category-card" style="border-left: 3px solid #fb923c; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;"><span>👥</span> Users</span>
+              <span style="font-size: 18px; font-weight: 700; color: #fb923c;">100%</span>
+            </div>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">6 checks</p>
+            <p style="font-size: 11px; color: #6b7280; margin-top: 2px;">✓6</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 100%; background: #fb923c;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Findings & History -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <!-- Top Findings -->
+          <div style="background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; padding: 16px;">
+            <h4 style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">🔴 Top Failed Checks</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div class="finding-row critical">
+                <span class="severity-dot" style="background: #ef4444; width: 10px; height: 10px; margin-top: 3px;"></span>
+                <div>
+                  <p style="font-size: 13px; font-weight: 600;">5.2.1 Ensure SSH PermitRootLogin is disabled</p>
+                  <p style="font-size: 11px; color: #6b7280; margin-top: 1px;">SSH · Root login via SSH is enabled</p>
+                </div>
+                <span class="badge red" style="font-size: 10px; margin-left: auto;">Critical</span>
+              </div>
+              <div class="finding-row critical">
+                <span class="severity-dot" style="background: #ef4444; width: 10px; height: 10px; margin-top: 3px;"></span>
+                <div>
+                  <p style="font-size: 13px; font-weight: 600;">1.1.2 Ensure /tmp is on separate partition</p>
+                  <p style="font-size: 11px; color: #6b7280; margin-top: 1px;">Filesystem · /tmp not mounted as tmpfs</p>
+                </div>
+                <span class="badge red" style="font-size: 10px; margin-left: auto;">Critical</span>
+              </div>
+              <div class="finding-row warning">
+                <span class="severity-dot" style="background: #f59e0b; width: 10px; height: 10px; margin-top: 3px;"></span>
+                <div>
+                  <p style="font-size: 13px; font-weight: 600;">3.1.2 Ensure packet redirect sending is disabled</p>
+                  <p style="font-size: 11px; color: #6b7280; margin-top: 1px;">Kernel · ICMP redirects not disabled</p>
+                </div>
+                <span class="badge amber" style="font-size: 10px; margin-left: auto;">Warning</span>
+              </div>
+            </div>
+            <p style="font-size: 12px; color: #10b981; font-weight: 600; margin-top: 10px; text-align: center;">View all 48 checks →</p>
+          </div>
+
+          <!-- Scan History -->
+          <div style="background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="font-size: 13px; font-weight: 600;">📜 Scan History (CIS L1)</h4>
+              <select style="font-size: 11px; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; color: #6b7280;">
+                <option>CIS L1</option>
+                <option>CIS L2</option>
+                <option>Lynis</option>
+              </select>
+            </div>
+            <div>
+              <div class="history-row">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="severity-dot" style="background: #10b981;"></span>
+                  <div>
+                    <p style="font-size: 13px; font-weight: 600;">92%</p>
+                    <p style="font-size: 11px; color: #6b7280;">Today, 10:30 AM</p>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <p style="font-size: 12px; color: #10b981;">✓45 ⚠1 ✗2</p>
+                  <p style="font-size: 11px; color: #10b981; cursor: pointer;">View →</p>
+                </div>
+              </div>
+              <div class="history-row">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="severity-dot" style="background: #10b981;"></span>
+                  <div>
+                    <p style="font-size: 13px; font-weight: 600;">90%</p>
+                    <p style="font-size: 11px; color: #6b7280;">Yesterday, 2:15 PM</p>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <p style="font-size: 12px; color: #10b981;">✓44 ⚠2 ✗2</p>
+                  <p style="font-size: 11px; color: #10b981; cursor: pointer;">View →</p>
+                </div>
+              </div>
+              <div class="history-row">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="severity-dot" style="background: #10b981;"></span>
+                  <div>
+                    <p style="font-size: 13px; font-weight: 600;">88%</p>
+                    <p style="font-size: 11px; color: #6b7280;">3 days ago</p>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <p style="font-size: 12px; color: #10b981;">✓43 ⚠2 ✗3</p>
+                  <p style="font-size: 11px; color: #10b981; cursor: pointer;">View →</p>
+                </div>
+              </div>
+              <div class="history-row">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="severity-dot" style="background: #f59e0b;"></span>
+                  <div>
+                    <p style="font-size: 13px; font-weight: 600;">62%</p>
+                    <p style="font-size: 11px; color: #6b7280;">1 week ago</p>
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <p style="font-size: 12px; color: #f59e0b;">✓30 ⚠10 ✗8</p>
+                  <p style="font-size: 11px; color: #10b981; cursor: pointer;">View →</p>
+                </div>
+              </div>
+            </div>
+            <p style="font-size: 12px; color: #10b981; font-weight: 600; margin-top: 8px; text-align: center;">View all history →</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ SCREEN 4: LYNIS TAB ════════════════════════════════ -->
+  <div class="screen" id="screen-lynis">
+    <div style="background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden;">
+
+      <!-- Breadcrumb -->
+      <div style="padding: 16px 24px 0; font-size: 13px; color: #6b7280;">
+        <a style="color: #6b7280; text-decoration: none;">Servers</a> <span style="color: #cbd5e1;">/</span>
+        <span style="color: #10b981; font-weight: 600;">web-01-prod</span>
+      </div>
+      <div style="margin: 8px 24px 0; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #10b981, #059669);"></div>
+
+      <!-- Header -->
+      <div style="padding: 14px 24px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div>
+            <h2 style="font-size: 22px; font-weight: 700;">web-01-prod</h2>
+            <p style="font-size: 13px; color: #6b7280;">192.168.1.10:22</p>
+          </div>
+          <span class="badge green" style="font-size: 12px; padding: 4px 12px;">🟢 Online</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <span class="badge" style="background: #f5f3ff; color: #7c3aed; font-size: 12px; padding: 6px 14px; border: 2px solid #8b5cf6; font-weight: 700;">🔍 Lynis Active</span>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div style="padding: 0 24px 16px;">
+        <div class="tab-bar">
+          <button class="tab-btn">📋 Overview</button>
+          <button class="tab-btn">📊 Metrics</button>
+          <button class="tab-btn">📦 Containers</button>
+          <button class="tab-btn active">🛡️ Compliance</button>
+        </div>
+      </div>
+
+      <!-- Compliance Tab (Lynis Active) -->
+      <div style="padding: 0 24px 24px;">
+
+        <!-- Profile selector - Lynis active -->
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <span class="badge" style="background: #f1f5f9; color: #6b7280; font-size: 13px; padding: 6px 16px; cursor: pointer;">CIS L1</span>
+          <span class="badge" style="background: #f1f5f9; color: #6b7280; font-size: 13px; padding: 6px 16px; cursor: pointer;">CIS L2</span>
+          <span class="badge" style="background: #f5f3ff; color: #7c3aed; font-size: 13px; padding: 6px 16px; border: 2px solid #8b5cf6; font-weight: 700;">Lynis</span>
+        </div>
+
+        <!-- What's Scanned (Lynis version) -->
+        <details class="whats-scanned" open style="background: #f5f3ff; border-color: #ddd6fe;">
+          <summary style="color: #7c3aed;">🔍 What's scanned in Lynis Audit?</summary>
+          <div class="content">
+            <p style="font-size: 13px; color: #4b5563; margin-bottom: 12px;">
+              Lynis is a security auditing tool that performs <strong>256 tests</strong> across <strong>12 categories</strong>. It checks compliance, configuration, and system hardening.
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+              <div class="category-item">
+                <div class="icon" style="background: #fef2f2; color: #dc2626;">🔐</div>
+                <div><strong>Authentication</strong> <span style="color: #6b7280;">· AUTH-9282</span><br><span style="font-size: 12px; color: #6b7280;">Password policies, PAM, SSH keys</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #fffbeb; color: #d97706;">📁</div>
+                <div><strong>File Systems</strong> <span style="color: #6b7280;">· FILE-6280</span><br><span style="font-size: 12px; color: #6b7280;">Permissions, mounts, disk quotas</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #f5f3ff; color: #7c3aed;">⚙️</div>
+                <div><strong>Kernel</strong> <span style="color: #6b7280;">· KRNL-5820</span><br><span style="font-size: 12px; color: #6b7280;">Sysctl, modules, boot security</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #eff6ff; color: #2563eb;">🌐</div>
+                <div><strong>Networking</strong> <span style="color: #6b7280;">· NETW-8500</span><br><span style="font-size: 12px; color: #6b7280;">Firewall, ports, DNS config</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #fce7f3; color: #db2777;">📋</div>
+                <div><strong>Logging</strong> <span style="color: #6b7280;">· LOGG-2100</span><br><span style="font-size: 12px; color: #6b7280;">Auditd, syslog, log forwarding</span></div>
+              </div>
+              <div class="category-item">
+                <div class="icon" style="background: #ecfdf5; color: #059669;">📦</div>
+                <div><strong>Docker</strong> <span style="color: #6b7280;">· DOCK-9310</span><br><span style="font-size: 12px; color: #6b7280;">Container security, daemon config</span></div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Stats: Hardening Index -->
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; margin-top: 16px;">
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #8b5cf6;">
+            <div style="font-size: 32px; font-weight: 700; color: #8b5cf6;">72</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Hardening Index</div>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #6b7280;">
+            <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">256</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Tests</div>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #10b981;">
+            <div style="font-size: 24px; font-weight: 700; color: #10b981;">210</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Passed</div>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #f59e0b;">
+            <div style="font-size: 24px; font-weight: 700; color: #f59e0b;">28</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Warnings</div>
+          </div>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 16px; text-align: center; border-top: 3px solid #8b5cf6;">
+            <div style="font-size: 24px; font-weight: 700; color: #8b5cf6;">18</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Suggestions</div>
+          </div>
+        </div>
+
+        <!-- Hardening Trend -->
+        <div style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="font-size: 13px; font-weight: 600;">Hardening Trend</h4>
+            <span style="font-size: 11px; color: #6b7280;">Last 10 scans</span>
+          </div>
+          <div style="background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; padding: 12px; display: flex; align-items: flex-end; gap: 6px; height: 64px;">
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 55%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 52%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 58%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 54%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 60%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 65%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 68%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 70%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 68%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+            <div style="flex: 1; height: 40px; background: #ede9fe; border-radius: 3px; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: 72%; background: #8b5cf6; border-radius: 3px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Cards (Lynis) -->
+        <h4 style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">Lynis Categories <span style="color: #6b7280; font-weight: 400;">· 6 categories</span></h4>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+          <div class="category-card" style="padding: 14px; border-left: 3px solid #8b5cf6;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; color: #8b5cf6; font-family: monospace;">AUTH-9282</span>
+              <span style="font-size: 18px; font-weight: 700; color: #10b981;">94%</span>
+            </div>
+            <p style="font-size: 13px; font-weight: 600; margin-top: 4px;">Authentication</p>
+            <p style="font-size: 11px; color: #6b7280;">42 tests · ✔38 ⚠2 💡2</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 94%; background: #10b981;"></div>
+            </div>
+          </div>
+          <div class="category-card" style="padding: 14px; border-left: 3px solid #8b5cf6;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; color: #8b5cf6; font-family: monospace;">FILE-6280</span>
+              <span style="font-size: 18px; font-weight: 700; color: #f59e0b;">79%</span>
+            </div>
+            <p style="font-size: 13px; font-weight: 600; margin-top: 4px;">File Systems</p>
+            <p style="font-size: 11px; color: #6b7280;">38 tests · ✔30 ⚠4 💡4</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 79%; background: #f59e0b;"></div>
+            </div>
+          </div>
+          <div class="category-card" style="padding: 14px; border-left: 3px solid #8b5cf6;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; color: #8b5cf6; font-family: monospace;">KRNL-5820</span>
+              <span style="font-size: 18px; font-weight: 700; color: #8b5cf6;">66%</span>
+            </div>
+            <p style="font-size: 13px; font-weight: 600; margin-top: 4px;">Kernel</p>
+            <p style="font-size: 11px; color: #6b7280;">28 tests · ✔18 ⚠4 💡6</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 66%; background: #8b5cf6;"></div>
+            </div>
+          </div>
+          <div class="category-card" style="padding: 14px; border-left: 3px solid #8b5cf6;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; color: #8b5cf6; font-family: monospace;">NETW-8500</span>
+              <span style="font-size: 18px; font-weight: 700; color: #10b981;">88%</span>
+            </div>
+            <p style="font-size: 13px; font-weight: 600; margin-top: 4px;">Networking</p>
+            <p style="font-size: 11px; color: #6b7280;">52 tests · ✔46 ⚠4 💡2</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 88%; background: #10b981;"></div>
+            </div>
+          </div>
+          <div class="category-card" style="padding: 14px; border-left: 3px solid #8b5cf6;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; color: #8b5cf6; font-family: monospace;">LOGG-2100</span>
+              <span style="font-size: 18px; font-weight: 700; color: #f59e0b;">76%</span>
+            </div>
+            <p style="font-size: 13px; font-weight: 600; margin-top: 4px;">Logging</p>
+            <p style="font-size: 11px; color: #6b7280;">34 tests · ✔26 ⚠4 💡4</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 76%; background: #f59e0b;"></div>
+            </div>
+          </div>
+          <div class="category-card" style="padding: 14px; border-left: 3px solid #8b5cf6;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; color: #8b5cf6; font-family: monospace;">DOCK-9310</span>
+              <span style="font-size: 18px; font-weight: 700; color: #10b981;">95%</span>
+            </div>
+            <p style="font-size: 13px; font-weight: 600; margin-top: 4px;">Docker</p>
+            <p style="font-size: 11px; color: #6b7280;">24 tests · ✔22 ⚠1 💡1</p>
+            <div class="progress-bar" style="margin-top: 8px;">
+              <div class="progress-fill" style="width: 95%; background: #10b981;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Warnings & Suggestions -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 16px;">
+            <h4 style="font-size: 13px; font-weight: 600; color: #d97706; margin-bottom: 8px;">🟡 Warnings</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <p style="font-size: 12px;"><span style="font-family: monospace; color: #8b5cf6;">AUTH-9282</span> · Password expiration not set for all users</p>
+              <p style="font-size: 12px;"><span style="font-family: monospace; color: #8b5cf6;">FILE-6280</span> · /var/log on separate partition recommended</p>
+              <p style="font-size: 12px;"><span style="font-family: monospace; color: #8b5cf6;">KRNL-5820</span> · Kernel vulnerability: CVE-2024-XXX not patched</p>
+            </div>
+          </div>
+          <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 10px; padding: 16px;">
+            <h4 style="font-size: 13px; font-weight: 600; color: #7c3aed; margin-bottom: 8px;">💡 Suggestions</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <p style="font-size: 12px;"><span style="font-family: monospace; color: #8b5cf6;">LOGG-2100</span> · Enable auditd rule for file permission changes</p>
+              <p style="font-size: 12px;"><span style="font-family: monospace; color: #8b5cf6;">NETW-8500</span> · Install and configure fail2ban for SSH</p>
+              <p style="font-size: 12px;"><span style="font-family: monospace; color: #8b5cf6;">DOCK-9310</span> · Enable Docker content trust</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div style="background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h4 style="font-size: 13px; font-weight: 600;">📜 Scan History (Lynis)</h4>
+            <select style="font-size: 11px; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; color: #6b7280;">
+              <option>Lynis</option>
+              <option>CIS L1</option>
+              <option>CIS L2</option>
+            </select>
+          </div>
+          <div>
+            <div class="history-row">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="severity-dot" style="background: #8b5cf6;"></span>
+                <div>
+                  <p style="font-size: 13px; font-weight: 600;">72 (HI)</p>
+                  <p style="font-size: 11px; color: #6b7280;">Today, 10:30 AM</p>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <p style="font-size: 12px; color: #8b5cf6;">210 ✅ · 28 ⚠️ · 18 💡</p>
+                <p style="font-size: 11px; color: #8b5cf6; cursor: pointer;">View →</p>
+              </div>
+            </div>
+            <div class="history-row">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="severity-dot" style="background: #8b5cf6;"></span>
+                <div>
+                  <p style="font-size: 13px; font-weight: 600;">68 (HI)</p>
+                  <p style="font-size: 11px; color: #6b7280;">Yesterday</p>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <p style="font-size: 12px; color: #8b5cf6;">205 ✅ · 30 ⚠️ · 21 💡</p>
+                <p style="font-size: 11px; color: #8b5cf6; cursor: pointer;">View →</p>
+              </div>
+            </div>
+            <div class="history-row">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="severity-dot" style="background: #8b5cf6;"></span>
+                <div>
+                  <p style="font-size: 13px; font-weight: 600;">65 (HI)</p>
+                  <p style="font-size: 11px; color: #6b7280;">1 week ago</p>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <p style="font-size: 12px; color: #8b5cf6;">198 ✅ · 34 ⚠️ · 24 💡</p>
+                <p style="font-size: 11px; color: #8b5cf6; cursor: pointer;">View →</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div> <!-- /container -->
+
+<script>
+function switchScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  document.querySelectorAll('.screen-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

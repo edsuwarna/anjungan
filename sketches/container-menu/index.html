@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Container Menu — Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b' },
+            surface: { 50: '#f8f9fb', 100: '#f1f2f5', 200: '#e5e7ed', 300: '#d1d5dc', 400: '#9ca3b0', 500: '#6b7280', 600: '#4b5563', 700: '#374151', 800: '#1f2937', 900: '#111827' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #f4f5f7;
+      color: #1a1a1a;
+      line-height: 1.5;
+    }
+    .dark body, .dark { background: #1a1d23; color: #e5e7eb; }
+
+    /* SIDEBAR */
+    .sidebar { width: 220px; min-height: 100vh; background: #111827; color: #d1d5dc; }
+    .sidebar .active { background: rgba(16, 185, 129, 0.15); color: #10b981; border-right: 3px solid #10b981; }
+
+    /* CARDS */
+    .server-card { transition: all 0.2s ease; cursor: pointer; }
+    .server-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+
+    /* CONTAINER ITEM */
+    .container-item { transition: all 0.15s ease; }
+    .container-item:hover { background: #f1f2f5; }
+    .dark .container-item:hover { background: #2a2d35; }
+
+    /* VARIANTS TABS */
+    .variant-tab { transition: all 0.2s ease; }
+    .variant-tab.active { background: #10b981; color: white; }
+
+    /* VIEW TOGGLES */
+    .view-hidden { display: none; }
+
+    /* ANIMATION */
+    .fade-in { animation: fadeIn 0.25s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ACTION BUTTONS */
+    .action-btn { width: 32px; height: 32px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s; cursor: pointer; border: none; }
+    .action-btn:hover { transform: scale(1.1); }
+
+    /* STATUS BADGE */
+    .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+
+    /* BAR CHART MINI */
+    .bar-section { height: 6px; border-radius: 3px; transition: width 0.5s ease; }
+
+    /* MODAL OVERLAY */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; }
+    .modal-content { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 51; max-width: 640px; width: 90%; background: white; border-radius: 12px; padding: 24px; max-height: 90vh; overflow-y: auto; }
+    .dark .modal-content { background: #1f2937; }
+
+    /* TOOLTIP */
+    .tooltip { position: relative; }
+    .tooltip:hover::after { content: attr(data-tip); position: absolute; bottom: -28px; left: 50%; transform: translateX(-50%); background: #374151; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 10; }
+  </style>
+</head>
+<body>
+
+  <!-- ======== TOP VARIANT SWITCHER ======== -->
+  <div class="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Mockup:</span>
+        <div class="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+          <button onclick="switchVariant(1)" id="v1-tab" class="variant-tab active px-4 py-1.5 text-sm font-medium">Varian 1 · Server-first</button>
+          <button onclick="switchVariant(2)" id="v2-tab" class="variant-tab px-4 py-1.5 text-sm font-medium bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300">Varian 2 · Split-pane</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="toggleTheme()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg" title="Toggle theme">
+          <i class="ri-moon-line"></i>
+        </button>
+        <span class="text-xs text-gray-400">✨ interactive</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== APP SHELL ======== -->
+  <div class="flex">
+
+    <!-- ===== SIDEBAR ===== -->
+    <div class="sidebar flex-shrink-0 py-4 hidden md:block">
+      <div class="px-5 pb-6">
+        <div class="flex items-center gap-2 mb-8">
+          <div class="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center text-white font-bold text-sm">A</div>
+          <span class="text-white font-semibold text-sm">Anjungan</span>
+        </div>
+        <nav class="space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition">
+            <i class="ri-dashboard-line text-lg"></i> Overview
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm active font-medium">
+            <i class="ri-docker-line text-lg"></i> Container
+            <span class="ml-auto bg-primary-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">6</span>
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition">
+            <i class="ri-server-line text-lg"></i> Server
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition">
+            <i class="ri-file-list-3-line text-lg"></i> Audit Log
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition">
+            <i class="ri-settings-3-line text-lg"></i> Settings
+          </a>
+        </nav>
+      </div>
+      <div class="border-t border-gray-700/50 px-5 pt-4 mt-4">
+        <div class="flex items-center gap-3 text-sm text-gray-400">
+          <i class="ri-user-line"></i>
+          <span>admin</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <div class="flex-1 min-h-screen">
+
+      <!-- ======== VARIANT 1: SERVER-FIRST DASHBOARD ======== -->
+      <div id="variant-1" class="fade-in">
+
+        <!-- --- Dashboard State --- -->
+        <div id="v1-dashboard">
+          <!-- Header -->
+          <div class="px-6 pt-6 pb-2">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <i class="ri-docker-line text-primary-500"></i> Container
+                </h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Overview containers dari semua server</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="relative">
+                  <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                  <input type="text" placeholder="Cari server..." class="pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500">
+                </div>
+                <button class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                  <i class="ri-refresh-line"></i> Refresh
+                </button>
+              </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+              <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                <div class="flex items-center gap-2 text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">
+                  <i class="ri-docker-line"></i> Total Container
+                </div>
+                <div class="text-2xl font-bold text-gray-900 dark:text-white">28</div>
+              </div>
+              <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                <div class="flex items-center gap-2 text-green-500 text-xs font-medium uppercase tracking-wider mb-2">
+                  <i class="ri-checkbox-circle-line"></i> Running
+                </div>
+                <div class="text-2xl font-bold text-green-500">21</div>
+              </div>
+              <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                <div class="flex items-center gap-2 text-red-400 text-xs font-medium uppercase tracking-wider mb-2">
+                  <i class="ri-stop-circle-line"></i> Stopped
+                </div>
+                <div class="text-2xl font-bold text-red-400">5</div>
+              </div>
+              <div class="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                <div class="flex items-center gap-2 text-yellow-500 text-xs font-medium uppercase tracking-wider mb-2">
+                  <i class="ri-pause-circle-line"></i> Paused
+                </div>
+                <div class="text-2xl font-bold text-yellow-500">2</div>
+              </div>
+            </div>
+
+            <!-- Section label -->
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                <i class="ri-server-line"></i> Server Overview
+              </h2>
+              <span class="text-xs text-gray-400">Klik card untuk lihat container detail</span>
+            </div>
+          </div>
+
+          <!-- Server Cards -->
+          <div class="px-6 pb-6 grid grid-cols-1 xl:grid-cols-2 gap-4">
+
+            <!-- Server 1: peladen-utama -->
+            <div class="server-card bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5" onclick="openServerV1('peladen-utama')">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400">
+                    <i class="ri-server-line text-lg"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-gray-900 dark:text-white">peladen-utama</h3>
+                    <span class="text-xs text-gray-400">192.168.1.10 · 4 vCPU · 8GB RAM</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs text-gray-400">⚡</span>
+                  <span class="text-sm font-semibold text-green-500">8</span>
+                  <span class="text-xs text-gray-400">/</span>
+                  <span class="text-sm text-red-400">1</span>
+                  <span class="text-xs text-gray-400">/</span>
+                  <span class="text-sm text-yellow-500">0</span>
+                </div>
+              </div>
+              <!-- Mini bar -->
+              <div class="flex gap-0.5 h-2 rounded-full overflow-hidden mb-3">
+                <div class="bar-section bg-green-500" style="width: 88%"></div>
+                <div class="bar-section bg-red-400" style="width: 12%"></div>
+              </div>
+              <!-- Container tags -->
+              <div class="flex flex-wrap gap-1.5">
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> nginx-proxy</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> api-gateway</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> postgres</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> redis</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> minio</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> prometheus</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> grafana</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> node-exporter</span>
+                <span class="status-badge bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> elasticsearch</span>
+              </div>
+            </div>
+
+            <!-- Server 2: peladen-cdn -->
+            <div class="server-card bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5" onclick="openServerV1('peladen-cdn')">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <i class="ri-server-line text-lg"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-gray-900 dark:text-white">peladen-cdn</h3>
+                    <span class="text-xs text-gray-400">192.168.1.20 · 8 vCPU · 16GB RAM</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs text-gray-400">⚡</span>
+                  <span class="text-sm font-semibold text-green-500">6</span>
+                  <span class="text-xs text-gray-400">/</span>
+                  <span class="text-sm text-red-400">1</span>
+                  <span class="text-xs text-gray-400">/</span>
+                  <span class="text-sm text-yellow-500">1</span>
+                </div>
+              </div>
+              <div class="flex gap-0.5 h-2 rounded-full overflow-hidden mb-3">
+                <div class="bar-section bg-green-500" style="width: 75%"></div>
+                <div class="bar-section bg-red-400" style="width: 12.5%"></div>
+                <div class="bar-section bg-yellow-500" style="width: 12.5%"></div>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> caddy</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> varnish</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> nginx-cache</span>
+                <span class="status-badge bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800"><span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span> mongodb</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> rabbitmq</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> traefik</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> cloudflared</span>
+                <span class="status-badge bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> jenkins</span>
+              </div>
+            </div>
+
+            <!-- Server 3: peladen-db -->
+            <div class="server-card bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5" onclick="openServerV1('peladen-db')">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                    <i class="ri-database-2-line text-lg"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-gray-900 dark:text-white">peladen-db</h3>
+                    <span class="text-xs text-gray-400">192.168.1.30 · 8 vCPU · 32GB RAM</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs text-gray-400">⚡</span>
+                  <span class="text-sm font-semibold text-green-500">5</span>
+                  <span class="text-xs text-gray-400">/</span>
+                  <span class="text-sm text-red-400">2</span>
+                  <span class="text-xs text-gray-400">/</span>
+                  <span class="text-sm text-yellow-500">0</span>
+                </div>
+              </div>
+              <div class="flex gap-0.5 h-2 rounded-full overflow-hidden mb-3">
+                <div class="bar-section bg-green-500" style="width: 71%"></div>
+                <div class="bar-section bg-red-400" style="width: 29%"></div>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> postgres-15</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> mysql-8</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> redis-cluster</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> mongod</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> pgadmin</span>
+                <span class="status-badge bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> mongosh</span>
+                <span class="status-badge bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> adminer</span>
+              </div>
+            </div>
+
+            <!-- Server 4: peladen-dev -->
+            <div class="server-card bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5" onclick="openServerV1('peladen-dev')">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <i class="ri-tools-line text-lg"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-gray-900 dark:text-white">peladen-dev</h3>
+                    <span class="text-xs text-gray-400">192.168.1.40 · 4 vCPU · 8GB RAM</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs text-gray-400">⚡</span>
+                  <span class="text-sm font-semibold text-green-500">2</span>
+                  <span class="text-xs text-gray-400">/</span>
+                  <span class="text-sm text-red-400">1</span>
+                  <span class="text-xs text-gray-400">/</span>
+                  <span class="text-sm text-yellow-500">1</span>
+                </div>
+              </div>
+              <div class="flex gap-0.5 h-2 rounded-full overflow-hidden mb-3">
+                <div class="bar-section bg-green-500" style="width: 50%"></div>
+                <div class="bar-section bg-red-400" style="width: 25%"></div>
+                <div class="bar-section bg-yellow-500" style="width: 25%"></div>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> dev-api</span>
+                <span class="status-badge bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> dev-frontend</span>
+                <span class="status-badge bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800"><span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span> test-db</span>
+                <span class="status-badge bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> old-service</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- --- Server Detail State --- -->
+        <div id="v1-server-detail" class="view-hidden">
+          <div class="px-6 pt-6 pb-6">
+            <!-- Back + Header -->
+            <div class="flex items-center gap-4 mb-6">
+              <button onclick="backToDashboard()" class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
+                <i class="ri-arrow-left-line"></i> Kembali
+              </button>
+              <div class="h-5 w-px bg-gray-200 dark:bg-gray-600"></div>
+              <div class="flex items-center gap-3">
+                <div id="detail-server-icon" class="w-9 h-9 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400">
+                  <i class="ri-server-line text-lg"></i>
+                </div>
+                <div>
+                  <h2 id="detail-server-name" class="text-lg font-bold text-gray-900 dark:text-white">peladen-utama</h2>
+                  <span id="detail-server-meta" class="text-xs text-gray-400">192.168.1.10 · 4 vCPU · 8GB RAM</span>
+                </div>
+              </div>
+              <div class="ml-auto flex items-center gap-2">
+                <span id="detail-stats" class="text-xs bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg text-gray-600 dark:text-gray-300"></span>
+              </div>
+            </div>
+
+            <!-- Search + Filter -->
+            <div class="flex items-center gap-3 mb-4">
+              <div class="relative flex-1 max-w-xs">
+                <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                <input type="text" placeholder="Cari container..." class="pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500">
+              </div>
+              <select class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500/40">
+                <option>Semua Status</option>
+                <option>Running</option>
+                <option>Stopped</option>
+                <option>Paused</option>
+              </select>
+              <select class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500/40">
+                <option>Urut: Nama</option>
+                <option>Uptime ↓</option>
+                <option>Uptime ↑</option>
+              </select>
+              <button class="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition">
+                <i class="ri-refresh-line"></i> Refresh All
+              </button>
+            </div>
+
+            <!-- Container Cards -->
+            <div id="v1-container-list" class="space-y-2">
+              <!-- akan di-populate JS -->
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end Variant 1 -->
+
+
+      <!-- ======== VARIANT 2: SPLIT-PANE ======== -->
+      <div id="variant-2" class="view-hidden">
+
+        <div class="flex h-[calc(100vh-57px)]">
+          <!-- Left Panel: Server list -->
+          <div class="w-72 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
+            <div class="p-4 border-b border-gray-100 dark:border-gray-700">
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <i class="ri-server-line text-primary-500"></i> Server
+              </h2>
+              <div class="relative mt-2">
+                <i class="ri-search-line absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" placeholder="Cari server..." class="w-full pl-8 pr-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs focus:outline-none focus:ring-1 focus:ring-primary-500/40">
+              </div>
+            </div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-700">
+              <div class="server-list-item active bg-primary-50 dark:bg-primary-900/20 border-l-2 border-primary-500 p-3 cursor-pointer" onclick="selectServerV2('peladen-utama', this)">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">peladen-utama</span>
+                  </div>
+                  <span class="text-xs text-gray-400">8 🟢 1🔴</span>
+                </div>
+                <span class="text-[11px] text-gray-400 ml-4">192.168.1.10</span>
+              </div>
+              <div class="server-list-item p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 border-l-2 border-transparent" onclick="selectServerV2('peladen-cdn', this)">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">peladen-cdn</span>
+                  </div>
+                  <span class="text-xs text-gray-400">6 🟢 1🟡 1🔴</span>
+                </div>
+                <span class="text-[11px] text-gray-400 ml-4">192.168.1.20</span>
+              </div>
+              <div class="server-list-item p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 border-l-2 border-transparent" onclick="selectServerV2('peladen-db', this)">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">peladen-db</span>
+                  </div>
+                  <span class="text-xs text-gray-400">5 🟢 2🔴</span>
+                </div>
+                <span class="text-[11px] text-gray-400 ml-4">192.168.1.30</span>
+              </div>
+              <div class="server-list-item p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 border-l-2 border-transparent" onclick="selectServerV2('peladen-dev', this)">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">peladen-dev</span>
+                  </div>
+                  <span class="text-xs text-gray-400">2 🟢 1🟡 1🔴</span>
+                </div>
+                <span class="text-[11px] text-gray-400 ml-4">192.168.1.40</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Panel: Container list -->
+          <div class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+            <div class="p-5">
+              <!-- Header -->
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400">
+                    <i class="ri-docker-line text-xl"></i>
+                  </div>
+                  <div>
+                    <h2 id="v2-server-name" class="text-lg font-bold text-gray-900 dark:text-white">peladen-utama</h2>
+                    <p id="v2-server-meta" class="text-xs text-gray-400">192.168.1.10 · 9 container</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <i class="ri-refresh-line"></i> Refresh
+                  </button>
+                </div>
+              </div>
+
+              <!-- Search & filter -->
+              <div class="flex items-center gap-2 mb-4">
+                <div class="relative flex-1 max-w-sm">
+                  <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                  <input type="text" placeholder="Search container..." class="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40">
+                </div>
+                <select class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs focus:outline-none">
+                  <option>All status</option>
+                  <option>Running</option>
+                  <option>Stopped</option>
+                  <option>Paused</option>
+                </select>
+              </div>
+
+              <!-- V2 Container list -->
+              <div id="v2-container-list" class="space-y-2">
+                <!-- akan di-populate JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end Variant 2 -->
+
+    </div><!-- end Main Content -->
+  </div><!-- end App Shell -->
+
+
+  <!-- ======== CONTAINER DETAIL MODAL ======== -->
+  <div id="container-modal" class="hidden">
+    <div class="modal-overlay hidden" id="modal-overlay"></div>
+    <div class="modal-content hidden" id="modal-content">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400">
+            <i class="ri-docker-line"></i>
+          </div>
+          <div>
+            <h3 id="modal-name" class="font-semibold text-gray-900 dark:text-white">nginx-proxy</h3>
+            <span id="modal-status" class="text-xs text-green-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Running · 3 days</span>
+          </div>
+        </div>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+          <span class="text-[11px] text-gray-400 uppercase tracking-wider">Image</span>
+          <p id="modal-image" class="text-sm font-medium text-gray-900 dark:text-white mt-0.5 font-mono">nginx:1.25-alpine</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+          <span class="text-[11px] text-gray-400 uppercase tracking-wider">Ports</span>
+          <p id="modal-ports" class="text-sm font-medium text-gray-900 dark:text-white mt-0.5 font-mono">80:80, 443:443</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+          <span class="text-[11px] text-gray-400 uppercase tracking-wider">Created</span>
+          <p id="modal-created" class="text-sm font-medium text-gray-900 dark:text-white mt-0.5">2025-05-28 14:22 UTC</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+          <span class="text-[11px] text-gray-400 uppercase tracking-wider">Restarts</span>
+          <p id="modal-restarts" class="text-sm font-medium text-gray-900 dark:text-white mt-0.5">2 (last: 1h ago)</p>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 col-span-2">
+          <span class="text-[11px] text-gray-400 uppercase tracking-wider">Network</span>
+          <p id="modal-network" class="text-sm font-medium text-gray-900 dark:text-white mt-0.5 font-mono">bridge · 172.17.0.3</p>
+        </div>
+      </div>
+
+      <!-- Resource Usage -->
+      <div class="mb-5">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="ri-line-chart-line"></i> Resource Usage
+          </h4>
+          <span class="text-[10px] text-gray-400 italic">terakhir: 5 detik lalu</span>
+        </div>
+        <div class="space-y-2.5">
+          <!-- CPU -->
+          <div>
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="text-gray-500 dark:text-gray-400 flex items-center gap-1"><i class="ri-cpu-line"></i> CPU</span>
+              <span class="font-medium text-gray-700 dark:text-gray-200">68%</span>
+            </div>
+            <div class="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div class="h-full rounded-full bg-primary-500" style="width: 68%"></div>
+            </div>
+          </div>
+          <!-- Memory -->
+          <div>
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="text-gray-500 dark:text-gray-400 flex items-center gap-1"><i class="ri-ram-line"></i> Memory</span>
+              <span class="font-medium text-gray-700 dark:text-gray-200">1.2 GB / 2.0 GB</span>
+            </div>
+            <div class="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div class="h-full rounded-full" style="width: 60%; background: linear-gradient(90deg, #10b981, #f59e0b)"></div>
+            </div>
+          </div>
+          <!-- Network I/O -->
+          <div class="grid grid-cols-2 gap-3 pt-1">
+            <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5 flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500">
+                <i class="ri-arrow-down-line"></i>
+              </div>
+              <div>
+                <span class="text-[10px] text-gray-400 block leading-tight">Network RX</span>
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">12.4 MB</span>
+              </div>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5 flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-500">
+                <i class="ri-arrow-up-line"></i>
+              </div>
+              <div>
+                <span class="text-[10px] text-gray-400 block leading-tight">Network TX</span>
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">3.2 MB</span>
+              </div>
+            </div>
+          </div>
+          <!-- Block I/O -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5 flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-500">
+                <i class="ri-book-open-line"></i>
+              </div>
+              <div>
+                <span class="text-[10px] text-gray-400 block leading-tight">Block Read</span>
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">2.1 MB</span>
+              </div>
+            </div>
+            <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5 flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center text-rose-500">
+                <i class="ri-edit-2-line"></i>
+              </div>
+              <div>
+                <span class="text-[10px] text-gray-400 block leading-tight">Block Write</span>
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">0.8 MB</span>
+              </div>
+            </div>
+          </div>
+          <!-- Refresh button -->
+          <button class="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition mt-1">
+            <i class="ri-refresh-line"></i> Refresh Stats
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 mb-4">
+        <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition">
+          <i class="ri-play-line"></i> Start
+        </button>
+        <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition">
+          <i class="ri-stop-line"></i> Stop
+        </button>
+        <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm font-medium hover:bg-yellow-600 transition">
+          <i class="ri-restart-line"></i> Restart
+        </button>
+        <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          <i class="ri-terminal-line"></i> Logs
+        </button>
+        <button onclick="toggleExec(event)" class="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          <i class="ri-code-s-slash-line"></i> Exec
+        </button>
+        <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          <i class="ri-information-line"></i> Inspect
+        </button>
+      </div>
+
+      <!-- Exec Terminal Panel (hidden by default) -->
+      <div id="exec-terminal" class="hidden mb-4 rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+          <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <i class="ri-terminal-box-line"></i>
+            <span class="font-mono font-medium text-gray-700 dark:text-gray-200">nginx-proxy</span>
+            <span class="text-gray-300 dark:text-gray-500">/</span>
+            <span>/bin/sh</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500" title="Connected"></span>
+            <span class="text-[10px] text-green-500 font-medium">CONNECTED</span>
+            <button onclick="toggleExec(event)" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-2">
+              <i class="ri-close-mini-line"></i>
+            </button>
+          </div>
+        </div>
+        <div class="bg-gray-950 p-3 font-mono text-xs leading-relaxed" style="min-height: 180px;">
+          <div class="text-green-400">/ # ls -la</div>
+          <div class="text-gray-400">total 88</div>
+          <div class="text-gray-400">drwxr-xr-x    1 root root    4096 May 28 14:22 <span class="text-blue-400">.</span></div>
+          <div class="text-gray-400">drwxr-xr-x    1 root root    4096 May 28 14:22 <span class="text-blue-400">..</span></div>
+          <div class="text-gray-400">-rwxr-xr-x    1 root root       0 May 28 14:22 <span class="text-amber-300">.dockerenv</span></div>
+          <div class="text-gray-400">drwxr-xr-x    1 root root    4096 May 28 14:22 <span class="text-blue-400">bin</span></div>
+          <div class="text-gray-400">drwxr-xr-x    5 root root     360 Jun  2 06:15 <span class="text-blue-400">dev</span></div>
+          <div class="text-gray-400">drwxr-xr-x    1 root root    4096 May 28 14:22 <span class="text-blue-400">etc</span></div>
+          <div class="text-gray-400">-rw-r--r--    1 root root      70 May 28 14:22 <span class="text-amber-300">index.html</span></div>
+          <div class="flex items-center">
+            <span class="text-green-400">/ # </span>
+            <span class="w-2 h-4 bg-green-400 animate-pulse ml-0.5" style="animation: blink 1s step-end infinite;"></span>
+          </div>
+        </div>
+        <div class="px-4 py-1.5 bg-gray-800 text-[10px] text-gray-500 flex items-center gap-3">
+          <span><i class="ri-keyboard-line"></i> Type to execute commands</span>
+          <span class="text-gray-600">|</span>
+          <span><i class="ri-shield-line"></i> Ctrl+D to exit</span>
+        </div>
+      </div>
+      <style>
+        @keyframes blink { 50% { opacity: 0; } }
+      </style>
+
+      <div>
+        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Recent Logs</h4>
+        <div class="bg-gray-900 text-green-400 font-mono text-xs rounded-lg p-3 max-h-28 overflow-y-auto">
+          <div>[INFO] 10.0.0.1 "GET /" 200 2.34ms</div>
+          <div>[INFO] 10.0.0.1 "GET /api/health" 200 1.12ms</div>
+          <div>[INFO] 10.0.0.1 "GET /assets/app.js" 304 0.45ms</div>
+          <div>[WARN] rate_limit.lua: slow client detected (192.168.1.50)</div>
+          <div>[INFO] 10.0.0.2 "POST /api/login" 200 5.67ms</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    // ======= DATA ========
+    const servers = {
+      'peladen-utama': {
+        name: 'peladen-utama',
+        ip: '192.168.1.10',
+        spec: '4 vCPU · 8GB RAM',
+        color: 'primary',
+        containers: [
+          { name: 'nginx-proxy', status: 'running', image: 'nginx:1.25-alpine', ports: '80:80, 443:443', created: '2025-05-28 14:22 UTC', restarts: 2, network: 'bridge · 172.17.0.3', uptime: '3 days' },
+          { name: 'api-gateway', status: 'running', image: 'api-gw:latest', ports: '3000:3000', created: '2025-05-30 09:00 UTC', restarts: 0, network: 'bridge · 172.17.0.4', uptime: '12h' },
+          { name: 'postgres', status: 'running', image: 'postgres:16-alpine', ports: '5432:5432', created: '2025-05-28 14:30 UTC', restarts: 1, network: 'bridge · 172.17.0.5', uptime: '3 days' },
+          { name: 'redis', status: 'running', image: 'redis:7-alpine', ports: '6379:6379', created: '2025-05-28 14:35 UTC', restarts: 0, network: 'bridge · 172.17.0.6', uptime: '3 days' },
+          { name: 'minio', status: 'running', image: 'minio/minio:latest', ports: '9000:9000, 9001:9001', created: '2025-05-29 08:00 UTC', restarts: 1, network: 'bridge · 172.17.0.7', uptime: '2 days' },
+          { name: 'prometheus', status: 'running', image: 'prom/prometheus:latest', ports: '9090:9090', created: '2025-05-28 15:00 UTC', restarts: 0, network: 'bridge · 172.17.0.8', uptime: '3 days' },
+          { name: 'grafana', status: 'running', image: 'grafana/grafana:latest', ports: '3001:3000', created: '2025-05-28 15:05 UTC', restarts: 0, network: 'bridge · 172.17.0.9', uptime: '3 days' },
+          { name: 'node-exporter', status: 'running', image: 'prom/node-exporter:latest', ports: '9100:9100', created: '2025-05-28 15:10 UTC', restarts: 0, network: 'host', uptime: '3 days' },
+          { name: 'elasticsearch', status: 'stopped', image: 'elasticsearch:8.12.0', ports: '9200:9200', created: '2025-05-25 10:00 UTC', restarts: 5, network: 'bridge · 172.17.0.10', uptime: 'stopped 2h ago' }
+        ]
+      },
+      'peladen-cdn': {
+        name: 'peladen-cdn',
+        ip: '192.168.1.20',
+        spec: '8 vCPU · 16GB RAM',
+        color: 'blue',
+        containers: [
+          { name: 'caddy', status: 'running', image: 'caddy:alpine', ports: '80:80, 443:443', created: '2025-05-20 12:00 UTC', restarts: 0, network: 'bridge · 172.17.0.2', uptime: '13 days' },
+          { name: 'varnish', status: 'running', image: 'varnish:7.4', ports: '6081:6081', created: '2025-05-20 12:05 UTC', restarts: 1, network: 'bridge · 172.17.0.3', uptime: '13 days' },
+          { name: 'nginx-cache', status: 'running', image: 'nginx:1.25-alpine', ports: '8080:80', created: '2025-05-20 12:10 UTC', restarts: 0, network: 'bridge · 172.17.0.4', uptime: '13 days' },
+          { name: 'mongodb', status: 'paused', image: 'mongo:7', ports: '27017:27017', created: '2025-05-22 14:00 UTC', restarts: 3, network: 'bridge · 172.17.0.5', uptime: 'paused 1h ago' },
+          { name: 'rabbitmq', status: 'running', image: 'rabbitmq:3-management', ports: '5672:5672, 15672:15672', created: '2025-05-20 12:15 UTC', restarts: 0, network: 'bridge · 172.17.0.6', uptime: '13 days' },
+          { name: 'traefik', status: 'running', image: 'traefik:v3.0', ports: '80:80, 443:443, 8080:8080', created: '2025-05-20 12:00 UTC', restarts: 0, network: 'bridge · 172.17.0.7', uptime: '13 days' },
+          { name: 'cloudflared', status: 'running', image: 'cloudflare/cloudflared:latest', ports: '', created: '2025-06-01 22:00 UTC', restarts: 0, network: 'host', uptime: '18h' },
+          { name: 'jenkins', status: 'stopped', image: 'jenkins/jenkins:lts', ports: '8080:8080, 50000:50000', created: '2025-05-18 09:00 UTC', restarts: 8, network: 'bridge · 172.17.0.8', uptime: 'stopped 3 days ago' }
+        ]
+      },
+      'peladen-db': {
+        name: 'peladen-db',
+        ip: '192.168.1.30',
+        spec: '8 vCPU · 32GB RAM',
+        color: 'purple',
+        containers: [
+          { name: 'postgres-15', status: 'running', image: 'postgres:15-alpine', ports: '5432:5432', created: '2025-04-15 08:00 UTC', restarts: 1, network: 'bridge · 172.17.0.2', uptime: '48 days' },
+          { name: 'mysql-8', status: 'running', image: 'mysql:8.0', ports: '3306:3306', created: '2025-04-15 08:05 UTC', restarts: 0, network: 'bridge · 172.17.0.3', uptime: '48 days' },
+          { name: 'redis-cluster', status: 'running', image: 'redis:7-alpine', ports: '6379:6379', created: '2025-04-15 08:10 UTC', restarts: 2, network: 'bridge · 172.17.0.4', uptime: '48 days' },
+          { name: 'mongod', status: 'running', image: 'mongo:6', ports: '27017:27017', created: '2025-04-15 08:15 UTC', restarts: 0, network: 'bridge · 172.17.0.5', uptime: '48 days' },
+          { name: 'pgadmin', status: 'running', image: 'dpage/pgadmin4', ports: '5050:80', created: '2025-05-01 10:00 UTC', restarts: 1, network: 'bridge · 172.17.0.6', uptime: '32 days' },
+          { name: 'mongosh', status: 'stopped', image: 'mongo:6', ports: '', created: '2025-04-20 14:00 UTC', restarts: 3, network: 'bridge · 172.17.0.7', uptime: 'stopped 5 days ago' },
+          { name: 'adminer', status: 'stopped', image: 'adminer:latest', ports: '5051:8080', created: '2025-04-20 14:05 UTC', restarts: 2, network: 'bridge · 172.17.0.8', uptime: 'stopped 5 days ago' }
+        ]
+      },
+      'peladen-dev': {
+        name: 'peladen-dev',
+        ip: '192.168.1.40',
+        spec: '4 vCPU · 8GB RAM',
+        color: 'amber',
+        containers: [
+          { name: 'dev-api', status: 'running', image: 'node:20-alpine', ports: '4000:4000', created: '2025-06-01 09:00 UTC', restarts: 5, network: 'bridge · 172.17.0.2', uptime: '22h' },
+          { name: 'dev-frontend', status: 'running', image: 'node:20-alpine', ports: '5173:5173', created: '2025-06-01 09:05 UTC', restarts: 3, network: 'bridge · 172.17.0.3', uptime: '22h' },
+          { name: 'test-db', status: 'paused', image: 'postgres:16-alpine', ports: '5433:5432', created: '2025-06-01 09:10 UTC', restarts: 0, network: 'bridge · 172.17.0.4', uptime: 'paused 30m ago' },
+          { name: 'old-service', status: 'stopped', image: 'python:3.11-slim', ports: '8000:8000', created: '2025-05-15 14:00 UTC', restarts: 12, network: 'bridge · 172.17.0.5', uptime: 'stopped 7 days ago' }
+        ]
+      }
+    };
+
+    // ====== VARIANT SWITCHING ======
+    function switchVariant(n) {
+      document.getElementById('v1-tab').className = 'variant-tab px-4 py-1.5 text-sm font-medium bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300';
+      document.getElementById('v2-tab').className = 'variant-tab px-4 py-1.5 text-sm font-medium bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300';
+      document.getElementById('variant-1').classList.add('view-hidden');
+      document.getElementById('variant-2').classList.add('view-hidden');
+
+      if (n === 1) {
+        document.getElementById('v1-tab').className = 'variant-tab active px-4 py-1.5 text-sm font-medium';
+        document.getElementById('variant-1').classList.remove('view-hidden');
+      } else {
+        document.getElementById('v2-tab').className = 'variant-tab active px-4 py-1.5 text-sm font-medium';
+        document.getElementById('variant-2').classList.remove('view-hidden');
+        renderV2('peladen-utama');
+      }
+    }
+
+    // ====== THEME ======
+    let dark = false;
+    function toggleTheme() {
+      dark = !dark;
+      if (dark) document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+    }
+
+    // ====== VARIANT 1: NAVIGATION ======
+    let currentServer = null;
+
+    function openServerV1(name) {
+      currentServer = name;
+      const srv = servers[name];
+      document.getElementById('v1-dashboard').classList.add('view-hidden');
+      document.getElementById('v1-server-detail').classList.remove('view-hidden');
+
+      document.getElementById('detail-server-name').textContent = srv.name;
+      document.getElementById('detail-server-meta').textContent = srv.ip + ' · ' + srv.spec;
+
+      const running = srv.containers.filter(c => c.status === 'running').length;
+      const stopped = srv.containers.filter(c => c.status === 'stopped').length;
+      const paused = srv.containers.filter(c => c.status === 'paused').length;
+      document.getElementById('detail-stats').textContent = `🟢 ${running} running · 🔴 ${stopped} stopped · 🟡 ${paused} paused`;
+
+      renderV1Containers(srv.containers);
+    }
+
+    function backToDashboard() {
+      document.getElementById('v1-dashboard').classList.remove('view-hidden');
+      document.getElementById('v1-server-detail').classList.add('view-hidden');
+    }
+
+    function renderV1Containers(containers) {
+      const el = document.getElementById('v1-container-list');
+      el.innerHTML = containers.map(c => {
+        const statusColor = c.status === 'running' ? 'green' : c.status === 'stopped' ? 'red' : 'yellow';
+        const statusIcon = c.status === 'running' ? 'ri-checkbox-circle-line' : c.status === 'stopped' ? 'ri-stop-circle-line' : 'ri-pause-circle-line';
+        return `
+          <div class="container-item bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 flex items-center justify-between" onclick="openModal('${c.name}')">
+            <div class="flex items-center gap-4">
+              <div class="w-9 h-9 rounded-lg bg-${statusColor}-50 dark:bg-${statusColor}-900/20 flex items-center justify-center text-${statusColor}-500 text-lg">
+                <i class="${statusIcon}"></i>
+              </div>
+              <div>
+                <div class="font-medium text-gray-900 dark:text-white text-sm">${c.name}</div>
+                <div class="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
+                  <span>${c.image}</span>
+                  <span class="w-1 h-1 rounded-full bg-gray-300"></span>
+                  <span>${c.ports || '—'}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="status-badge bg-${statusColor}-50 dark:bg-${statusColor}-900/20 text-${statusColor}-700 dark:text-${statusColor}-400 border border-${statusColor}-200 dark:border-${statusColor}-800">
+                <span class="w-1.5 h-1.5 rounded-full bg-${statusColor}-500"></span> ${c.status}
+              </span>
+              <span class="text-xs text-gray-400 w-24 text-right">${c.uptime}</span>
+              <div class="flex items-center gap-1 ml-2">
+                <button class="action-btn text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20" onclick="event.stopPropagation()" title="Start"><i class="ri-play-line text-sm"></i></button>
+                <button class="action-btn text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20" onclick="event.stopPropagation()" title="Stop"><i class="ri-stop-line text-sm"></i></button>
+                <button class="action-btn text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" onclick="event.stopPropagation()" title="Restart"><i class="ri-restart-line text-sm"></i></button>
+                <button class="action-btn text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" onclick="event.stopPropagation()" title="Logs"><i class="ri-terminal-line text-sm"></i></button>
+              </div>
+              <i class="ri-arrow-right-s-line text-gray-300 text-lg"></i>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ====== VARIANT 2: RENDER ======
+    function selectServerV2(name, el) {
+      document.querySelectorAll('.server-list-item').forEach(i => {
+        i.classList.remove('active', 'bg-primary-50', 'dark:bg-primary-900/20', 'border-l-2', 'border-primary-500');
+        i.classList.add('border-l-2', 'border-transparent');
+      });
+      el.classList.add('active', 'bg-primary-50', 'dark:bg-primary-900/20', 'border-l-2', 'border-primary-500');
+      el.classList.remove('border-transparent');
+      renderV2(name);
+    }
+
+    function renderV2(name) {
+      const srv = servers[name];
+      document.getElementById('v2-server-name').textContent = srv.name;
+      document.getElementById('v2-server-meta').textContent = srv.ip + ' · ' + srv.containers.length + ' container';
+
+      const el = document.getElementById('v2-container-list');
+      el.innerHTML = srv.containers.map(c => {
+        const sc = c.status === 'running' ? 'green' : c.status === 'stopped' ? 'red' : 'yellow';
+        const si = c.status === 'running' ? 'ri-checkbox-circle-line' : c.status === 'stopped' ? 'ri-stop-circle-line' : 'ri-pause-circle-line';
+        return `
+          <div class="container-item bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 p-3 flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-${sc}-50 dark:bg-${sc}-900/20 flex items-center justify-center text-${sc}-500">
+                <i class="${si}"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="font-medium text-gray-900 dark:text-white text-sm truncate">${c.name}</div>
+                <div class="text-xs text-gray-400 truncate">${c.image}</div>
+              </div>
+              <div class="hidden md:block text-xs text-gray-400 font-mono">${c.ports || '—'}</div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="status-badge bg-${sc}-50 dark:bg-${sc}-900/20 text-${sc}-700 dark:text-${sc}-400 border border-${sc}-200 dark:border-${sc}-800 text-[11px]">
+                <span class="w-1.5 h-1.5 rounded-full bg-${sc}-500"></span> ${c.status}
+              </span>
+              <span class="text-[11px] text-gray-400 hidden sm:block">${c.uptime}</span>
+              <div class="flex items-center gap-0.5 ml-1">
+                <button class="action-btn w-7 h-7 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20" title="Start"><i class="ri-play-line text-xs"></i></button>
+                <button class="action-btn w-7 h-7 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20" title="Stop"><i class="ri-stop-line text-xs"></i></button>
+                <button class="action-btn w-7 h-7 text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" title="Restart"><i class="ri-restart-line text-xs"></i></button>
+                <button class="action-btn w-7 h-7 text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" title="Logs"><i class="ri-terminal-line text-xs"></i></button>
+              </div>
+              <button onclick="openModal('${c.name}')" class="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 text-lg"><i class="ri-arrow-right-s-line"></i></button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ====== MODAL ======
+    function openModal(name) {
+      // find container data from current context
+      let c = null;
+      for (const key in servers) {
+        c = servers[key].containers.find(cc => cc.name === name);
+        if (c) break;
+      }
+      if (!c) return;
+
+      document.getElementById('modal-name').textContent = c.name;
+      const sc = c.status === 'running' ? 'green' : c.status === 'stopped' ? 'red' : 'yellow';
+      document.getElementById('modal-status').innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-${sc}-500"></span> ${c.status.charAt(0).toUpperCase() + c.status.slice(1)} · ${c.uptime}`;
+      document.getElementById('modal-image').textContent = c.image;
+      document.getElementById('modal-ports').textContent = c.ports || '—';
+      document.getElementById('modal-created').textContent = c.created;
+      document.getElementById('modal-restarts').textContent = c.restarts + ' restarts';
+      document.getElementById('modal-network').textContent = c.network;
+
+      document.getElementById('container-modal').classList.remove('hidden');
+      document.getElementById('modal-overlay').classList.remove('hidden');
+      document.getElementById('modal-content').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('container-modal').classList.add('hidden');
+      document.getElementById('modal-overlay').classList.add('hidden');
+      document.getElementById('modal-content').classList.add('hidden');
+      // reset exec terminal on close
+      document.getElementById('exec-terminal')?.classList.add('hidden');
+    }
+
+    function toggleExec(event) {
+      if (event) event.stopPropagation();
+      const term = document.getElementById('exec-terminal');
+      term.classList.toggle('hidden');
+    }
+
+    // Click overlay to close
+    document.addEventListener('DOMContentLoaded', () => {
+      const overlay = document.getElementById('modal-overlay');
+      if (overlay) overlay.addEventListener('click', closeModal);
+    });
+
+    // Keyboard escape to close modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+  </script>
+</body>
+</html>

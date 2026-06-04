@@ -1,0 +1,5 @@
+ALTER TABLE scan_results DROP COLUMN IF EXISTS profile;
+ALTER TABLE scan_results DROP COLUMN IF EXISTS high;
+ALTER TABLE scan_results DROP COLUMN IF EXISTS medium;
+ALTER TABLE scan_results DROP COLUMN IF EXISTS low;
+ALTER TABLE scan_results DROP COLUMN IF EXISTS info;

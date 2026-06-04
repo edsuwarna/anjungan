@@ -1,0 +1,1 @@
+ALTER TABLE scan_results ADD COLUMN IF NOT EXISTS error_message TEXT DEFAULT '';

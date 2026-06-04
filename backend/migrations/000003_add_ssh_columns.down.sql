@@ -1,0 +1,5 @@
+ALTER TABLE servers DROP COLUMN IF EXISTS ssh_user;
+ALTER TABLE servers DROP COLUMN IF EXISTS ssh_auth_type;
+ALTER TABLE servers DROP COLUMN IF EXISTS ssh_key;
+ALTER TABLE servers DROP COLUMN IF EXISTS ssh_password;
+ALTER TABLE servers DROP COLUMN IF EXISTS container_count;

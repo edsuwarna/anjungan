@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anjungan}
       POSTGRES_DB: ${POSTGRES_DB:-anjungan}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -49,6 +49,7 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       REGISTRY_URL: ${REGISTRY_URL:-http://zot:5000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      MIGRATIONS_PATH: /migrations
     ports:
       - "8080:8080"
     depends_on:
@@ -80,10 +81,11 @@ services:
   #   environment:
   #     ZOT_STORAGE_ROOT_DIRECTORY: /var/lib/zot
 
-  # ─── Optional: Monitoring ─────────────────────────────────────────────────
+  # ─── Metrics Storage: VictoriaMetrics ───────────────────────────────────
   victoria-metrics:
     image: victoriametrics/victoria-metrics:latest
     container_name: anjungan-vm
+    restart: unless-stopped
     ports:
       - "8428:8428"
     volumes:
@@ -91,28 +93,11 @@ services:
     command:
       - "-storageDataPath=/victoria-metrics-data"
       - "-httpListenAddr=:8428"
-    profiles:
-      - monitoring
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: anjungan-grafana
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafanadata:/var/lib/grafana
-      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-    profiles:
-      - monitoring
+      - "-retentionPeriod=90d"
 
 volumes:
   pgdata:
   redisdata:
   vmdata:
-  grafanadata:
   sshkeys:
   # zotdata:

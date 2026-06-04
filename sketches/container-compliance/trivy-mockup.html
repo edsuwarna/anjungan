@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Trivy Scan & Dashboard Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #1a1d23;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  :root {
+    --color-primary: #10b981;
+    --color-primary-subtle: rgba(16,185,129,0.12);
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-accent: #8b5cf6;
+    --color-surface: #1e2128;
+    --color-card: #22262e;
+    --color-border: #2a2e36;
+    --color-border-light: #333842;
+    --color-text: #e2e8f0;
+    --color-text-muted: #8892a6;
+    --color-text-secondary: #a0a8b8;
+  }
+
+  body { max-width: 1100px; margin: 0 auto; }
+
+  .card {
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .page-title { font-size: 22px; font-weight: 700; color: var(--color-text); }
+  .page-subtitle { font-size: 13px; color: var(--color-text-muted); margin-top: 2px; }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn:hover { color: var(--color-text); }
+  .tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .severity-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-critical { background: rgba(239,68,68,0.12); color: var(--color-danger); }
+  .pill-high { background: rgba(245,158,11,0.12); color: var(--color-warning); }
+  .pill-medium { background: rgba(139,92,246,0.12); color: var(--color-accent); }
+  .pill-low { background: rgba(16,185,129,0.12); color: var(--color-success); }
+  .pill-blue { background: rgba(59,130,246,0.12); color: #60a5fa; }
+
+  .filter-chip {
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+    background: transparent;
+  }
+  .filter-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .filter-chip.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+  .filter-chip.active-blue { background: rgba(59,130,246,0.15); color: #60a5fa; border-color: rgba(59,130,246,0.3); }
+
+  /* Source badge */
+  .source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .source-ci { background: rgba(59,130,246,0.1); color: #60a5fa; }
+  .source-live { background: rgba(16,185,129,0.1); color: var(--color-success); }
+
+  /* Scan row in history */
+  .scan-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .scan-row:hover { border-color: var(--color-primary); }
+
+  .severity-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Trend bar */
+  .trend-bar-wrapper {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 48px;
+    padding: 8px 0;
+  }
+  .trend-bar {
+    width: 20px;
+    border-radius: 4px 4px 0 0;
+    min-height: 4px;
+    transition: height 0.3s;
+  }
+  .trend-bar-critical { background: var(--color-danger); }
+  .trend-bar-high { background: var(--color-warning); }
+
+  /* Comparison delta */
+  .delta-up { color: var(--color-danger); }
+  .delta-down { color: var(--color-success); }
+  .delta-flat { color: var(--color-text-muted); }
+
+  /* Section label */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-bottom: 6px;
+  }
+
+  /* Info grid for comparison */
+  .dual-pane {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Finding row */
+  .finding-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 13px;
+  }
+  .finding-row:last-child { border-bottom: none; }
+
+  .badge-new {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(239,68,68,0.15);
+    color: var(--color-danger);
+  }
+  .badge-fixed {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(16,185,129,0.15);
+    color: var(--color-success);
+  }
+</style>
+</head>
+<body>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="dashboard">📊 Container Vulnerabilities</button>
+  <button class="tab-btn" data-tab="history">📋 Scan History (Multi-Scan)</button>
+  <button class="tab-btn" data-tab="compare">🔬 Live vs CI/CD Comparison</button>
+</div>
+
+<!-- ===== TAB 1: DASHBOARD ===== -->
+<div class="tab-content active" id="tab-dashboard">
+
+  <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+    <div>
+      <h1 class="page-title">🐳 Container Vulnerabilities</h1>
+      <p class="page-subtitle">Trivy scan results across all images — latest scan per image</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="text-xs px-3 py-1.5 rounded-full" style="background: var(--color-surface); border: 1px solid var(--color-border-light); color: var(--color-text-muted); display: flex; align-items: center; gap: 6px;">
+        <span style="display: inline-flex; gap: 3px;">
+          <span class="source-badge source-ci">CI/CD</span>
+          <span class="source-badge source-live">Live</span>
+        </span>
+        <span>|</span>
+        <span>12 images · 30d history</span>
+      </div>
+      <button class="filter-chip active-blue">
+        <span>⟳</span> Scan All Live
+      </button>
+    </div>
+  </div>
+
+  <!-- Overview KPI -->
+  <div class="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-5">
+    <div class="card !p-4 text-center" style="border-top: 3px solid var(--color-danger);">
+      <div class="text-2xl font-bold" style="color: var(--color-danger);">7</div>
+      <div class="text-[10px]" style="color: var(--color-text-muted);">Total Critical</div>
+      <div class="text-[10px] flex items-center justify-center gap-2 mt-1">
+        <span style="color: #60a5fa;">5 CI/CD</span>
+        <span style="color: var(--color-text-muted);">·</span>
+        <span style="color: var(--color-success);">2 Live only</span>
+      </div>
+    </div>
+    <div class="card !p-4 text-center" style="border-top: 3px solid var(--color-warning);">
+      <div class="text-2xl font-bold" style="color: var(--color-warning);">23</div>
+      <div class="text-[10px]" style="color: var(--color-text-muted);">Total High</div>
+      <div class="text-[10px] flex items-center justify-center gap-2 mt-1">
+        <span style="color: #60a5fa;">18 CI/CD</span>
+        <span style="color: var(--color-text-muted);">·</span>
+        <span style="color: var(--color-success);">5 Live only</span>
+      </div>
+    </div>
+    <div class="card !p-4 text-center" style="border-top: 3px solid var(--color-success);">
+      <div class="text-2xl font-bold" style="color: var(--color-success);">89%</div>
+      <div class="text-[10px]" style="color: var(--color-text-muted);">Image Fix Rate</div>
+      <div class="text-[10px]" style="color: var(--color-text-muted); mt-1;">
+        18 of 20 images with fixes applied
+      </div>
+    </div>
+    <div class="card !p-4 text-center" style="border-top: 3px solid #3b82f6;">
+      <div class="text-2xl font-bold" style="color: #60a5fa;">14</div>
+      <div class="text-[10px]" style="color: var(--color-text-muted);">Scans (7 days)</div>
+      <div class="text-[10px] flex items-center justify-center gap-2 mt-1">
+        <span style="color: #60a5fa;">9 CI/CD</span>
+        <span style="color: var(--color-text-muted);">·</span>
+        <span style="color: var(--color-success);">5 Live</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image cards grid -->
+  <div class="section-label mb-2">Images by Vulnerability Criticality</div>
+  <div class="grid gap-3 grid-cols-1 md:grid-cols-2 mb-6">
+
+    <!-- Image card 1: anjungan-backend -->
+    <div class="card card-clickable" style="border-left: 4px solid var(--color-danger); cursor: pointer;">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold" style="color: var(--color-text);">anjungan-backend</span>
+            <span class="text-xs font-mono" style="color: var(--color-text-muted);">:latest</span>
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="source-badge source-ci">CI/CD</span>
+            <span class="source-badge source-live">Live</span>
+            <span class="text-xs" style="color: var(--color-text-muted);">2 images</span>
+          </div>
+        </div>
+        <div class="text-right flex items-center gap-1">
+          <span class="severity-pill pill-critical" style="font-size: 13px; padding: 2px 10px;">3 C</span>
+          <span class="severity-pill pill-high" style="font-size: 13px; padding: 2px 10px;">7 H</span>
+          <span class="severity-pill pill-medium" style="font-size: 13px; padding: 2px 10px;">12 M</span>
+        </div>
+      </div>
+
+      <!-- Severity Trend mini -->
+      <div class="flex items-center gap-3 mb-2">
+        <div class="trend-bar-wrapper" style="height: 32px; gap: 3px;">
+          <div class="trend-bar trend-bar-critical" style="height: 8px;"></div>
+          <div class="trend-bar trend-bar-critical" style="height: 12px;"></div>
+          <div class="trend-bar trend-bar-critical" style="height: 6px;"></div>
+          <div class="trend-bar trend-bar-critical" style="height: 10px;"></div>
+          <div class="trend-bar trend-bar-critical" style="height: 4px;"></div>
+          <div class="trend-bar trend-bar-critical" style="height: 8px;"></div>
+          <div class="trend-bar trend-bar-critical" style="height: 6px;"></div>
+        </div>
+        <span class="text-xs" style="color: var(--color-text-muted);">
+          <span style="color: var(--color-danger);">Critical ↑ +1</span> last 7d
+        </span>
+      </div>
+
+      <!-- Top packages -->
+      <div class="flex flex-wrap gap-1.5">
+        <span class="severity-pill" style="background: rgba(239,68,68,0.08); color: var(--color-danger); font-size: 10px;">golang.org/x/crypto</span>
+        <span class="severity-pill" style="background: rgba(245,158,11,0.08); color: var(--color-warning); font-size: 10px;">libssl3</span>
+        <span class="severity-pill" style="background: rgba(139,92,246,0.08); color: var(--color-accent); font-size: 10px;">postgresql</span>
+        <span class="severity-pill" style="background: rgba(100,116,139,0.1); color: #94a3b8; font-size: 10px;">+4 packages</span>
+      </div>
+
+      <!-- Scan time + fix status -->
+      <div class="flex items-center justify-between mt-2 pt-2" style="border-top: 1px solid var(--color-border);">
+        <span class="text-[11px]" style="color: var(--color-text-muted);">🔄 2h ago (CI/CD) · 🔴 30m ago (Live)</span>
+        <span class="text-[11px]" style="color: var(--color-success);">✓ 3 CVEs fixable via rebuild</span>
+      </div>
+    </div>
+
+    <!-- Image card 2: anjungan-frontend -->
+    <div class="card card-clickable" style="border-left: 4px solid var(--color-warning); cursor: pointer;">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold" style="color: var(--color-text);">anjungan-frontend</span>
+            <span class="text-xs font-mono" style="color: var(--color-text-muted);">:latest</span>
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="source-badge source-ci">CI/CD</span>
+            <span class="text-xs" style="color: var(--color-text-muted);">1 image</span>
+          </div>
+        </div>
+        <div class="text-right flex items-center gap-1">
+          <span class="severity-pill pill-high" style="font-size: 13px; padding: 2px 10px;">2 H</span>
+          <span class="severity-pill pill-medium" style="font-size: 13px; padding: 2px 10px;">8 M</span>
+          <span class="severity-pill pill-low" style="font-size: 13px; padding: 2px 10px;">3 L</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 mb-2">
+        <div class="trend-bar-wrapper" style="height: 32px; gap: 3px;">
+          <div class="trend-bar trend-bar-high" style="height: 6px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 4px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 6px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 8px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 4px;"></div>
+        </div>
+        <span class="text-xs" style="color: var(--color-text-muted);">
+          <span style="color: var(--color-success);">High → -2</span> last 7d
+        </span>
+      </div>
+
+      <div class="flex flex-wrap gap-1.5">
+        <span class="severity-pill" style="background: rgba(245,158,11,0.08); color: var(--color-warning); font-size: 10px;">node-fetch</span>
+        <span class="severity-pill" style="background: rgba(139,92,246,0.08); color: var(--color-accent); font-size: 10px;">svelte</span>
+        <span class="severity-pill" style="background: rgba(100,116,139,0.1); color: #94a3b8; font-size: 10px;">+5 packages</span>
+      </div>
+
+      <div class="flex items-center justify-between mt-2 pt-2" style="border-top: 1px solid var(--color-border);">
+        <span class="text-[11px]" style="color: var(--color-text-muted);">🔄 6h ago (CI/CD)</span>
+        <span class="text-[11px]" style="color: var(--color-success);">✓ All fixable</span>
+      </div>
+    </div>
+
+    <!-- Image card 3: hermes-worker -->
+    <div class="card card-clickable" style="border-left: 4px solid var(--color-success); cursor: pointer;">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold" style="color: var(--color-text);">hermes-worker</span>
+            <span class="text-xs font-mono" style="color: var(--color-text-muted);">:edge-abc123</span>
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="source-badge source-live">Live</span>
+            <span class="text-xs" style="color: var(--color-text-muted);">2 images</span>
+          </div>
+        </div>
+        <div class="text-right flex items-center gap-1">
+          <span class="severity-pill pill-medium" style="font-size: 13px; padding: 2px 10px;">3 M</span>
+          <span class="severity-pill pill-low" style="font-size: 13px; padding: 2px 10px;">12 L</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-1.5">
+        <span class="severity-pill" style="background: rgba(139,92,246,0.08); color: var(--color-accent); font-size: 10px;">python3.11</span>
+        <span class="severity-pill" style="background: rgba(16,185,129,0.08); color: var(--color-success); font-size: 10px;">pip packages</span>
+      </div>
+
+      <div class="flex items-center justify-between mt-2 pt-2" style="border-top: 1px solid var(--color-border);">
+        <span class="text-[11px]" style="color: var(--color-text-muted);">🟢 1d ago (Live)</span>
+        <span class="text-[11px]" style="color: var(--color-success);">✓ Clean image</span>
+      </div>
+    </div>
+
+    <!-- Image card 4: dokploy-apps -->
+    <div class="card card-clickable" style="border-left: 4px solid var(--color-warning); cursor: pointer;">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold" style="color: var(--color-text);">dokploy-apps</span>
+            <span class="text-xs font-mono" style="color: var(--color-text-muted);">:latest</span>
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="source-badge source-ci">CI/CD</span>
+            <span class="text-xs" style="color: var(--color-text-muted);">4 images</span>
+          </div>
+        </div>
+        <div class="text-right flex items-center gap-1">
+          <span class="severity-pill pill-high" style="font-size: 13px; padding: 2px 10px;">4 H</span>
+          <span class="severity-pill pill-medium" style="font-size: 13px; padding: 2px 10px;">9 M</span>
+          <span class="severity-pill pill-low" style="font-size: 13px; padding: 2px 10px;">2 L</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-1.5">
+        <span class="severity-pill" style="background: rgba(245,158,11,0.08); color: var(--color-warning); font-size: 10px;">nginx</span>
+        <span class="severity-pill" style="background: rgba(245,158,11,0.08); color: var(--color-warning); font-size: 10px;">node:18</span>
+        <span class="severity-pill" style="background: rgba(100,116,139,0.1); color: #94a3b8; font-size: 10px;">+3 packages</span>
+      </div>
+
+      <div class="flex items-center justify-between mt-2 pt-2" style="border-top: 1px solid var(--color-border);">
+        <span class="text-[11px]" style="color: var(--color-text-muted);">🔄 12h ago (CI/CD)</span>
+        <span class="text-[11px]" style="color: var(--color-warning);">⚠️ 2 unfixable</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom: all CVEs summary -->
+  <div class="flex items-center gap-2 mb-2">
+    <h3 class="text-sm font-semibold" style="color: var(--color-text);">📈 Cross-Image Trends</h3>
+    <span class="text-xs" style="color: var(--color-text-muted);">Last 30 scans | past 7 days</span>
+  </div>
+  <div class="card mb-6">
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <div class="section-label">Common CVEs</div>
+        <div class="text-xs space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span style="color: var(--color-text);">CVE-2025-22869 (golang.org/x/crypto)</span>
+            <span class="severity-pill pill-critical" style="font-size: 9px;">affects 2 images</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span style="color: var(--color-text);">CVE-2025-0727 (libssl3)</span>
+            <span class="severity-pill pill-high" style="font-size: 9px;">affects 3 images</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span style="color: var(--color-text);">CVE-2025-26614 (postgresql)</span>
+            <span class="severity-pill pill-medium" style="font-size: 9px;">affects 1 image</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="section-label">New (This Week)</div>
+        <div class="text-xs space-y-1.5">
+          <div class="flex items-center gap-2">
+            <span class="badge-new">NEW</span>
+            <span style="color: var(--color-text);">CVE-2026-0012</span>
+            <span class="severity-pill pill-critical" style="font-size: 9px;">C</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="badge-new">NEW</span>
+            <span style="color: var(--color-text);">CVE-2026-0034</span>
+            <span class="severity-pill pill-high" style="font-size: 9px;">H</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="section-label">Fixed (This Week)</div>
+        <div class="text-xs space-y-1.5">
+          <div class="flex items-center gap-2">
+            <span class="badge-fixed">FIXED</span>
+            <span style="color: var(--color-text);">CVE-2025-1122</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="badge-fixed">FIXED</span>
+            <span style="color: var(--color-text);">CVE-2025-0933</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB 2: SCAN HISTORY ===== -->
+<div class="tab-content" id="tab-history">
+
+  <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+    <div>
+      <div class="flex items-center gap-2 text-sm mb-1" style="color: var(--color-text-muted);">
+        <span style="cursor: pointer;">← Vulnerabilities</span>
+        <span>/</span>
+        <span style="color: var(--color-text);">Scan History</span>
+      </div>
+      <h1 class="page-title">📋 Scan History</h1>
+      <p class="page-subtitle">All Trivy scans for <strong style="color: var(--color-text);">anjungan-backend</strong> — tap row to see details</p>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="flex flex-wrap items-center gap-2 mb-4">
+    <span class="text-xs font-medium" style="color: var(--color-text-muted);">Source:</span>
+    <button class="filter-chip active">All</button>
+    <button class="filter-chip"><span class="source-badge source-ci" style="font-size: 10px;">CI/CD</span></button>
+    <button class="filter-chip"><span class="source-badge source-live" style="font-size: 10px;">Live</span></button>
+    <span class="text-xs font-medium ml-2" style="color: var(--color-text-muted);">Branch:</span>
+    <button class="filter-chip active">main</button>
+    <button class="filter-chip">feature/*</button>
+    <button class="filter-chip">release/*</button>
+    <span class="text-xs ml-auto" style="color: var(--color-text-muted);">Showing 12 of 48 scans</span>
+  </div>
+
+  <!-- Trend chart -->
+  <div class="card !p-4 mb-4">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <span class="text-sm font-semibold" style="color: var(--color-text);">Severity Trend</span>
+        <span class="text-xs ml-2" style="color: var(--color-text-muted);">Last 30 scans on branch main</span>
+      </div>
+      <div class="flex items-center gap-3 text-xs">
+        <span style="color: var(--color-danger);">● Critical</span>
+        <span style="color: var(--color-warning);">● High</span>
+      </div>
+    </div>
+
+    <!-- Chart bars -->
+    <div style="display: flex; align-items: flex-end; gap: 4px; height: 80px; padding: 4px 0;">
+      <!-- Simulated 30-day chart - each column = 1 scan -->
+      <div style="display: flex; gap: 2px; align-items: flex-end; height: 72px;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 12px; width: 14px; background: var(--color-danger);"></div>
+          <div class="trend-bar trend-bar-high" style="height: 20px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 8px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 16px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 6px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 14px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 10px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 18px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 14px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 24px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 6px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 10px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 4px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 8px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 12px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 20px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 10px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 16px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 8px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 14px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 6px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 10px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px;">
+          <div class="trend-bar trend-bar-critical" style="height: 10px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 18px; width: 14px; background: var(--color-warning);"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; width: 14px; position: relative;">
+          <div class="trend-bar trend-bar-critical" style="height: 4px; width: 14px;"></div>
+          <div class="trend-bar trend-bar-high" style="height: 8px; width: 14px; background: var(--color-warning);"></div>
+          <!-- Latest scan marker -->
+          <div style="position: absolute; top: -14px; font-size: 8px; color: var(--color-primary); font-weight: 700;">▼ NOW</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Axis labels -->
+    <div style="display: flex; gap: 4px; margin-top: 4px;">
+      <div style="display: flex; gap: 2px; width: 100%;">
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;">Jun 1</span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;">Jun 3</span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;"></span>
+        <span style="font-size: 9px; color: var(--color-text-muted); width: 14px; text-align: center;">Now</span>
+      </div>
+    </div>
+
+    <!-- Mini stats -->
+    <div class="flex items-center gap-4 mt-3 text-xs" style="color: var(--color-text-muted);">
+      <span>Avg critical: <span style="color: var(--color-danger); font-weight: 600;">2.4</span></span>
+      <span>Avg high: <span style="color: var(--color-warning); font-weight: 600;">8.1</span></span>
+      <span>Min critical: <span style="color: var(--color-success); font-weight: 600;">1</span></span>
+      <span>Max critical: <span style="color: var(--color-danger); font-weight: 600;">5</span></span>
+      <span style="color: var(--color-text-muted);">|</span>
+      <span><span class="delta-down">▼ -2</span> critical since last week</span>
+    </div>
+  </div>
+
+  <!-- Scan list -->
+  <div class="section-label mb-1">All Scans (latest first)</div>
+
+  <!-- Today's scans -->
+  <div class="text-xs font-semibold mb-2" style="color: var(--color-text-muted);">Today — 5 scans</div>
+
+  <div class="scan-row" style="border-left: 3px solid var(--color-primary);">
+    <span class="text-xs font-mono" style="color: var(--color-text-muted); min-width: 32px;">#005</span>
+    <span class="source-badge source-live">Live</span>
+    <div style="flex: 1; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-weight: 500; color: var(--color-text);">v1.2.3</span>
+        <span class="text-xs font-mono" style="color: var(--color-text-muted);">sha:abc1234</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="severity-pill pill-critical" style="font-size: 10px;">3 C</span>
+      <span class="severity-pill pill-high" style="font-size: 10px;">7 H</span>
+      <span class="severity-pill pill-medium" style="font-size: 10px;">12 M</span>
+      <span class="severity-pill pill-low" style="font-size: 10px;">8 L</span>
+    </div>
+    <div class="flex items-center gap-0.5 text-xs">
+      <span class="badge-new" style="font-size: 8px; background: rgba(239,68,68,0.12);">+1 new</span>
+    </div>
+    <span class="text-xs" style="color: var(--color-text-muted); min-width: 60px; text-align: right;">15 min ago</span>
+  </div>
+
+  <div class="scan-row" style="border-left: 3px solid #3b82f6;">
+    <span class="text-xs font-mono" style="color: var(--color-text-muted); min-width: 32px;">#004</span>
+    <span class="source-badge source-ci">CI/CD</span>
+    <div style="flex: 1; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-weight: 500; color: var(--color-text);">v1.2.3</span>
+        <span class="text-xs font-mono" style="color: var(--color-text-muted);">sha:abc1234</span>
+        <span class="filter-chip" style="padding: 0 6px; font-size: 9px; border-color: var(--color-border);">main</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="severity-pill pill-critical" style="font-size: 10px;">2 C</span>
+      <span class="severity-pill pill-high" style="font-size: 10px;">6 H</span>
+      <span class="severity-pill pill-medium" style="font-size: 10px;">10 M</span>
+      <span class="severity-pill pill-low" style="font-size: 10px;">7 L</span>
+    </div>
+    <div class="flex items-center gap-0.5 text-xs">
+      <span class="badge-fixed" style="font-size: 8px;">-1 C</span>
+    </div>
+    <span class="text-xs" style="color: var(--color-text-muted); min-width: 60px; text-align: right;">2h ago</span>
+  </div>
+
+  <div class="scan-row" style="border-left: 3px solid #3b82f6;">
+    <span class="text-xs font-mono" style="color: var(--color-text-muted); min-width: 32px;">#003</span>
+    <span class="source-badge source-ci">CI/CD</span>
+    <div style="flex: 1; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-weight: 500; color: var(--color-text);">v1.2.3</span>
+        <span class="text-xs font-mono" style="color: var(--color-text-muted);">sha:abcde98</span>
+        <span class="filter-chip" style="padding: 0 6px; font-size: 9px; border-color: var(--color-border);">feature/auth-fix</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="severity-pill pill-critical" style="font-size: 10px;">1 C</span>
+      <span class="severity-pill pill-high" style="font-size: 10px;">4 H</span>
+      <span class="severity-pill pill-medium" style="font-size: 10px;">8 M</span>
+      <span class="severity-pill pill-low" style="font-size: 10px;">5 L</span>
+    </div>
+    <div style="width: 40px;"></div>
+    <span class="text-xs" style="color: var(--color-text-muted); min-width: 60px; text-align: right;">4h ago</span>
+  </div>
+
+  <div class="scan-row" style="border-left: 3px solid #3b82f6;">
+    <span class="text-xs font-mono" style="color: var(--color-text-muted); min-width: 32px;">#002</span>
+    <span class="source-badge source-ci">CI/CD</span>
+    <div style="flex: 1; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-weight: 500; color: var(--color-text);">v1.2.2</span>
+        <span class="text-xs font-mono" style="color: var(--color-text-muted);">sha:fghij98</span>
+        <span class="filter-chip" style="padding: 0 6px; font-size: 9px; border-color: var(--color-border);">main</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="severity-pill pill-critical" style="font-size: 10px;">4 C</span>
+      <span class="severity-pill pill-high" style="font-size: 10px;">9 H</span>
+      <span class="severity-pill pill-medium" style="font-size: 10px;">14 M</span>
+      <span class="severity-pill pill-low" style="font-size: 10px;">10 L</span>
+    </div>
+    <div style="width: 40px;"></div>
+    <span class="text-xs" style="color: var(--color-text-muted); min-width: 60px; text-align: right;">7h ago</span>
+  </div>
+
+  <div class="scan-row" style="border-left: 3px solid var(--color-danger);">
+    <span class="text-xs font-mono" style="color: var(--color-text-muted); min-width: 32px;">#001</span>
+    <span class="source-badge source-ci">CI/CD</span>
+    <div style="flex: 1; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-weight: 500; color: var(--color-text);">v1.2.1</span>
+        <span class="text-xs font-mono" style="color: var(--color-text-muted);">sha:klmno00</span>
+        <span class="filter-chip" style="padding: 0 6px; font-size: 9px; border-color: var(--color-border);">release/v1.2</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="severity-pill pill-critical" style="font-size: 10px;">5 C</span>
+      <span class="severity-pill pill-high" style="font-size: 10px;">11 H</span>
+      <span class="severity-pill pill-medium" style="font-size: 10px;">15 M</span>
+      <span class="severity-pill pill-low" style="font-size: 10px;">10 L</span>
+    </div>
+    <div style="width: 40px;"></div>
+    <span class="text-xs" style="color: var(--color-text-muted); min-width: 60px; text-align: right;">10h ago</span>
+  </div>
+
+  <!-- Yesterday -->
+  <div class="text-xs font-semibold mb-2 mt-4" style="color: var(--color-text-muted);">Yesterday — 3 scans</div>
+
+  <div class="scan-row" style="border-left: 3px solid #3b82f6;">
+    <span class="text-xs font-mono" style="color: var(--color-text-muted); min-width: 32px;">#998</span>
+    <span class="source-badge source-ci">CI/CD</span>
+    <div style="flex: 1;">
+      <span style="font-weight: 500; color: var(--color-text);">v1.2.0</span>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="severity-pill pill-critical" style="font-size: 10px;">3 C</span>
+      <span class="severity-pill pill-high" style="font-size: 10px;">8 H</span>
+      <span class="severity-pill pill-medium" style="font-size: 10px;">13 M</span>
+    </div>
+    <span class="text-xs" style="color: var(--color-text-muted); min-width: 60px; text-align: right;">yesterday</span>
+  </div>
+
+  <!-- Load more -->
+  <button class="filter-chip" style="width: 100%; justify-content: center; margin-top: 8px; padding: 8px; color: var(--color-text-muted);">Load more scans</button>
+</div>
+
+<!-- ===== TAB 3: LIVE vs CI/CD COMPARISON ===== -->
+<div class="tab-content" id="tab-compare">
+
+  <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+    <div>
+      <div class="flex items-center gap-2 text-sm mb-1" style="color: var(--color-text-muted);">
+        <span style="cursor: pointer;">← Vulnerabilities</span>
+        <span>/</span>
+        <span style="color: var(--color-text);">Scan Source Comparison</span>
+      </div>
+      <h1 class="page-title">🔬 Live vs CI/CD Comparison</h1>
+      <p class="page-subtitle"><strong style="color: var(--color-text);">anjungan-backend:latest</strong> — discrepancies between pipeline and production</p>
+    </div>
+    <button class="filter-chip active-blue"><span>⟳</span> Force Live Scan</button>
+  </div>
+
+  <!-- Dual pane comparison -->
+  <div class="dual-pane mb-4">
+    <!-- CI/CD -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="source-badge source-ci" style="font-size: 12px;">CI/CD Scan</span>
+          <span class="text-xs" style="color: var(--color-text-muted);">2h ago</span>
+        </div>
+        <div class="text-xs" style="color: var(--color-text-muted);">
+          <span style="color: #3b82f6;">GitHub Actions</span> · main
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-1 mb-3 text-center">
+        <div><span class="text-lg font-bold" style="color: var(--color-danger);">2</span><div class="text-[10px]" style="color: var(--color-text-muted);">Critical</div></div>
+        <div><span class="text-lg font-bold" style="color: var(--color-warning);">6</span><div class="text-[10px]" style="color: var(--color-text-muted);">High</div></div>
+        <div><span class="text-lg font-bold" style="color: var(--color-accent);">10</span><div class="text-[10px]" style="color: var(--color-text-muted);">Medium</div></div>
+        <div><span class="text-lg font-bold" style="color: var(--color-success);">7</span><div class="text-[10px]" style="color: var(--color-text-muted);">Low</div></div>
+      </div>
+      <div class="text-xs" style="color: var(--color-text);">
+        <div class="finding-row">
+          <span class="severity-pill pill-critical" style="width: 48px; font-size: 10px;">CRIT</span>
+          <span>CVE-2025-22869 (golang.org/x/crypto)</span>
+          <span class="text-xs" style="color: var(--color-text-muted); margin-left: auto;">v0.28.0 → v0.31.0</span>
+        </div>
+        <div class="finding-row">
+          <span class="severity-pill pill-high" style="width: 48px; font-size: 10px;">HIGH</span>
+          <span>CVE-2025-22870 (net/http)</span>
+          <span class="text-xs" style="color: var(--color-text-muted); margin-left: auto;">go1.23.0 → go1.23.6</span>
+        </div>
+      </div>
+      <div class="mt-3 pt-2" style="border-top: 1px solid var(--color-border);">
+        <span class="text-xs" style="color: var(--color-text-muted);">🛡️ Pipeline passed — no blocker CVEs</span>
+      </div>
+    </div>
+
+    <!-- Live -->
+    <div class="card" style="border: 1px solid rgba(239,68,68,0.25); box-shadow: 0 0 0 1px rgba(239,68,68,0.1);">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="source-badge source-live" style="font-size: 12px;">Live Scan</span>
+          <span class="text-xs" style="color: var(--color-text-muted);">30m ago</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="severity-pill pill-critical" style="font-size: 10px;">⚠️ 2 new CVEs</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-1 mb-3 text-center">
+        <div><span class="text-lg font-bold" style="color: var(--color-danger);">3</span><div class="text-[10px]" style="color: var(--color-text-muted);">Critical</div></div>
+        <div><span class="text-lg font-bold" style="color: var(--color-warning);">9</span><div class="text-[10px]" style="color: var(--color-text-muted);">High</div></div>
+        <div><span class="text-lg font-bold" style="color: var(--color-accent);">12</span><div class="text-[10px]" style="color: var(--color-text-muted);">Medium</div></div>
+        <div><span class="text-lg font-bold" style="color: var(--color-success);">8</span><div class="text-[10px]" style="color: var(--color-text-muted);">Low</div></div>
+      </div>
+      <div class="text-xs" style="color: var(--color-text);">
+        <div class="finding-row" style="background: rgba(239,68,68,0.05); padding: 6px 8px; border-radius: 6px;">
+          <span class="badge-new" style="font-size: 8px;">NEW</span>
+          <span class="severity-pill pill-critical" style="width: 42px; font-size: 10px;">CRIT</span>
+          <span style="font-weight: 500;">CVE-2025-31555</span>
+          <span style="color: var(--color-text-muted); margin-left: auto;">libcrypto (zero-day)</span>
+        </div>
+        <div class="finding-row" style="background: rgba(245,158,11,0.05); padding: 6px 8px; border-radius: 6px;">
+          <span class="badge-new" style="font-size: 8px;">NEW</span>
+          <span class="severity-pill pill-high" style="width: 42px; font-size: 10px;">HIGH</span>
+          <span style="font-weight: 500;">CVE-2026-0012</span>
+          <span style="color: var(--color-text-muted); margin-left: auto;">libssl3</span>
+        </div>
+      </div>
+      <div class="mt-3 pt-2" style="border-top: 1px solid var(--color-border);">
+        <span class="text-xs" style="color: var(--color-danger);">🚨 2 new CVEs discovered post-deploy — immediate attention needed</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- What changed explanation -->
+  <div class="card mb-4">
+    <div class="flex items-center gap-2 mb-3">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-warning);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span class="text-sm font-semibold" style="color: var(--color-text);">Why the Difference?</span>
+    </div>
+    <div class="grid grid-cols-2 gap-4 text-xs" style="color: var(--color-text-secondary); line-height: 1.7;">
+      <div>
+        <p><strong style="color: var(--color-text);">Base image drift:</strong> The CI/CD build pinned</p>
+        <p style="color: var(--color-text-muted);">golang:1.23-alpine (June 1), but production image</p>
+        <p style="color: var(--color-text-muted);">pulled a newer layer with extra CVEs (package updates).</p>
+      </div>
+      <div>
+        <p><strong style="color: var(--color-text);">New CVE disclosure:</strong> CVE-2025-31555 and</p>
+        <p style="color: var(--color-text-muted);">CVE-2026-0012 were published <strong>after</strong> the last</p>
+        <p style="color: var(--color-text-muted);">CI/CD build. Live scan catches what CI missed.</p>
+      </div>
+    </div>
+    <div class="mt-3 flex items-center gap-2 text-xs p-3 rounded-lg" style="background: rgba(16,185,129,0.06);">
+      <span style="color: var(--color-success); font-weight: 600;">💡 Suggestion:</span>
+      <span style="color: var(--color-text-muted);">Rebuild image via CI/CD to apply latest base image patches + schedule daily Live scan on all production containers.</span>
+    </div>
+  </div>
+
+  <!-- All differences table -->
+  <div class="card !p-0 overflow-hidden">
+    <div style="padding: 14px 16px; border-bottom: 1px solid var(--color-border);">
+      <span class="text-sm font-semibold" style="color: var(--color-text);">All Discrepancies Between CI/CD and Live</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 80px 1fr 1fr 80px; gap: 8px; padding: 8px 16px; background: var(--color-surface); font-size: 11px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--color-border);">
+      <span>Status</span>
+      <span>CVE / Package</span>
+      <span>Concern</span>
+      <span style="text-align: right;">Action</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 80px 1fr 1fr 80px; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--color-border); font-size: 13px; align-items: center; background: rgba(239,68,68,0.04);">
+      <span><span class="badge-new">NEW</span></span>
+      <div><span style="color: var(--color-text); font-weight: 500;">CVE-2025-31555</span><br><span style="font-size: 11px; color: var(--color-text-muted);">libcrypto (openssl 3.0.15)</span></div>
+      <div><span class="severity-pill pill-critical" style="font-size: 10px;">CRITICAL</span> <span style="color: var(--color-text-muted); font-size: 11px;">Zero-day — no fix yet</span></div>
+      <span style="text-align: right; color: var(--color-warning); font-size: 12px;">Monitor</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 80px 1fr 1fr 80px; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--color-border); font-size: 13px; align-items: center; background: rgba(245,158,11,0.04);">
+      <span><span class="badge-new">NEW</span></span>
+      <div><span style="color: var(--color-text); font-weight: 500;">CVE-2026-0012</span><br><span style="font-size: 11px; color: var(--color-text-muted);">libssl3 (debian:bookworm-slim)</span></div>
+      <div><span class="severity-pill pill-high" style="font-size: 10px;">HIGH</span> <span style="color: var(--color-text-muted); font-size: 11px;">Fixed in libssl3 3.3.1</span></div>
+      <span style="text-align: right; color: var(--color-success); font-size: 12px;">Rebuild</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 80px 1fr 1fr 80px; gap: 8px; padding: 10px 16px; font-size: 13px; align-items: center;">
+      <span><span class="badge-fixed">FIXED</span></span>
+      <div><span style="color: var(--color-text); font-weight: 500;">CVE-2025-0933</span><br><span style="font-size: 11px; color: var(--color-text-muted);">libcurl 8.10 → 8.12 (CI/CD fixed)</span></div>
+      <div><span style="color: var(--color-success); font-size: 11px;">✓ Fixed in latest CI/CD build</span></div>
+      <span style="text-align: right; color: var(--color-success); font-size: 12px;">Deploy</span>
+    </div>
+  </div>
+
+  <!-- Explanation card -->
+  <div class="card !p-4 mt-4">
+    <div class="flex items-start gap-3">
+      <div style="font-size: 20px;">💡</div>
+      <div>
+        <div class="text-sm font-semibold mb-1" style="color: var(--color-text);">How Source Differentiation Works</div>
+        <div class="text-xs" style="color: var(--color-text-muted); line-height: 1.7;">
+          Each scan record stores a <code style="color: var(--color-primary); background: var(--color-primary-subtle); padding: 1px 6px; border-radius: 4px;">source</code> field: <strong>"github_action"</strong> or <strong>"live"</strong>. Dashboard groups by source and highlights
+          discrepancies. When viewing a container, the system automatically fetches the latest scan from each source and performs a
+          diff: <span style="color: var(--color-danger);">CVEs present in Live but not in CI/CD</span> (new zero-days, base image drift) vs
+          <span style="color: var(--color-success);">CVEs fixed in CI/CD but still present in Live</span> (outdated deployment).
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (chip.classList.contains('active') || chip.classList.contains('active-blue')) {
+        chip.classList.remove('active', 'active-blue');
+      } else {
+        const siblings = chip.parentElement.querySelectorAll('.filter-chip');
+        const group = chip.parentElement;
+        if (group.querySelector('.filter-chip.active, .filter-chip.active-blue')) {
+          // Has active siblings — toggle style
+        }
+        chip.classList.add(chip.closest('[data-toggle-group]') ? 'active' : 'active-blue');
+      }
+    });
+  });
+</script>
+</body>
+</html>

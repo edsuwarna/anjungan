@@ -8,14 +8,17 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Postgres PostgresConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	SSH      SSHConfig
-	GitHub   GitHubConfig
-	Registry RegistryConfig
-	Log      LogConfig
+	Server         ServerConfig
+	Postgres       PostgresConfig
+	Redis          RedisConfig
+	JWT            JWTConfig
+	SSH            SSHConfig
+	VM             VMConfig
+	GitHub         GitHubConfig
+	Registry       RegistryConfig
+	Log            LogConfig
+	Security       SecurityConfig
+	MigrationsPath string
 }
 
 type ServerConfig struct {
@@ -55,12 +58,23 @@ type SSHConfig struct {
 	MaxConnections  int
 }
 
+type VMConfig struct {
+	URL string
+}
+
 type GitHubConfig struct {
 	Token string
 }
 
 type RegistryConfig struct {
 	URL string
+}
+
+type SecurityConfig struct {
+	RateLimitMaxAttempts  int           `json:"rate_limit_max_attempts"`
+	RateLimitWindow       time.Duration `json:"rate_limit_window"`
+	RateLimitLockout      time.Duration `json:"rate_limit_lockout"`
+	MinPasswordLength     int           `json:"min_password_length"`
 }
 
 type LogConfig struct {
@@ -111,15 +125,25 @@ func Load() *Config {
 			DefaultPort:    getEnvInt("SSH_DEFAULT_PORT", 22),
 			ConnectionTTL:  getDurationEnv("SSH_CONNECTION_TTL", 30*time.Minute),
 		},
+		VM: VMConfig{
+			URL: getEnv("VM_URL", "http://victoria-metrics:8428"),
+		},
 		GitHub: GitHubConfig{
 			Token: getEnv("GITHUB_TOKEN", ""),
 		},
 		Registry: RegistryConfig{
 			URL: getEnv("REGISTRY_URL", "http://zot:5000"),
 		},
+		Security: SecurityConfig{
+			RateLimitMaxAttempts:  getEnvInt("RATE_LIMIT_MAX_ATTEMPTS", 5),
+			RateLimitWindow:       getDurationEnv("RATE_LIMIT_WINDOW", 15*time.Minute),
+			RateLimitLockout:      getDurationEnv("RATE_LIMIT_LOCKOUT", 30*time.Minute),
+			MinPasswordLength:     getEnvInt("MIN_PASSWORD_LENGTH", 8),
+		},
 		Log: LogConfig{
 			Level: getEnv("LOG_LEVEL", "info"),
 		},
+		MigrationsPath: getEnv("MIGRATIONS_PATH", "/migrations"),
 	}
 }
 

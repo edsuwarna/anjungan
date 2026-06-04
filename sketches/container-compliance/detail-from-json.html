@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Trivy Scan Detail (from JSON)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #1a1d23;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  :root {
+    --color-primary: #10b981;
+    --color-primary-subtle: rgba(16,185,129,0.12);
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-accent: #8b5cf6;
+    --color-surface: #1e2128;
+    --color-card: #22262e;
+    --color-border: #2a2e36;
+    --color-border-light: #333842;
+    --color-text: #e2e8f0;
+    --color-text-muted: #8892a6;
+    --color-text-secondary: #a0a8b8;
+    --color-blue: #3b82f6;
+    --color-blue-subtle: rgba(59,130,246,0.1);
+  }
+
+  body { max-width: 1100px; margin: 0 auto; }
+
+  .card { background: var(--color-card); border: 1px solid var(--color-border-light); border-radius: 12px; padding: 20px; }
+
+  .page-title { font-size: 22px; font-weight: 700; color: var(--color-text); }
+  .page-subtitle { font-size: 13px; color: var(--color-text-muted); margin-top: 2px; }
+
+  .severity-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-critical { background: rgba(239,68,68,0.12); color: var(--color-danger); }
+  .pill-high { background: rgba(245,158,11,0.12); color: var(--color-warning); }
+  .pill-medium { background: rgba(139,92,246,0.12); color: var(--color-accent); }
+  .pill-low { background: rgba(16,185,129,0.12); color: var(--color-success); }
+  .pill-fixed { background: rgba(16,185,129,0.12); color: var(--color-success); }
+  .pill-unfixed { background: rgba(239,68,68,0.1); color: var(--color-danger); }
+
+  .source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .source-ci { background: rgba(59,130,246,0.1); color: #60a5fa; }
+  .source-live { background: rgba(16,185,129,0.1); color: var(--color-success); }
+
+  .filter-chip {
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+    background: transparent;
+  }
+  .filter-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .filter-chip.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 20px;
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn:hover { color: var(--color-text); }
+  .tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* CVE detail card */
+  .cve-card {
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: all 0.12s;
+  }
+  .cve-card:hover { border-color: rgba(255,255,255,0.1); }
+
+  .cve-header {
+    display: grid;
+    grid-template-columns: 80px 1fr 80px;
+    gap: 10px;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    background: var(--color-card);
+  }
+  .cve-header:hover { background: rgba(255,255,255,0.02); }
+
+  .cve-body {
+    display: none;
+    padding: 0 16px 16px;
+    border-top: 1px solid var(--color-border);
+    background: rgba(0,0,0,0.08);
+  }
+  .cve-body.show { display: block; }
+
+  .cve-body-inner {
+    padding-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .info-label { font-size: 10px; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+  .info-value { font-size: 13px; font-weight: 500; color: var(--color-text); }
+  .info-value-mono { font-size: 12px; font-family: monospace; color: var(--color-text); }
+
+  /* JSON source overlay */
+  .json-source {
+    font-size: 10px;
+    font-family: monospace;
+    color: #64748b;
+    background: rgba(0,0,0,0.15);
+    padding: 1px 6px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+
+  .badge-new {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(239,68,68,0.15);
+    color: var(--color-danger);
+  }
+  .badge-fixed-ci {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(16,185,129,0.15);
+    color: var(--color-success);
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 text-sm mb-4" style="color: var(--color-text-muted);">
+  <span style="cursor: pointer;">← Vulnerabilities</span>
+  <span>/</span>
+  <span style="cursor: pointer;">anjungan-backend:latest</span>
+  <span>/</span>
+  <span style="color: var(--color-text);">Scan #005 — Detail</span>
+</div>
+
+<!-- HEADER -->
+<div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+  <div>
+    <h1 class="page-title">🔍 Scan Detail Report</h1>
+    <p class="page-subtitle">
+      <strong style="color: var(--color-text);">anjungan-backend:latest</strong> — 
+      <span class="source-badge source-live">Live Scan</span> 
+      <span class="text-xs" style="color: var(--color-text-muted);">15 min ago</span>
+    </p>
+  </div>
+  <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs" style="background: var(--color-surface); border: 1px solid var(--color-border-light);">
+      <span style="color: var(--color-text-muted);">Data source:</span>
+      <span class="json-source">trivy_results.json</span>
+      <span style="color: var(--color-text-muted);">· run #4821</span>
+    </div>
+    <button class="filter-chip">⟳ Re-scan</button>
+    <button class="filter-chip">⬇ Download JSON</button>
+  </div>
+</div>
+
+<!-- SCAN INFO — all from JSON -->
+<div class="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-5">
+  <div class="card !p-3" style="border-left: 3px solid var(--color-blue);">
+    <div class="info-label">ArtifactName <span class="json-source">ArtifactName</span></div>
+    <div class="info-value" style="font-size: 14px;">anjungan-backend:latest</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">ArtifactType: container_image</div>
+  </div>
+  <div class="card !p-3" style="border-left: 3px solid var(--color-accent);">
+    <div class="info-label">Scanner <span class="json-source">Trivy.Version</span></div>
+    <div class="info-value" style="font-size: 14px;">Trivy v0.71.0</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">DB updated: 2026-06-03</div>
+  </div>
+  <div class="card !p-3" style="border-left: 3px solid var(--color-primary);">
+    <div class="info-label">Target OS <span class="json-source">Metadata.OS</span></div>
+    <div class="info-value" style="font-size: 14px;">debian 12.10</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">bookworm-slim · linux/amd64</div>
+  </div>
+  <div class="card !p-3" style="border-left: 3px solid var(--color-warning);">
+    <div class="info-label">Scan Time <span class="json-source">CreatedAt</span></div>
+    <div class="info-value" style="font-size: 14px;">15 min ago</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">2026-06-03T20:40:01Z</div>
+  </div>
+</div>
+
+<!-- SEVERITY SUMMARY — from JSON scan summary -->
+<div class="flex items-center gap-2 mb-3">
+  <h3 class="text-sm font-semibold" style="color: var(--color-text);">Summary</h3>
+  <span class="json-source">Results[].Vulnerabilities[].Severity</span>
+</div>
+<div class="grid gap-3 grid-cols-2 sm:grid-cols-5 mb-5">
+  <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-danger);">
+    <div class="text-2xl font-bold" style="color: var(--color-danger);">3</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">CRITICAL</div>
+  </div>
+  <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-warning);">
+    <div class="text-2xl font-bold" style="color: var(--color-warning);">9</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">HIGH</div>
+  </div>
+  <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-accent);">
+    <div class="text-2xl font-bold" style="color: var(--color-accent);">12</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">MEDIUM</div>
+  </div>
+  <div class="card !p-3 text-center" style="border-top: 3px solid var(--color-success);">
+    <div class="text-2xl font-bold" style="color: var(--color-success);">8</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">LOW</div>
+  </div>
+  <div class="card !p-3 text-center" style="border-top: 3px solid #f97316;">
+    <div class="text-2xl font-bold" style="color: #f97316;">4</div>
+    <div class="text-[10px]" style="color: var(--color-text-muted);">Misconfig</div>
+  </div>
+</div>
+
+<!-- FILTER -->
+<div class="flex flex-wrap items-center gap-2 mb-4">
+  <span class="text-xs font-medium" style="color: var(--color-text-muted);">Filter:</span>
+  <button class="filter-chip active">All (32)</button>
+  <button class="filter-chip" style="border-color: rgba(239,68,68,0.3); color: var(--color-danger);">Critical (3)</button>
+  <button class="filter-chip" style="border-color: rgba(245,158,11,0.3); color: var(--color-warning);">High (9)</button>
+  <button class="filter-chip" style="border-color: rgba(139,92,246,0.3); color: var(--color-accent);">Medium (12)</button>
+  <button class="filter-chip">Low (8)</button>
+  <span class="text-xs font-medium ml-4" style="color: var(--color-text-muted);">Status:</span>
+  <button class="filter-chip active">All</button>
+  <button class="filter-chip"><span class="badge-new">NEW</span></button>
+  <button class="filter-chip">Fixable (27)</button>
+  <button class="filter-chip">Unfixable (5)</button>
+  <span class="text-xs ml-auto" style="color: var(--color-text-muted);">Klik CVE untuk detail</span>
+</div>
+
+<!-- CVE LIST — each card shows which JSON fields provide the data -->
+<div class="space-y-3">
+
+  <!-- === CRITICAL === -->
+  <!-- CVE Card 1: Zero-day -->
+  <div class="cve-card" style="border-left: 3px solid var(--color-danger);">
+    <div class="cve-header" onclick="this.nextElementSibling.classList.toggle('show')">
+      <span class="severity-pill pill-critical">CRITICAL</span>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold" style="color: var(--color-text);">CVE-2025-31555</span>
+          <span class="badge-new">NEW</span>
+          <span class="json-source">VulnerabilityID</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
+          <span class="font-medium" style="color: var(--color-text);">libcrypto3</span>
+          <span>·</span>
+          <span>CVSS 9.8</span>
+          <span class="json-source">PkgName</span>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div class="text-xs" style="color: var(--color-text-muted);">Installed: <span style="color: var(--color-text);">3.0.15</span></div>
+        <div class="text-xs" style="color: var(--color-danger);">No fix available</div>
+      </div>
+    </div>
+    <div class="cve-body">
+      <div class="cve-body-inner">
+        <!-- Left column -->
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="info-label">Description <span class="json-source">Description</span></span>
+          </div>
+          <p style="font-size: 12px; color: var(--color-text); line-height: 1.6;">
+            Buffer overflow in OpenSSL X.509 certificate verification allows remote code execution via crafted certificate chain. Published Jun 2, 2026.
+          </p>
+
+          <div class="grid grid-cols-3 gap-3 mt-3">
+            <div>
+              <div class="info-label">CVSS v3 <span class="json-source">CVSS.nvd.V3Score</span></div>
+              <div class="info-value" style="color: var(--color-danger);">9.8</div>
+            </div>
+            <div>
+              <div class="info-label">CVSS Vector <span class="json-source">CVSS.nvd.V3Vector</span></div>
+              <div class="info-value" style="font-size: 10px; font-family: monospace; word-break: break-all;">CVSS:3.1/AV:N/...</div>
+            </div>
+            <div>
+              <div class="info-label">CWE <span class="json-source">CweIDs[0]</span></div>
+              <div class="info-value">CWE-122</div>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <div class="info-label">Layer <span class="json-source">Layer.DiffID</span></div>
+            <div class="info-value-mono" style="font-size: 11px;">sha256:d310e774110ab038b30c6a5f7b7f7dd527dbe...</div>
+            <div style="font-size: 11px; color: var(--color-text-muted);">Base image: debian:bookworm-slim (layer 2/5)</div>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="info-label">Status <span class="json-source">Status</span></span>
+            <span class="severity-pill pill-unfixed" style="font-size: 10px;">unfixable</span>
+          </div>
+
+          <div class="p-3 rounded-lg text-xs mb-3" style="background: rgba(239,68,68,0.06);">
+            <span style="color: var(--color-danger); font-weight: 600;">⚠️ No fix available</span>
+            <p style="color: var(--color-text-muted); margin-top: 4px;">
+              Zero-day — belum ada patch. Mitigasi: WAF rules, network segmentation, monitor vendor advisory.
+            </p>
+          </div>
+
+          <div class="info-label mb-1">References <span class="json-source">References[]</span></div>
+          <div style="font-size: 11px; line-height: 1.8;">
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://avd.aquasec.com/nvd/CVE-2025-31555</span> <span class="json-source">PrimaryURL</span></div>
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://nvd.nist.gov/vuln/detail/CVE-2025-31555</span></div>
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://access.redhat.com/security/cve/CVE-2025-31555</span></div>
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://security-tracker.debian.org/tracker/CVE-2025-31555</span></div>
+          </div>
+
+          <div class="mt-2 pt-2" style="border-top: 1px solid var(--color-border);">
+            <div class="info-label">Data Source <span class="json-source">DataSource</span></div>
+            <div style="font-size: 11px; color: var(--color-text-muted);">
+              Debian Security Tracker · 
+              <span style="color: #60a5fa;">https://salsa.debian.org/security-tracker-team/...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CVE Card 2: Critical with fix -->
+  <div class="cve-card" style="border-left: 3px solid var(--color-danger);">
+    <div class="cve-header" onclick="this.nextElementSibling.classList.toggle('show')">
+      <span class="severity-pill pill-critical">CRITICAL</span>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold" style="color: var(--color-text);">CVE-2025-22869</span>
+          <span class="json-source">VulnerabilityID</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
+          <span class="font-medium" style="color: var(--color-text);">golang.org/x/crypto</span>
+          <span>·</span>
+          <span>CVSS 9.1</span>
+          <span class="json-source">PkgName</span>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div class="text-xs" style="color: var(--color-text-muted);">v0.28.0 → <span style="color: var(--color-success); font-weight: 600;">v0.31.0</span></div>
+        <div class="flex items-center justify-end gap-1 mt-0.5">
+          <span class="severity-pill pill-fixed" style="font-size: 9px;">fixable</span>
+        </div>
+      </div>
+    </div>
+    <div class="cve-body">
+      <div class="cve-body-inner">
+        <div>
+          <div class="info-label">Description <span class="json-source">Description</span></div>
+          <p style="font-size: 12px; color: var(--color-text); line-height: 1.6; margin-top: 4px;">
+            SSH handshake race condition allows man-in-the-middle attacks when using specific cipher suites. Published Apr 15, 2025.
+          </p>
+          <div class="grid grid-cols-2 gap-3 mt-3">
+            <div>
+              <div class="info-label">Installed <span class="json-source">InstalledVersion</span></div>
+              <div class="info-value-mono">v0.28.0</div>
+            </div>
+            <div>
+              <div class="info-label">Fixed in <span class="json-source">FixedVersion</span></div>
+              <div class="info-value-mono" style="color: var(--color-success);">v0.31.0</div>
+            </div>
+            <div>
+              <div class="info-label">PkgID <span class="json-source">PkgID</span></div>
+              <div class="info-value-mono" style="font-size: 11px;">golang.org/x/crypto@v0.28.0</div>
+            </div>
+            <div>
+              <div class="info-label">PURL <span class="json-source">PkgIdentifier.PURL</span></div>
+              <div class="info-value-mono" style="font-size: 10px; word-break: break-all;">pkg:golang/golang.org/x/crypto@v0.28.0</div>
+            </div>
+          </div>
+          <div class="mt-3 p-3 rounded-lg" style="background: rgba(16,185,129,0.06);">
+            <span style="color: var(--color-success); font-weight: 600;">✅ Fix:</span>
+            <span style="font-size: 12px; color: var(--color-text-muted);">Run <code style="color: var(--color-primary);">go get golang.org/x/crypto@v0.31.0</code> then rebuild</span>
+          </div>
+        </div>
+        <div>
+          <div class="info-label mb-1">References <span class="json-source">References[]</span></div>
+          <div style="font-size: 11px; line-height: 1.8;">
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://avd.aquasec.com/nvd/CVE-2025-22869</span></div>
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://github.com/golang/go/issues/...</span></div>
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://pkg.go.dev/vuln/GO-2025-XXXX</span></div>
+          </div>
+          <div class="mt-3">
+            <div class="info-label">Published <span class="json-source">PublishedDate</span></div>
+            <div class="info-value">2025-04-15T10:30:00Z</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- === HIGH === -->
+  <div class="cve-card" style="border-left: 3px solid var(--color-warning);">
+    <div class="cve-header" onclick="this.nextElementSibling.classList.toggle('show')">
+      <span class="severity-pill pill-high">HIGH</span>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold" style="color: var(--color-text);">CVE-2025-22870</span>
+          <span class="badge-new">NEW</span>
+          <span class="json-source">VulnerabilityID</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
+          <span class="font-medium" style="color: var(--color-text);">net/http (golang stdlib)</span>
+          <span>·</span>
+          <span>CVSS 7.5</span>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div class="text-xs" style="color: var(--color-text-muted);">go1.23.0 → <span style="color: var(--color-success); font-weight: 600;">go1.23.6</span></div>
+        <div class="severity-pill pill-fixed" style="font-size: 9px;">fixable</div>
+      </div>
+    </div>
+    <div class="cve-body">
+      <div class="cve-body-inner">
+        <div>
+          <div class="info-label">Description</div>
+          <p style="font-size: 12px; color: var(--color-text);">HTTP Request Smuggling via chunked transfer encoding in net/http server. Affects Go applications behind reverse proxy.</p>
+          <div class="grid grid-cols-2 gap-3 mt-3">
+            <div>
+              <div class="info-label">Installed</div>
+              <div class="info-value-mono">go1.23.0</div>
+            </div>
+            <div>
+              <div class="info-label">Fixed in</div>
+              <div class="info-value-mono" style="color: var(--color-success);">go1.23.6</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="info-label mb-1">References</div>
+          <div style="font-size: 11px; line-height: 1.8;">
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://avd.aquasec.com/nvd/CVE-2025-22870</span></div>
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://go.dev/security/advisories</span></div>
+          </div>
+          <div class="mt-3 info-label">Data Source</div>
+          <div style="font-size: 11px; color: var(--color-text-muted);">Go Vulnerability Database</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CVE Card 4: High - Fixed in CI/CD but still in Live -->
+  <div class="cve-card" style="border-left: 3px solid var(--color-warning); border-color: rgba(245,158,11,0.2);">
+    <div class="cve-header" onclick="this.nextElementSibling.classList.toggle('show')">
+      <span class="severity-pill pill-high">HIGH</span>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold" style="color: var(--color-text);">CVE-2026-0012</span>
+          <span class="badge-fixed-ci">Fixed in CI/CD</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
+          <span class="font-medium" style="color: var(--color-text);">libssl3</span>
+          <span>·</span>
+          <span>debian:bookworm-slim</span>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div class="text-xs" style="color: var(--color-text-muted);">3.0.15 → <span style="color: var(--color-success); font-weight: 600;">3.3.1</span></div>
+        <div class="severity-pill pill-fixed" style="font-size: 9px;">fixable</div>
+      </div>
+    </div>
+    <div class="cve-body">
+      <div class="cve-body-inner">
+        <div>
+          <div class="info-label">Description</div>
+          <p style="font-size: 12px; color: var(--color-text);">TLS certificate validation bypass in libssl3 when using specific cipher suites. Published May 28, 2026.</p>
+          <div class="mt-3 p-3 rounded-lg" style="background: rgba(239,68,68,0.06);">
+            <span style="color: var(--color-danger); font-weight: 600;">🚨 Present in Live but fixed in CI/CD</span>
+            <p style="font-size: 12px; color: var(--color-text-muted); margin-top: 4px;">Rebuild image via CI/CD and re-deploy to fix. Latest CI/CD build (run #4820) uses base image with libssl3 3.3.1.</p>
+          </div>
+        </div>
+        <div>
+          <div class="info-label mb-1">References</div>
+          <div style="font-size: 11px; line-height: 1.8;">
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://avd.aquasec.com/nvd/CVE-2026-0012</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- === MEDIUM === -->
+  <div class="cve-card" style="border-left: 3px solid var(--color-accent);">
+    <div class="cve-header" onclick="this.nextElementSibling.classList.toggle('show')">
+      <span class="severity-pill pill-medium">MEDIUM</span>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold" style="color: var(--color-text);">CVE-2025-26614</span>
+          <span class="json-source">VulnerabilityID</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
+          <span>postgresql-client</span>
+          <span>·</span>
+          <span>CVSS 5.3</span>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <div class="text-xs" style="color: var(--color-text-muted);">16.4 → <span style="color: var(--color-success);">16.8</span></div>
+        <div class="severity-pill pill-fixed" style="font-size: 9px;">fixable</div>
+      </div>
+    </div>
+    <div class="cve-body">
+      <div class="cve-body-inner">
+        <div>
+          <div class="info-label">Description</div>
+          <p style="font-size: 12px; color: var(--color-text);">PostgreSQL client does not properly validate TLS certificate hostname when connecting over SSL.</p>
+        </div>
+        <div>
+          <div class="info-label mb-1">References</div>
+          <div style="font-size: 11px; line-height: 1.8;">
+            <div><span style="color: #60a5fa;">•</span> <span style="color: #60a5fa;">https://avd.aquasec.com/nvd/CVE-2025-26614</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGINATION + SUMMARY -->
+<div class="flex items-center justify-between mt-4 pt-3" style="border-top: 1px solid var(--color-border);">
+  <div class="flex items-center gap-4 text-xs" style="color: var(--color-text-muted);">
+    <span><span style="color: var(--color-text);">32</span> total findings</span>
+    <span><span class="pill-fixed" style="font-size: 10px; padding: 1px 6px;">27 fixable</span></span>
+    <span><span class="pill-unfixed" style="font-size: 10px; padding: 1px 6px;">5 unfixable</span></span>
+    <span class="json-source">Source: trivy_results.json (4,281 lines)</span>
+  </div>
+  <div class="flex items-center gap-1">
+    <button class="filter-chip active">1</button>
+    <button class="filter-chip">2</button>
+    <button class="filter-chip">3</button>
+    <button class="filter-chip">4</button>
+    <span style="color: var(--color-text-muted);">…</span>
+    <button class="filter-chip">8</button>
+  </div>
+</div>
+
+<!-- HOW IT WORKS FOOTNOTE -->
+<div class="mt-5 card !p-4" style="border: 1px dashed var(--color-border);">
+  <div class="flex items-start gap-3">
+    <div style="font-size: 18px;">💡</div>
+    <div>
+      <div class="text-sm font-semibold mb-1" style="color: var(--color-text);">Semua data dari JSON scan result</div>
+      <div class="text-xs" style="color: var(--color-text-muted); line-height: 1.7;">
+        Setiap field di halaman ini bersumber langsung dari <strong style="color: var(--color-text);">Trivy JSON output</strong> — baik dari CI/CD scan maupun Live scan. 
+        Anjungan cukup menyimpan raw JSON dari Trivy (<code style="color: var(--color-primary);">trivy_results.json</code>) dan <strong style="color: var(--color-text);">semua detail CVE sudah tersedia</strong>:
+        severity, CVSS score + vector, CWE, description, installed/fixed version, package info (PURL, PkgID), 
+        layer origin, published date, dan semua reference URLs. Tidak perlu scraping atau API call tambahan. 🔥
+      </div>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <span class="json-source" style="font-size: 10px;">VulnerabilityID</span>
+        <span class="json-source" style="font-size: 10px;">Severity</span>
+        <span class="json-source" style="font-size: 10px;">CVSS.nvd.V3Score</span>
+        <span class="json-source" style="font-size: 10px;">CweIDs</span>
+        <span class="json-source" style="font-size: 10px;">Description</span>
+        <span class="json-source" style="font-size: 10px;">InstalledVersion</span>
+        <span class="json-source" style="font-size: 10px;">FixedVersion</span>
+        <span class="json-source" style="font-size: 10px;">PkgName</span>
+        <span class="json-source" style="font-size: 10px;">PkgIdentifier.PURL</span>
+        <span class="json-source" style="font-size: 10px;">PrimaryURL</span>
+        <span class="json-source" style="font-size: 10px;">References[]</span>
+        <span class="json-source" style="font-size: 10px;">Status</span>
+        <span class="json-source" style="font-size: 10px;">PublishedDate</span>
+        <span class="json-source" style="font-size: 10px;">Layer.DiffID</span>
+        <span class="json-source" style="font-size: 10px;">DataSource</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (chip.classList.contains('active')) {
+        chip.classList.remove('active');
+      } else {
+        chip.classList.add('active');
+      }
+    });
+  });
+</script>
+</body>
+</html>

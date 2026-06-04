@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,11 +15,14 @@ import (
 	"github.com/edsuwarna/anjungan/internal/admin"
 	"github.com/edsuwarna/anjungan/internal/auth"
 	"github.com/edsuwarna/anjungan/internal/common/db"
+	"github.com/edsuwarna/anjungan/internal/compliance"
 	"github.com/edsuwarna/anjungan/internal/config"
 	"github.com/edsuwarna/anjungan/internal/container"
 	"github.com/edsuwarna/anjungan/internal/dashboard"
 	"github.com/edsuwarna/anjungan/internal/deployment"
 	"github.com/edsuwarna/anjungan/internal/infra"
+	"github.com/edsuwarna/anjungan/internal/metrics"
+	"github.com/edsuwarna/anjungan/internal/ratelimit"
 	"github.com/edsuwarna/anjungan/internal/registry"
 	repoapi "github.com/edsuwarna/anjungan/internal/repository"
 )
@@ -41,21 +45,40 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, fmt.Errorf("database ping: %w", err)
 	}
 
+	// ─── Auto-run pending migrations ─────────────────────────────────────
+	log.Info().Str("dir", cfg.MigrationsPath).Msg("running database migrations")
+	if n, err := db.RunMigrations(context.Background(), database.Pool, cfg.MigrationsPath); err != nil {
+		return nil, fmt.Errorf("migrations: %w", err)
+	} else if n > 0 {
+		log.Info().Int("applied", n).Msg("database migrations applied")
+	} else {
+		log.Info().Msg("no pending migrations")
+	}
+
 	rdb := db.NewRedis(cfg.Redis)
 	repo := db.NewRepository(database)
 
+	// ─── VictoriaMetrics client ──────────────────────────────────────────
+	vmClient := metrics.NewVMClient(cfg.VM.URL)
+
+	// ─── Background metrics collector ────────────────────────────────────
+	collector := metrics.NewCollector(repo, vmClient, 5*time.Minute)
+	ctx := context.Background()
+	go collector.Start(ctx)
+
 	// ─── Build handlers ────────────────────────────────────────────────────
-	authSvc := auth.NewService(repo, cfg.JWT, rdb)
-	authH := auth.NewHandler(authSvc)
+	rl := ratelimit.New(rdb, cfg.Security.RateLimitMaxAttempts, cfg.Security.RateLimitWindow, cfg.Security.RateLimitLockout)
+	authSvc := auth.NewService(repo, cfg.JWT, rdb, rl, cfg.Security)
+	authH := auth.NewHandler(authSvc, repo)
 
 	srv := &Server{cfg: cfg, db: database}
-	srv.setupRouter(authH, authSvc, repo)
+	srv.setupRouter(authH, authSvc, repo, vmClient)
 	return srv, nil
 }
 
 func (s *Server) Handler() http.Handler { return s.mux }
 
-func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository) {
+func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, vmClient *metrics.VMClient) {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -73,13 +96,15 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 		r.Mount("/auth", authRoutes(authH))
 		r.Route("/", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
-			r.Mount("/servers", infra.NewHandler(repo).Routes())
-			r.Mount("/containers", container.NewHandler().Routes())
+			r.Mount("/servers", infra.NewHandler(repo, vmClient).Routes())
+			r.Mount("/ssh-keys", infra.NewSSHKeyHandler(repo).Routes())
+			r.Mount("/containers", container.NewHandler(repo).Routes())
 			r.Mount("/registry", registry.NewHandler().Routes())
 			r.Mount("/repositories", repoapi.NewHandler().Routes())
 			r.Mount("/deployments", deployment.NewHandler().Routes())
+			r.Mount("/compliance", compliance.NewHandler(repo).Routes())
 			r.Mount("/admin", admin.NewHandler(repo).Routes())
-			r.Get("/dashboard", dashboard.NewHandler().Summary)
+			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
 		})
 	})
 

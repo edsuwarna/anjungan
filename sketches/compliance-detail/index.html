@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Compliance Detail v2</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; background: #1a1d23; color: #e5e7eb; line-height: 1.5; }
+
+  .screen-content { display: none; }
+  .screen-content.active { display: block; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .cat-tab-content { display: none; }
+  .cat-tab-content.active { display: block; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-in { animation: fadeIn 0.35s ease-out; }
+
+  /* Score colors */
+  .score-pass { color: #10b981; } .bg-pass { background: #10b981; }
+  .score-warn { color: #f59e0b; } .bg-warn { background: #f59e0b; }
+  .score-fail { color: #ef4444; } .bg-fail { background: #ef4444; }
+
+  /* Severity badges */
+  .sev-critical { background: rgba(239,68,68,0.12); color: #ef4444; }
+  .sev-high { background: rgba(249,115,22,0.12); color: #f97316; }
+  .sev-medium { background: rgba(245,158,11,0.12); color: #f59e0b; }
+  .sev-low { background: rgba(59,130,246,0.12); color: #3b82f6; }
+  .sev-pass { background: rgba(16,185,129,0.12); color: #10b981; }
+
+  .progress-bar { height: 6px; border-radius: 999px; background: #374151; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #374151; border-radius: 999px; }
+
+  .row-hover { transition: all 0.12s ease; }
+  .row-hover:hover { background: #22252e; }
+
+  .accent-l1 { border-left: 3px solid #10b981; }
+  .accent-l2 { border-left: 3px solid #f59e0b; }
+  .accent-lynis { border-left: 3px solid #8b5cf6; }
+
+  .mockup-tab {
+    padding: 8px 16px; border-radius: 7px; font-size: 13px; font-weight: 500;
+    cursor: pointer; border: none; background: transparent; color: #6b7280;
+    transition: all 0.15s; font-family: inherit;
+  }
+  .mockup-tab:hover { color: #e5e7eb; }
+  .mockup-tab.active { background: #1f2937; color: #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+  .check-row { transition: all 0.12s ease; cursor: pointer; }
+  .check-row:hover { background: #22252e; }
+
+  /* category cards */
+  .cat-card { transition: all 0.2s ease; cursor: pointer; }
+  .cat-card:hover { transform: translateY(-2px); }
+
+  /* category pills */
+  .cat-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; border: 1px solid transparent; }
+  .cat-pill.ssh { background: rgba(59,130,246,0.12); color: #60a5fa; border-color: rgba(59,130,246,0.2); }
+  .cat-pill.kernel { background: rgba(139,92,246,0.12); color: #a78bfa; border-color: rgba(139,92,246,0.2); }
+  .cat-pill.network { background: rgba(16,185,129,0.12); color: #34d399; border-color: rgba(16,185,129,0.2); }
+  .cat-pill.fs { background: rgba(245,158,11,0.12); color: #fbbf24; border-color: rgba(245,158,11,0.2); }
+  .cat-pill.auth { background: rgba(239,68,68,0.12); color: #f87171; border-color: rgba(239,68,68,0.2); }
+  .cat-pill.docker { background: rgba(6,182,212,0.12); color: #22d3ee; border-color: rgba(6,182,212,0.2); }
+  .cat-pill.logging { background: rgba(168,85,247,0.12); color: #c084fc; border-color: rgba(168,85,247,0.2); }
+  .cat-pill.pkg { background: rgba(236,72,153,0.12); color: #f472b6; border-color: rgba(236,72,153,0.2); }
+  .cat-pill.services { background: rgba(34,211,238,0.12); color: #67e8f9; border-color: rgba(34,211,238,0.2); }
+  .cat-pill.users { background: rgba(251,146,60,0.12); color: #fb923c; border-color: rgba(251,146,60,0.2); }
+  .cat-pill.lynis-cat { background: rgba(139,92,246,0.12); color: #c4b5fd; border-color: rgba(139,92,246,0.25); }
+
+  /* mini chart bars */
+  .bar { border-radius: 4px 4px 0 0; min-height: 4px; transition: height 0.4s ease; }
+  .bar-label { font-size: 10px; color: #6b7280; text-align: center; }
+
+  @media (max-width: 768px) {
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .cat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .trend-chart { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- NAV                                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="sticky top-0 z-20 bg-[#1a1d23] border-b border-[#2d3039] px-6 py-3 flex items-center justify-between">
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg bg-[#10b981] flex items-center justify-center text-xs font-bold text-white">A</div>
+      <span class="text-sm font-semibold text-gray-300 hidden sm:inline">Anjungan</span>
+    </div>
+    <div class="h-4 w-px bg-[#374151]"></div>
+    <h1 class="text-base font-semibold text-white">Compliance · v2</h1>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="text-xs text-gray-500 hidden sm:inline">Screen:</span>
+    <button onclick="switchScreen('global')" class="mockup-tab active" id="s-global">🏠 Global</button>
+    <button onclick="switchScreen('l1')" class="mockup-tab" id="s-l1">🟢 CIS L1</button>
+    <button onclick="switchScreen('l2')" class="mockup-tab" id="s-l2">🟡 CIS L2</button>
+    <button onclick="switchScreen('lynis')" class="mockup-tab" id="s-lynis">🔍 Lynis</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- GLOBAL OVERVIEW (mostly same, minor polish)                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="screen-global" class="screen-content p-6 animate-in active">
+  <div class="max-w-6xl mx-auto">
+
+    <!-- BREADCRUMB -->
+    <div class="flex items-center gap-2 text-sm mb-4 text-gray-400">
+      <span>Compliance</span>
+      <span>/</span>
+      <span class="text-gray-300 font-medium">Overview</span>
+    </div>
+
+    <!-- HEADER -->
+    <div class="flex items-start sm:items-center justify-between gap-3 flex-wrap mb-5">
+      <div>
+        <h2 class="text-lg font-bold text-white">Compliance Dashboard</h2>
+        <p class="text-sm text-gray-400">Security posture across all servers</p>
+      </div>
+      <button class="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] flex items-center gap-1.5">
+        <span>⟳</span> Scan All
+      </button>
+    </div>
+
+    <!-- KPI CARDS -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4" style="border-left: 3px solid #10b981;">
+        <div class="text-xs text-gray-400 font-medium mb-1">Total Servers</div>
+        <div class="text-2xl font-bold text-white">12</div>
+        <div class="text-xs text-gray-400 mt-1"><span class="text-[#10b981]">10 scanned</span> · 2 pending</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4" style="border-left: 3px solid #6366f1;">
+        <div class="text-xs text-gray-400 font-medium mb-1">Average Score</div>
+        <div class="text-2xl font-bold text-[#10b981]">84%</div>
+        <div class="text-xs text-gray-400 mt-1">Hardening index across servers</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4" style="border-left: 3px solid #10b981;">
+        <div class="text-xs text-gray-400 font-medium mb-1">Passing (≥80)</div>
+        <div class="text-2xl font-bold text-[#10b981]">7</div>
+        <div class="text-xs text-gray-400 mt-1">70% of scanned</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4" style="border-left: 3px solid #f59e0b;">
+        <div class="text-xs text-gray-400 font-medium mb-1">Findings</div>
+        <div class="flex items-center gap-3">
+          <span class="text-lg font-bold text-[#ef4444]">12</span>
+          <span class="text-xs text-gray-400">critical</span>
+          <span class="text-lg font-bold text-[#f59e0b]">28</span>
+          <span class="text-xs text-gray-400">warnings</span>
+        </div>
+        <div class="progress-bar mt-2">
+          <div class="progress-fill" style="width: 60%; background: #10b981;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCAN CATEGORIES CARDS (entry points, unchanged) -->
+    <div class="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+      <span>📋 Scan Categories</span>
+      <span class="text-xs font-normal text-gray-500">Click to view details</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <!-- CIS L1 Card -->
+      <div onclick="switchScreen('l1')" class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 cursor-pointer transition-all hover:border-[#10b981]/40 hover:bg-[#22252e]">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-lg bg-[#10b981]/15 flex items-center justify-center text-sm">🛡️</div>
+            <div>
+              <div class="text-sm font-semibold text-white">CIS Level 1</div>
+              <div class="text-xs text-gray-400">Basic security hardening</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-lg font-bold text-[#10b981]">86%</div>
+            <div class="text-[10px] text-gray-500">avg score</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 text-xs text-gray-400 mb-2">
+          <span><span class="text-white font-medium">48</span> checks</span>
+          <span>·</span>
+          <span><span class="text-[#10b981]">32</span> pass</span>
+          <span><span class="text-[#f59e0b]">12</span> warn</span>
+          <span><span class="text-[#ef4444]">4</span> fail</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 86%; background: #10b981;"></div>
+        </div>
+        <div class="flex items-center justify-between mt-3">
+          <span class="text-[11px] text-gray-500">7 categories · 3 servers affected</span>
+          <span class="text-[11px] text-[#10b981] font-medium">View details →</span>
+        </div>
+      </div>
+      <!-- CIS L2 Card -->
+      <div onclick="switchScreen('l2')" class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 cursor-pointer transition-all hover:border-[#f59e0b]/40 hover:bg-[#22252e]">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-lg bg-[#f59e0b]/15 flex items-center justify-center text-sm">🔒</div>
+            <div>
+              <div class="text-sm font-semibold text-white">CIS Level 2</div>
+              <div class="text-xs text-gray-400">Advanced security hardening</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-lg font-bold text-[#f59e0b]">62%</div>
+            <div class="text-[10px] text-gray-500">avg score</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 text-xs text-gray-400 mb-2">
+          <span><span class="text-white font-medium">84</span> checks</span>
+          <span>·</span>
+          <span><span class="text-[#10b981]">46</span> pass</span>
+          <span><span class="text-[#f59e0b]">28</span> warn</span>
+          <span><span class="text-[#ef4444]">10</span> fail</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 62%; background: #f59e0b;"></div>
+        </div>
+        <div class="flex items-center justify-between mt-3">
+          <span class="text-[11px] text-gray-500">8 categories · 5 servers affected</span>
+          <span class="text-[11px] text-[#f59e0b] font-medium">View details →</span>
+        </div>
+      </div>
+      <!-- Lynis Card -->
+      <div onclick="switchScreen('lynis')" class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 cursor-pointer transition-all hover:border-[#8b5cf6]/40 hover:bg-[#22252e]">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-lg bg-[#8b5cf6]/15 flex items-center justify-center text-sm">🔍</div>
+            <div>
+              <div class="text-sm font-semibold text-white">Lynis Audit</div>
+              <div class="text-xs text-gray-400">Deep system security audit</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-lg font-bold text-[#a78bfa]">72</div>
+            <div class="text-[10px] text-gray-500">hardening idx</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 text-xs text-gray-400 mb-2">
+          <span><span class="text-white font-medium">12</span> categories</span>
+          <span>·</span>
+          <span><span class="text-[#f59e0b]">8</span> warnings</span>
+          <span><span class="text-[#60a5fa]">23</span> suggestions</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 72%; background: #8b5cf6;"></div>
+        </div>
+        <div class="flex items-center justify-between mt-3">
+          <span class="text-[11px] text-gray-500">12 categories · 4 servers audited</span>
+          <span class="text-[11px] text-[#a78bfa] font-medium">View details →</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SERVER TABLE -->
+    <div class="text-sm font-semibold text-gray-300 mb-3">Servers</div>
+    <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] overflow-hidden mb-4">
+      <table class="w-full">
+        <thead>
+          <tr class="text-xs text-gray-400 font-semibold uppercase tracking-wider border-b border-[#2d3039]">
+            <th class="text-left p-3 pl-4">Server</th>
+            <th class="text-center p-3">Score</th>
+            <th class="text-center p-3 hidden sm:table-cell">L1</th>
+            <th class="text-center p-3 hidden sm:table-cell">L2</th>
+            <th class="text-center p-3 hidden lg:table-cell">Lynis</th>
+            <th class="text-right p-3 pr-4">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-hover border-b border-[#2d3039]/50">
+            <td class="p-3 pl-4"><span class="text-sm font-medium text-white">web-01</span><br><span class="text-xs text-gray-500">10.0.0.1</span></td>
+            <td class="text-center"><span class="text-lg font-bold text-[#10b981]">92</span></td>
+            <td class="text-center hidden sm:table-cell"><span class="text-xs text-[#10b981]">✓ 92%</span></td>
+            <td class="text-center hidden sm:table-cell"><span class="text-xs text-[#f59e0b]">78%</span></td>
+            <td class="text-center hidden lg:table-cell"><span class="text-xs text-[#a78bfa]">78</span></td>
+            <td class="text-right pr-4">
+              <div class="flex items-center justify-end gap-1">
+                <button onclick="switchScreen('l1')" class="text-xs px-2 py-1 rounded-md bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 hover:bg-[#10b981]/20 transition-all">L1</button>
+                <button onclick="switchScreen('l2')" class="text-xs px-2 py-1 rounded-md bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20 hover:bg-[#f59e0b]/20 transition-all">L2</button>
+                <button onclick="switchScreen('lynis')" class="text-xs px-2 py-1 rounded-md bg-[#8b5cf6]/10 text-[#a78bfa] border border-[#8b5cf6]/20 hover:bg-[#8b5cf6]/20 transition-all">Lyn</button>
+              </div>
+            </td>
+          </tr>
+          <tr class="row-hover">
+            <td class="p-3 pl-4"><span class="text-sm font-medium text-white">db-01</span><br><span class="text-xs text-gray-500">10.0.0.2</span></td>
+            <td class="text-center"><span class="text-lg font-bold text-[#f59e0b]">68</span></td>
+            <td class="text-center hidden sm:table-cell"><span class="text-xs text-[#10b981]">✓ 88%</span></td>
+            <td class="text-center hidden sm:table-cell"><span class="text-xs text-[#ef4444]">45%</span></td>
+            <td class="text-center hidden lg:table-cell"><span class="text-xs text-[#a78bfa]">65</span></td>
+            <td class="text-right pr-4">
+              <div class="flex items-center justify-end gap-1">
+                <button onclick="switchScreen('l1')" class="text-xs px-2 py-1 rounded-md bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20 hover:bg-[#10b981]/20 transition-all">L1</button>
+                <button onclick="switchScreen('l2')" class="text-xs px-2 py-1 rounded-md bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20 hover:bg-[#f59e0b]/20 transition-all">L2</button>
+                <button onclick="switchScreen('lynis')" class="text-xs px-2 py-1 rounded-md bg-[#8b5cf6]/10 text-[#a78bfa] border border-[#8b5cf6]/20 hover:bg-[#8b5cf6]/20 transition-all">Lyn</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- CIS L1 DETAIL — RESTRUCTURED                                           -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="screen-l1" class="screen-content p-6 animate-in">
+  <div class="max-w-6xl mx-auto">
+
+    <!-- BREADCRUMB -->
+    <div class="flex items-center gap-2 text-sm mb-4 text-gray-400">
+      <a onclick="switchScreen('global')" class="hover:text-gray-200 cursor-pointer">Compliance</a>
+      <span>/</span>
+      <span class="text-gray-300 font-medium">CIS Level 1</span>
+      <span class="text-xs text-gray-500 ml-auto">🟢 Basic security hardening</span>
+    </div>
+
+    <!-- HEADER -->
+    <div class="flex items-start sm:items-center justify-between gap-3 flex-wrap mb-5">
+      <div class="flex items-center gap-3">
+        <button onclick="switchScreen('global')" class="w-8 h-8 rounded-lg bg-[#2d3039] flex items-center justify-center hover:bg-[#374151] transition-all cursor-pointer">
+          <span class="text-sm">←</span>
+        </button>
+        <div>
+          <h2 class="text-lg font-bold text-white">CIS Level 1</h2>
+          <p class="text-sm text-gray-400">CIS Benchmark Level 1 — Basic security hardening</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-500">Last scan: 2h ago</span>
+        <button class="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#10b981] text-white hover:bg-[#059669] flex items-center gap-1.5">
+          <span>⟳</span> Scan L1
+        </button>
+      </div>
+    </div>
+
+    <!-- STATS ROW -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #10b981;">
+        <div class="text-2xl font-bold text-[#10b981]">86%</div>
+        <div class="text-xs text-gray-400 mt-0.5">Avg Score</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #6366f1;">
+        <div class="text-2xl font-bold text-white">48</div>
+        <div class="text-xs text-gray-400 mt-0.5">Total Checks</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #10b981;">
+        <div class="text-2xl font-bold text-[#10b981]">32</div>
+        <div class="text-xs text-gray-400 mt-0.5">Passed</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #f59e0b;">
+        <div class="text-2xl font-bold text-[#f59e0b]">12</div>
+        <div class="text-xs text-gray-400 mt-0.5">Warnings</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #ef4444;">
+        <div class="text-2xl font-bold text-[#ef4444]">4</div>
+        <div class="text-xs text-gray-400 mt-0.5">Failed</div>
+      </div>
+    </div>
+
+    <!-- SCORE TREND -->
+    <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-sm font-semibold text-gray-300 flex items-center gap-2">
+          <span>📈</span> Score Trend (CIS L1)
+        </div>
+        <select class="text-xs bg-[#2d3039] border border-[#374151] rounded-lg px-2 py-1 text-gray-300">
+          <option>Last 30 days</option>
+          <option>Last 90 days</option>
+        </select>
+      </div>
+      <div class="h-24 flex items-end gap-2">
+        <div class="flex-1 flex flex-col items-center gap-1">
+          <span class="text-[10px] text-gray-500">74</span>
+          <div class="w-full rounded-t-md bg-[#f59e0b]/60 bar" style="height: 56px;"></div>
+          <span class="text-[10px] text-gray-500">Jun 1</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-1">
+          <span class="text-[10px] text-gray-500">78</span>
+          <div class="w-full rounded-t-md bg-[#f59e0b]/60 bar" style="height: 60px;"></div>
+          <span class="text-[10px] text-gray-500">Jun 3</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-1">
+          <span class="text-[10px] text-gray-500">82</span>
+          <div class="w-full rounded-t-md bg-[#10b981]/60 bar" style="height: 63px;"></div>
+          <span class="text-[10px] text-gray-500">Jun 5</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-1">
+          <span class="text-[10px] text-gray-500">80</span>
+          <div class="w-full rounded-t-md bg-[#10b981]/60 bar" style="height: 62px;"></div>
+          <span class="text-[10px] text-gray-500">Jun 8</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-1">
+          <span class="text-[10px] text-gray-500">85</span>
+          <div class="w-full rounded-t-md bg-[#10b981]/60 bar" style="height: 65px;"></div>
+          <span class="text-[10px] text-gray-500">Jun 10</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-1">
+          <span class="text-[10px] text-gray-500">84</span>
+          <div class="w-full rounded-t-md bg-[#10b981]/60 bar" style="height: 64px;"></div>
+          <span class="text-[10px] text-gray-500">Jun 12</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center gap-1">
+          <span class="text-[10px] text-[#10b981] font-semibold">86</span>
+          <div class="w-full rounded-t-md bg-[#10b981] bar" style="height: 66px;"></div>
+          <span class="text-[10px] text-gray-500 font-semibold">Today</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW: CATEGORY CARDS GRID (first-class citizens) -->
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-sm font-semibold text-gray-300 flex items-center gap-2">
+        <span>📂</span> Categories <span class="text-xs font-normal text-gray-500">· 7 categories · 48 total checks</span>
+      </div>
+      <span class="text-[11px] text-gray-500">Click card to view details</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-6" id="l1-cat-grid">
+
+      <!-- SSH -->
+      <div onclick="openCategory('l1', 'ssh')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#3b82f6]/40 hover:shadow-lg hover:shadow-[#3b82f6]/5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill ssh">SSH</span>
+            <span class="text-xs text-gray-500">12 checks</span>
+          </div>
+          <span class="text-sm font-bold text-[#60a5fa]">92%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 10</span>
+          <span class="text-[#f59e0b]">⚠ 1</span>
+          <span class="text-[#ef4444]">✗ 1</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 92%; background: #3b82f6;"></div>
+        </div>
+      </div>
+
+      <!-- Kernel -->
+      <div onclick="openCategory('l1', 'kernel')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#8b5cf6]/40 hover:shadow-lg hover:shadow-[#8b5cf6]/5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill kernel">Kernel</span>
+            <span class="text-xs text-gray-500">8 checks</span>
+          </div>
+          <span class="text-sm font-bold text-[#a78bfa]">88%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 6</span>
+          <span class="text-[#f59e0b]">⚠ 2</span>
+          <span class="text-[#ef4444]">✗ 0</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 88%; background: #8b5cf6;"></div>
+        </div>
+      </div>
+
+      <!-- Filesystem -->
+      <div onclick="openCategory('l1', 'fs')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#f59e0b]/40 hover:shadow-lg hover:shadow-[#f59e0b]/5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill fs">Filesystem</span>
+            <span class="text-xs text-gray-500">8 checks</span>
+          </div>
+          <span class="text-sm font-bold text-[#fbbf24]">75%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 5</span>
+          <span class="text-[#f59e0b]">⚠ 2</span>
+          <span class="text-[#ef4444]">✗ 1</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 75%; background: #f59e0b;"></div>
+        </div>
+      </div>
+
+      <!-- Network -->
+      <div onclick="openCategory('l1', 'network')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#10b981]/40 hover:shadow-lg hover:shadow-[#10b981]/5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill network">Network</span>
+            <span class="text-xs text-gray-500">6 checks</span>
+          </div>
+          <span class="text-sm font-bold text-[#34d399]">100%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 6</span>
+          <span class="text-[#f59e0b]">⚠ 0</span>
+          <span class="text-[#ef4444]">✗ 0</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 100%; background: #10b981;"></div>
+        </div>
+      </div>
+
+      <!-- Auth -->
+      <div onclick="openCategory('l1', 'auth')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#ef4444]/40 hover:shadow-lg hover:shadow-[#ef4444]/5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill auth">Auth</span>
+            <span class="text-xs text-gray-500">6 checks</span>
+          </div>
+          <span class="text-sm font-bold text-[#f87171]">50%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 2</span>
+          <span class="text-[#f59e0b]">⚠ 3</span>
+          <span class="text-[#ef4444]">✗ 1</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 50%; background: #ef4444;"></div>
+        </div>
+      </div>
+
+      <!-- Logging -->
+      <div onclick="openCategory('l1', 'logging')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#c084fc]/40 hover:shadow-lg hover:shadow-[#c084fc]/5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill logging">Logging</span>
+            <span class="text-xs text-gray-500">4 checks</span>
+          </div>
+          <span class="text-sm font-bold text-[#c084fc]">75%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 3</span>
+          <span class="text-[#f59e0b]">⚠ 1</span>
+          <span class="text-[#ef4444]">✗ 0</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 75%; background: #c084fc;"></div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div onclick="openCategory('l1', 'users')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#fb923c]/40 hover:shadow-lg hover:shadow-[#fb923c]/5">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill users">Users</span>
+            <span class="text-xs text-gray-500">4 checks</span>
+          </div>
+          <span class="text-sm font-bold text-[#fb923c]">75%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 3</span>
+          <span class="text-[#f59e0b]">⚠ 0</span>
+          <span class="text-[#ef4444]">✗ 1</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 75%; background: #fb923c;"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ─── CATEGORY DETAIL (expandable, shows when a category is clicked) ─── -->
+    <div id="l1-category-detail" class="bg-[#1e2128] rounded-xl border border-[#2d3039] p-5 mb-6" style="display:none;">
+      <!-- detail header -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <button onclick="closeCategory('l1')" class="text-xs px-2.5 py-1.5 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200 transition-all">← Back to Categories</button>
+          <div id="l1-cat-title" class="text-base font-bold text-white"></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500">Last scan: 2h ago</span>
+        </div>
+      </div>
+
+      <!-- cat stats row -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="l1-cat-stats">
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center">
+          <div class="text-xl font-bold text-white" id="l1-cat-total">-</div>
+          <div class="text-[11px] text-gray-400">Checks</div>
+        </div>
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center">
+          <div class="text-xl font-bold text-[#10b981]" id="l1-cat-pass">-</div>
+          <div class="text-[11px] text-gray-400">Passed</div>
+        </div>
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center">
+          <div class="text-xl font-bold text-[#f59e0b]" id="l1-cat-warn">-</div>
+          <div class="text-[11px] text-gray-400">Warnings</div>
+        </div>
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center">
+          <div class="text-xl font-bold text-[#ef4444]" id="l1-cat-fail">-</div>
+          <div class="text-[11px] text-gray-400">Failed</div>
+        </div>
+      </div>
+
+      <!-- cat tabs: Checks | History -->
+      <div class="flex items-center gap-1 mb-4 p-1 bg-[#1a1d23] rounded-lg border border-[#2d3039] w-fit">
+        <button onclick="switchCatTab('l1', 'checks')" class="l1-cat-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all active" id="l1-cat-tab-checks">📋 Checks</button>
+        <button onclick="switchCatTab('l1', 'history')" class="l1-cat-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all" id="l1-cat-tab-history">📜 Category History</button>
+        <button onclick="switchCatTab('l1', 'servers')" class="l1-cat-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all" id="l1-cat-tab-servers">🖥️ Servers</button>
+      </div>
+
+      <!-- cat: checks tab -->
+      <div id="l1-cat-content-checks" class="l1-cat-content active">
+        <div class="flex items-center gap-2 mb-3">
+          <input type="text" placeholder="Search checks..." class="flex-1 text-sm bg-[#2d3039] border border-[#374151] rounded-lg px-3 py-1.5 text-gray-200 placeholder-gray-500 outline-none focus:border-[#10b981]">
+          <select class="text-sm bg-[#2d3039] border border-[#374151] rounded-lg px-2 py-1.5 text-gray-300">
+            <option>All Status</option>
+            <option>Passed</option>
+            <option>Failed</option>
+            <option>Warning</option>
+          </select>
+          <span class="text-xs text-gray-500" id="l1-cat-check-count"></span>
+        </div>
+        <div class="space-y-1.5" id="l1-cat-checks-list">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <!-- cat: history tab (PER-CATEGORY) -->
+      <div id="l1-cat-content-history" class="l1-cat-content">
+        <!-- mini trend for this category -->
+        <div class="mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-gray-400">Score Trend · Last 6 scans</span>
+            <select class="text-xs bg-[#2d3039] border border-[#374151] rounded-lg px-2 py-1 text-gray-300">
+              <option>All Servers</option>
+              <option>web-01</option>
+              <option>db-01</option>
+            </select>
+          </div>
+          <div class="h-16 flex items-end gap-3">
+            <div class="flex-1 flex flex-col items-center gap-0.5">
+              <span class="text-[9px] text-gray-500">80%</span>
+              <div class="w-full rounded-t-sm bg-[#f59e0b]/50 bar" style="height: 32px;"></div>
+              <span class="text-[9px] text-gray-500">Jun 1</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-0.5">
+              <span class="text-[9px] text-gray-500">75%</span>
+              <div class="w-full rounded-t-sm bg-[#f59e0b]/50 bar" style="height: 30px;"></div>
+              <span class="text-[9px] text-gray-500">Jun 3</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-0.5">
+              <span class="text-[9px] text-gray-500">85%</span>
+              <div class="w-full rounded-t-sm bg-[#10b981]/50 bar" style="height: 34px;"></div>
+              <span class="text-[9px] text-gray-500">Jun 5</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-0.5">
+              <span class="text-[9px] text-gray-500">82%</span>
+              <div class="w-full rounded-t-sm bg-[#10b981]/50 bar" style="height: 33px;"></div>
+              <span class="text-[9px] text-gray-500">Jun 8</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-0.5">
+              <span class="text-[9px] text-gray-500">90%</span>
+              <div class="w-full rounded-t-sm bg-[#10b981] bar" style="height: 36px;"></div>
+              <span class="text-[9px] text-gray-500">Jun 10</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-0.5">
+              <span class="text-[9px] text-[#10b981] font-semibold">92%</span>
+              <div class="w-full rounded-t-sm bg-[#10b981] bar" style="height: 38px;"></div>
+              <span class="text-[9px] text-gray-500 font-semibold">Today</span>
+            </div>
+          </div>
+        </div>
+        <!-- history rows -->
+        <div class="space-y-1.5" id="l1-cat-history-list">
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-[#1f2937] border border-[#2d3039]">
+            <div class="flex items-center gap-2.5">
+              <div class="w-2 h-2 rounded-full bg-[#10b981]"></div>
+              <div>
+                <span class="text-sm font-medium text-white">web-01</span>
+                <span class="text-xs text-gray-500 ml-2">2h ago · 10/12 passed</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-bold text-[#10b981]">92%</span>
+              <span class="text-[10px] text-[#10b981]">↑ +2%</span>
+              <button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-[#1f2937] border border-[#2d3039]">
+            <div class="flex items-center gap-2.5">
+              <div class="w-2 h-2 rounded-full bg-[#f59e0b]"></div>
+              <div>
+                <span class="text-sm font-medium text-white">db-01</span>
+                <span class="text-xs text-gray-500 ml-2">1d ago · 8/12 passed</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-bold text-[#f59e0b]">67%</span>
+              <span class="text-[10px] text-[#10b981]">↑ +5%</span>
+              <button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-[#1f2937] border border-[#2d3039]">
+            <div class="flex items-center gap-2.5">
+              <div class="w-2 h-2 rounded-full bg-[#ef4444]"></div>
+              <div>
+                <span class="text-sm font-medium text-white">db-01</span>
+                <span class="text-xs text-gray-500 ml-2">Jun 5 · 6/12 passed</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-bold text-[#ef4444]">50%</span>
+              <span class="text-[10px] text-[#10b981]">↑ +17%</span>
+              <button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- cat: servers tab -->
+      <div id="l1-cat-content-servers" class="l1-cat-content">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="text-xs text-gray-400 font-semibold uppercase tracking-wider border-b border-[#2d3039]">
+                <th class="text-left p-2.5 pl-0">Server</th>
+                <th class="text-center p-2.5">Score</th>
+                <th class="text-center p-2.5">Pass</th>
+                <th class="text-center p-2.5">Warn</th>
+                <th class="text-center p-2.5">Fail</th>
+                <th class="text-right p-2.5 pr-0">Last Scan</th>
+              </tr>
+            </thead>
+            <tbody id="l1-cat-servers-list">
+              <tr class="row-hover border-b border-[#2d3039]/50">
+                <td class="p-2.5 pl-0"><span class="text-sm font-medium text-white">web-01</span></td>
+                <td class="text-center"><span class="text-sm font-bold text-[#10b981]">92%</span></td>
+                <td class="text-center"><span class="text-xs text-[#10b981]">10</span></td>
+                <td class="text-center"><span class="text-xs text-[#f59e0b]">1</span></td>
+                <td class="text-center"><span class="text-xs text-[#ef4444]">1</span></td>
+                <td class="text-right pr-0 text-xs text-gray-400">2h ago</td>
+              </tr>
+              <tr class="row-hover">
+                <td class="p-2.5 pl-0"><span class="text-sm font-medium text-white">db-01</span></td>
+                <td class="text-center"><span class="text-sm font-bold text-[#f59e0b]">67%</span></td>
+                <td class="text-center"><span class="text-xs text-[#10b981]">8</span></td>
+                <td class="text-center"><span class="text-xs text-[#f59e0b]">3</span></td>
+                <td class="text-center"><span class="text-xs text-[#ef4444]">1</span></td>
+                <td class="text-right pr-0 text-xs text-gray-400">1d ago</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /category detail -->
+
+    <!-- L1 MAIN TABS: All Checks | Profile History | All Servers -->
+    <div class="flex items-center gap-1 mb-4 p-1 bg-[#1e2128] rounded-lg border border-[#2d3039] w-fit">
+      <button onclick="switchL1Tab('allchecks')" class="l1-tab px-4 py-2 text-sm font-medium rounded-md transition-all active" id="l1-tab-allchecks">📋 All Checks <span class="text-xs text-gray-500">(48)</span></button>
+      <button onclick="switchL1Tab('history')" class="l1-tab px-4 py-2 text-sm font-medium rounded-md transition-all" id="l1-tab-history">📜 Profile History</button>
+      <button onclick="switchL1Tab('servers')" class="l1-tab px-4 py-2 text-sm font-medium rounded-md transition-all" id="l1-tab-servers">🖥️ All Servers</button>
+    </div>
+
+    <!-- ALL CHECKS (flat, same as before) -->
+    <div id="l1-allchecks" class="l1-content active">
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <div class="flex-1 min-w-[200px]">
+          <input type="text" placeholder="Search checks..." class="w-full text-sm bg-[#2d3039] border border-[#374151] rounded-lg px-3 py-2 text-gray-200 placeholder-gray-500 outline-none focus:border-[#10b981]">
+        </div>
+        <select class="text-sm bg-[#2d3039] border border-[#374151] rounded-lg px-3 py-2 text-gray-300">
+          <option>All Status</option>
+          <option>Passed</option>
+          <option>Failed</option>
+          <option>Warning</option>
+        </select>
+        <select class="text-sm bg-[#2d3039] border border-[#374151] rounded-lg px-3 py-2 text-gray-300">
+          <option>All Categories</option>
+          <option>SSH</option>
+          <option>Kernel</option>
+          <option>Network</option>
+          <option>Filesystem</option>
+          <option>Auth</option>
+        </select>
+        <span class="text-xs text-gray-500">Showing 48 checks</span>
+      </div>
+
+      <div class="space-y-1.5">
+        <!-- check 1 -->
+        <div class="check-row bg-[#1f2937] rounded-xl border border-[#2d3039] p-3.5 flex items-start gap-3">
+          <div class="w-5 h-5 rounded-full bg-[#10b981]/15 flex items-center justify-center shrink-0 mt-0.5">
+            <span class="text-[10px] text-[#10b981]">✓</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-mono text-gray-500">1.1.1</span>
+              <span class="text-sm font-medium text-white">Disable unused filesystems (cramfs, freevxfs)</span>
+              <span class="cat-pill kernel">Kernel</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Ensure cramfs, freevxfs, jffs2, hfs, hfsplus, squashfs, udf filesystems are disabled</p>
+            <div class="flex items-center gap-3 mt-1.5">
+              <span class="text-[11px] text-gray-500">Risk: Attack surface reduction</span>
+              <span class="text-[11px] text-[#10b981] cursor-pointer hover:underline">Remediation →</span>
+            </div>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-[#10b981]/15 text-[#10b981] shrink-0">pass</span>
+        </div>
+        <!-- check 2 -->
+        <div class="check-row bg-[#1f2937] rounded-xl border border-[#2d3039] p-3.5 flex items-start gap-3">
+          <div class="w-5 h-5 rounded-full bg-[#ef4444]/15 flex items-center justify-center shrink-0 mt-0.5">
+            <span class="text-[10px] text-[#ef4444]">✗</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-mono text-gray-500">1.1.2</span>
+              <span class="text-sm font-medium text-white">Ensure /tmp is configured as separate partition</span>
+              <span class="cat-pill fs">Filesystem</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">/tmp should be mounted with nodev,nosuid,noexec</p>
+            <div class="flex items-center gap-3 mt-1.5">
+              <span class="text-[11px] text-gray-500">Risk: Unauthorized execution from /tmp</span>
+              <span class="text-[11px] text-[#10b981] cursor-pointer hover:underline">Remediation →</span>
+            </div>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-[#ef4444]/15 text-[#ef4444] shrink-0">fail</span>
+        </div>
+        <!-- check 3 (expandable) -->
+        <details class="check-row bg-[#1f2937] rounded-xl border border-[#2d3039] overflow-hidden">
+          <summary class="p-3.5 flex items-start gap-3 cursor-pointer list-none">
+            <div class="w-5 h-5 rounded-full bg-[#f59e0b]/15 flex items-center justify-center shrink-0 mt-0.5">
+              <span class="text-[10px] text-[#f59e0b]">!</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-mono text-gray-500">5.2.1</span>
+                <span class="text-sm font-medium text-white">Ensure permissions on /etc/ssh/sshd_config</span>
+                <span class="cat-pill ssh">SSH</span>
+              </div>
+              <p class="text-xs text-gray-400 mt-1">sshd_config should be owned by root:root with 600 permissions</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="text-xs px-2 py-0.5 rounded-full bg-[#f59e0b]/15 text-[#f59e0b]">warn</span>
+              <span class="text-gray-500 text-sm ml-1">▼</span>
+            </div>
+          </summary>
+          <div class="border-t border-[#2d3039] px-4 py-3 bg-[#1e2128]">
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div><span class="text-gray-500">Check ID:</span><span class="text-gray-300 ml-1 font-mono">CIS_5_2_1</span></div>
+              <div><span class="text-gray-500">Severity:</span><span class="text-[#f59e0b] ml-1">Medium</span></div>
+              <div><span class="text-gray-500">Category:</span><span class="text-gray-300 ml-1">SSH</span></div>
+              <div><span class="text-gray-500">CIS Level:</span><span class="text-gray-300 ml-1">1</span></div>
+              <div class="col-span-2">
+                <span class="text-gray-500">Remediation:</span>
+                <p class="text-[#10b981] mt-0.5">Run: chown root:root /etc/ssh/sshd_config && chmod 600 /etc/ssh/sshd_config</p>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="flex items-center justify-between mt-4 text-xs text-gray-400">
+        <span>Showing 1-3 of 48 checks</span>
+        <div class="flex items-center gap-1">
+          <button class="px-2.5 py-1.5 rounded-md bg-[#2d3039] border border-[#374151] text-gray-400">← Prev</button>
+          <span class="px-2 py-1 rounded-md bg-[#10b981]/15 text-[#10b981] font-medium">1</span>
+          <span class="px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 cursor-pointer">2</span>
+          <span class="px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 cursor-pointer">3</span>
+          <span class="px-2 py-1 text-gray-500">...</span>
+          <span class="px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 cursor-pointer">8</span>
+          <button class="px-2.5 py-1.5 rounded-md bg-[#2d3039] border border-[#374151] text-gray-400">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE HISTORY -->
+    <div id="l1-history" class="l1-content">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-semibold text-gray-300">📜 Scan History · CIS Level 1</span>
+          <select class="text-xs bg-[#2d3039] border border-[#374151] rounded-lg px-2 py-1 text-gray-300">
+            <option>All Servers</option>
+            <option>web-01</option>
+            <option>db-01</option>
+          </select>
+        </div>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between p-3 rounded-lg bg-[#1e2128] border border-[#2d3039]">
+            <div class="flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full bg-[#10b981]"></div>
+              <div><div class="text-sm font-medium text-white">web-01</div><div class="text-xs text-gray-500">2h ago · 45s</div></div>
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="text-sm font-bold text-[#10b981]">92%</span>
+              <span class="text-[10px] text-gray-500">44 pass · 4 warn · 0 fail</span>
+              <button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between p-3 rounded-lg bg-[#1e2128] border border-[#2d3039]">
+            <div class="flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full bg-[#f59e0b]"></div>
+              <div><div class="text-sm font-medium text-white">web-01</div><div class="text-xs text-gray-500">Jun 12 · 1d ago</div></div>
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="text-sm font-bold text-[#f59e0b]">72%</span>
+              <span class="text-[10px] text-gray-500">32 pass · 12 warn · 4 fail</span>
+              <button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALL SERVERS -->
+    <div id="l1-servers" class="l1-content">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] overflow-hidden">
+        <table class="w-full">
+          <thead>
+            <tr class="text-xs text-gray-400 font-semibold uppercase tracking-wider border-b border-[#2d3039]">
+              <th class="text-left p-3 pl-4">Server</th>
+              <th class="text-center p-3">L1 Score</th>
+              <th class="text-center p-3">Pass</th>
+              <th class="text-center p-3">Warn</th>
+              <th class="text-center p-3">Fail</th>
+              <th class="text-center p-3">Last Scan</th>
+              <th class="text-right p-3 pr-4">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-hover border-b border-[#2d3039]/50">
+              <td class="p-3 pl-4"><span class="text-sm font-medium text-white">web-01</span><br><span class="text-xs text-gray-500">10.0.0.1</span></td>
+              <td class="text-center"><span class="text-sm font-bold text-[#10b981]">92%</span></td>
+              <td class="text-center"><span class="text-xs text-[#10b981]">44</span></td>
+              <td class="text-center"><span class="text-xs text-[#f59e0b]">4</span></td>
+              <td class="text-center"><span class="text-xs text-[#ef4444]">0</span></td>
+              <td class="text-center text-xs text-gray-400">2h ago</td>
+              <td class="text-right pr-4"><button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button></td>
+            </tr>
+            <tr class="row-hover">
+              <td class="p-3 pl-4"><span class="text-sm font-medium text-white">db-01</span><br><span class="text-xs text-gray-500">10.0.0.2</span></td>
+              <td class="text-center"><span class="text-sm font-bold text-[#10b981]">88%</span></td>
+              <td class="text-center"><span class="text-xs text-[#10b981]">42</span></td>
+              <td class="text-center"><span class="text-xs text-[#f59e0b]">5</span></td>
+              <td class="text-center"><span class="text-xs text-[#ef4444]">1</span></td>
+              <td class="text-center text-xs text-gray-400">3d ago</td>
+              <td class="text-right pr-4"><button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- CIS L2 DETAIL (mirror L1 structure)                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="screen-l2" class="screen-content p-6 animate-in">
+  <div class="max-w-6xl mx-auto">
+
+    <div class="flex items-center gap-2 text-sm mb-4 text-gray-400">
+      <a onclick="switchScreen('global')" class="hover:text-gray-200 cursor-pointer">Compliance</a>
+      <span>/</span>
+      <span class="text-gray-300 font-medium">CIS Level 2</span>
+      <span class="text-xs text-gray-500 ml-auto">🟡 Advanced security hardening</span>
+    </div>
+
+    <div class="flex items-start sm:items-center justify-between gap-3 flex-wrap mb-5">
+      <div class="flex items-center gap-3">
+        <button onclick="switchScreen('global')" class="w-8 h-8 rounded-lg bg-[#2d3039] flex items-center justify-center hover:bg-[#374151] cursor-pointer">
+          <span class="text-sm">←</span>
+        </button>
+        <div>
+          <h2 class="text-lg font-bold text-white">CIS Level 2</h2>
+          <p class="text-sm text-gray-400">CIS Benchmark Level 2 — Advanced security hardening</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-500">Last scan: 1d ago</span>
+        <button class="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#f59e0b] text-white hover:bg-[#d97706] flex items-center gap-1.5">
+          <span>⟳</span> Scan L2
+        </button>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #f59e0b;">
+        <div class="text-2xl font-bold text-[#f59e0b]">62%</div>
+        <div class="text-xs text-gray-400 mt-0.5">Avg Score</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #6366f1;">
+        <div class="text-2xl font-bold text-white">84</div>
+        <div class="text-xs text-gray-400 mt-0.5">Total Checks</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #10b981;">
+        <div class="text-2xl font-bold text-[#10b981]">46</div>
+        <div class="text-xs text-gray-400 mt-0.5">Passed</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #f59e0b;">
+        <div class="text-2xl font-bold text-[#f59e0b]">28</div>
+        <div class="text-xs text-gray-400 mt-0.5">Warnings</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #ef4444;">
+        <div class="text-2xl font-bold text-[#ef4444]">10</div>
+        <div class="text-xs text-gray-400 mt-0.5">Failed</div>
+      </div>
+    </div>
+
+    <!-- L2 includes L1 note -->
+    <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-3 mb-6 flex items-center gap-2" style="border-left: 3px solid #f59e0b;">
+      <span class="text-sm">ℹ️</span>
+      <p class="text-xs text-gray-400">CIS Level 2 includes all Level 1 checks (48) plus <span class="text-white font-medium">36 additional L2-specific checks</span>. Stats shown are for the combined L1+L2 scan profile.</p>
+    </div>
+
+    <!-- SCORE TREND -->
+    <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-sm font-semibold text-gray-300 flex items-center gap-2"><span>📈</span> Score Trend (CIS L2)</div>
+        <select class="text-xs bg-[#2d3039] border border-[#374151] rounded-lg px-2 py-1 text-gray-300">
+          <option>Last 30 days</option>
+          <option>Last 90 days</option>
+        </select>
+      </div>
+      <div class="h-24 flex items-end gap-2">
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">55</span><div class="w-full rounded-t-md bg-[#f59e0b]/60 bar" style="height: 42px;"></div><span class="text-[10px] text-gray-500">Jun 1</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">58</span><div class="w-full rounded-t-md bg-[#f59e0b]/60 bar" style="height: 44px;"></div><span class="text-[10px] text-gray-500">Jun 3</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">60</span><div class="w-full rounded-t-md bg-[#f59e0b]/60 bar" style="height: 46px;"></div><span class="text-[10px] text-gray-500">Jun 5</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">59</span><div class="w-full rounded-t-md bg-[#f59e0b]/60 bar" style="height: 45px;"></div><span class="text-[10px] text-gray-500">Jun 8</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">61</span><div class="w-full rounded-t-md bg-[#f59e0b]/60 bar" style="height: 47px;"></div><span class="text-[10px] text-gray-500">Jun 10</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">60</span><div class="w-full rounded-t-md bg-[#f59e0b]/60 bar" style="height: 46px;"></div><span class="text-[10px] text-gray-500">Jun 12</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-[#f59e0b] font-semibold">62</span><div class="w-full rounded-t-md bg-[#f59e0b] bar" style="height: 48px;"></div><span class="text-[10px] text-gray-500 font-semibold">Today</span></div>
+      </div>
+    </div>
+
+    <!-- CATEGORY CARDS (compact) -->
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-sm font-semibold text-gray-300 flex items-center gap-2">
+        <span>📂</span> Categories <span class="text-xs font-normal text-gray-500">· 8 categories · 84 total checks</span>
+      </div>
+      <span class="text-[11px] text-gray-500">Click card to view details</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-6" id="l2-cat-grid">
+      <!-- SSH -->
+      <div onclick="openCategory('l2', 'ssh')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#3b82f6]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2"><span class="cat-pill ssh">SSH</span><span class="text-xs text-gray-500">16 checks</span></div>
+          <span class="text-sm font-bold text-[#60a5fa]">75%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 12</span><span class="text-[#f59e0b]">⚠ 3</span><span class="text-[#ef4444]">✗ 1</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 75%; background: #3b82f6;"></div></div>
+      </div>
+      <!-- Kernel -->
+      <div onclick="openCategory('l2', 'kernel')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#8b5cf6]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2"><span class="cat-pill kernel">Kernel</span><span class="text-xs text-gray-500">12 checks</span></div>
+          <span class="text-sm font-bold text-[#a78bfa]">67%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 8</span><span class="text-[#f59e0b]">⚠ 3</span><span class="text-[#ef4444]">✗ 1</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 67%; background: #f59e0b;"></div></div>
+      </div>
+      <!-- Filesystem -->
+      <div onclick="openCategory('l2', 'fs')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#f59e0b]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2"><span class="cat-pill fs">Filesystem</span><span class="text-xs text-gray-500">10 checks</span></div>
+          <span class="text-sm font-bold text-[#fbbf24]">60%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 6</span><span class="text-[#f59e0b]">⚠ 3</span><span class="text-[#ef4444]">✗ 1</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 60%; background: #f59e0b;"></div></div>
+      </div>
+      <!-- Network -->
+      <div onclick="openCategory('l2', 'network')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#10b981]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2"><span class="cat-pill network">Network</span><span class="text-xs text-gray-500">8 checks</span></div>
+          <span class="text-sm font-bold text-[#34d399]">88%</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs text-gray-400 mb-1.5">
+          <span class="text-[#10b981]">✓ 7</span><span class="text-[#f59e0b]">⚠ 1</span><span class="text-[#ef4444]">✗ 0</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 88%; background: #10b981;"></div></div>
+      </div>
+    </div>
+
+    <!-- L2 CATEGORY DETAIL (same structure as L1) -->
+    <div id="l2-category-detail" class="bg-[#1e2128] rounded-xl border border-[#2d3039] p-5 mb-6" style="display:none;">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <button onclick="closeCategory('l2')" class="text-xs px-2.5 py-1.5 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">← Back to Categories</button>
+          <div id="l2-cat-title" class="text-base font-bold text-white"></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="l2-cat-stats">
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center"><div class="text-xl font-bold text-white" id="l2-cat-total">-</div><div class="text-[11px] text-gray-400">Checks</div></div>
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center"><div class="text-xl font-bold text-[#10b981]" id="l2-cat-pass">-</div><div class="text-[11px] text-gray-400">Passed</div></div>
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center"><div class="text-xl font-bold text-[#f59e0b]" id="l2-cat-warn">-</div><div class="text-[11px] text-gray-400">Warnings</div></div>
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center"><div class="text-xl font-bold text-[#ef4444]" id="l2-cat-fail">-</div><div class="text-[11px] text-gray-400">Failed</div></div>
+      </div>
+      <div class="flex items-center gap-1 mb-4 p-1 bg-[#1a1d23] rounded-lg border border-[#2d3039] w-fit">
+        <button onclick="switchCatTab('l2', 'checks')" class="l2-cat-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all active" id="l2-cat-tab-checks">📋 Checks</button>
+        <button onclick="switchCatTab('l2', 'history')" class="l2-cat-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all" id="l2-cat-tab-history">📜 Category History</button>
+      </div>
+      <div id="l2-cat-content-checks" class="l2-cat-content active">
+        <div class="space-y-1.5" id="l2-cat-checks-list">
+          <!-- populated by JS -->
+        </div>
+      </div>
+      <div id="l2-cat-content-history" class="l2-cat-content">
+        <div class="text-xs text-gray-400">Category history content (same pattern as L1) — Score trend & per-category scan history.</div>
+      </div>
+    </div>
+
+    <!-- L2 TABS -->
+    <div class="flex items-center gap-1 mb-4 p-1 bg-[#1e2128] rounded-lg border border-[#2d3039] w-fit">
+      <button onclick="switchL2Tab('allchecks')" class="l2-tab px-4 py-2 text-sm font-medium rounded-md transition-all active" id="l2-tab-allchecks">🔒 L2-Specific Checks <span class="text-xs text-gray-500">(36)</span></button>
+      <button onclick="switchL2Tab('history')" class="l2-tab px-4 py-2 text-sm font-medium rounded-md transition-all" id="l2-tab-history">📜 Profile History</button>
+    </div>
+
+    <div id="l2-allchecks" class="l2-content active">
+      <div class="text-xs text-gray-400 mb-3">Additional 36 CIS Level 2 checks beyond the L1 baseline</div>
+      <div class="space-y-1.5">
+        <div class="check-row bg-[#1f2937] rounded-xl border border-[#2d3039] p-3.5 flex items-start gap-3" style="border-left: 3px solid #f59e0b;">
+          <div class="w-5 h-5 rounded-full bg-[#10b981]/15 flex items-center justify-center shrink-0 mt-0.5"><span class="text-[10px] text-[#10b981]">✓</span></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-mono text-gray-500">1.2.2</span>
+              <span class="text-sm font-medium text-white">Ensure GPG keys are configured</span>
+              <span class="cat-pill pkg">Packages</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-[#f59e0b]/20 text-[#f59e0b]">L2</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Ensure GPG keys for package repositories are properly configured</p>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-[#10b981]/15 text-[#10b981] shrink-0">pass</span>
+        </div>
+        <div class="check-row bg-[#1f2937] rounded-xl border border-[#2d3039] p-3.5 flex items-start gap-3" style="border-left: 3px solid #f59e0b;">
+          <div class="w-5 h-5 rounded-full bg-[#ef4444]/15 flex items-center justify-center shrink-0 mt-0.5"><span class="text-[10px] text-[#ef4444]">✗</span></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-mono text-gray-500">6.2.1</span>
+              <span class="text-sm font-medium text-white">Ensure SSH MaxAuthTries ≤ 3</span>
+              <span class="cat-pill ssh">SSH</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-[#f59e0b]/20 text-[#f59e0b]">L2</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">MaxAuthTries should be set to 3 to limit brute-force attempts</p>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-[#ef4444]/15 text-[#ef4444] shrink-0">fail</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="l2-history" class="l2-content">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+        <span class="text-sm font-semibold text-gray-300">📜 Scan History · CIS Level 2</span>
+        <div class="mt-3 space-y-2">
+          <div class="flex items-center justify-between p-3 rounded-lg bg-[#1e2128] border border-[#2d3039]">
+            <div><div class="text-sm font-medium text-white">web-01</div><div class="text-xs text-gray-500">1d ago</div></div>
+            <div class="flex items-center gap-4">
+              <span class="text-sm font-bold text-[#10b981]">78%</span>
+              <button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151]">View</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- LYNIS DETAIL — IMPROVED                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="screen-lynis" class="screen-content p-6 animate-in">
+  <div class="max-w-6xl mx-auto">
+
+    <div class="flex items-center gap-2 text-sm mb-4 text-gray-400">
+      <a onclick="switchScreen('global')" class="hover:text-gray-200 cursor-pointer">Compliance</a>
+      <span>/</span>
+      <span class="text-gray-300 font-medium">Lynis Audit</span>
+      <span class="text-xs text-gray-500 ml-auto">🔍 Deep system security audit</span>
+    </div>
+
+    <div class="flex items-start sm:items-center justify-between gap-3 flex-wrap mb-5">
+      <div class="flex items-center gap-3">
+        <button onclick="switchScreen('global')" class="w-8 h-8 rounded-lg bg-[#2d3039] flex items-center justify-center hover:bg-[#374151] cursor-pointer">
+          <span class="text-sm">←</span>
+        </button>
+        <div>
+          <h2 class="text-lg font-bold text-white">Lynis Audit</h2>
+          <p class="text-sm text-gray-400">CISOfy Lynis — Deep security system audit across all servers</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-500">Last audit: 2h ago</span>
+        <button class="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#8b5cf6] text-white hover:bg-[#7c3aed] flex items-center gap-1.5">
+          <span>⟳</span> Run Lynis Audit
+        </button>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #8b5cf6;">
+        <div class="text-2xl font-bold text-[#a78bfa]">72</div>
+        <div class="text-xs text-gray-400 mt-0.5">Hardening Index</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #6366f1;">
+        <div class="text-2xl font-bold text-white">12</div>
+        <div class="text-xs text-gray-400 mt-0.5">Categories</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #10b981;">
+        <div class="text-2xl font-bold text-[#10b981]">243</div>
+        <div class="text-xs text-gray-400 mt-0.5">Tests Passed</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #f59e0b;">
+        <div class="text-2xl font-bold text-[#f59e0b]">8</div>
+        <div class="text-xs text-gray-400 mt-0.5">Warnings</div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 flex flex-col items-center justify-center" style="border-top: 3px solid #60a5fa;">
+        <div class="text-2xl font-bold text-[#60a5fa]">23</div>
+        <div class="text-xs text-gray-400 mt-0.5">Suggestions</div>
+      </div>
+    </div>
+
+    <!-- SCORE TREND -->
+    <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-sm font-semibold text-gray-300 flex items-center gap-2"><span>📈</span> Hardening Index Trend</div>
+        <select class="text-xs bg-[#2d3039] border border-[#374151] rounded-lg px-2 py-1 text-gray-300">
+          <option>Last 6 audits</option>
+          <option>All history</option>
+        </select>
+      </div>
+      <div class="h-24 flex items-end gap-2">
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">58</span><div class="w-full rounded-t-md bg-[#8b5cf6]/50 bar" style="height: 44px;"></div><span class="text-[10px] text-gray-500">Feb</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">62</span><div class="w-full rounded-t-md bg-[#8b5cf6]/50 bar" style="height: 47px;"></div><span class="text-[10px] text-gray-500">Mar</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">65</span><div class="w-full rounded-t-md bg-[#8b5cf6]/50 bar" style="height: 49px;"></div><span class="text-[10px] text-gray-500">Apr</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">68</span><div class="w-full rounded-t-md bg-[#8b5cf6]/70 bar" style="height: 52px;"></div><span class="text-[10px] text-gray-500">May</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-gray-500">70</span><div class="w-full rounded-t-md bg-[#8b5cf6]/70 bar" style="height: 53px;"></div><span class="text-[10px] text-gray-500">Jun 5</span></div>
+        <div class="flex-1 flex flex-col items-center gap-1"><span class="text-[10px] text-[#a78bfa] font-semibold">72</span><div class="w-full rounded-t-md bg-[#8b5cf6] bar" style="height: 55px;"></div><span class="text-[10px] text-gray-500 font-semibold">Today</span></div>
+      </div>
+    </div>
+
+    <!-- CLICKABLE CATEGORY CARDS -->
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-sm font-semibold text-gray-300 flex items-center gap-2">
+        <span>📂</span> Lynis Categories <span class="text-xs font-normal text-gray-500">· 12 categories</span>
+      </div>
+      <span class="text-[11px] text-gray-500">Click to view details</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6" id="lynis-cat-grid">
+
+      <!-- AUTH-9282 -->
+      <div onclick="openLynisCategory('auth')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#8b5cf6]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill lynis-cat">AUTH-9282</span>
+            <span class="text-sm font-medium text-white">Authentication</span>
+          </div>
+          <span class="text-xs text-gray-400">42 tests</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs mb-1.5">
+          <span class="text-[#10b981]">✔ 38</span>
+          <span class="text-[#f59e0b]">⚠ 2</span>
+          <span class="text-[#60a5fa]">💡 2</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 90%; background: #10b981;"></div></div>
+      </div>
+
+      <!-- FILE-6280 -->
+      <div onclick="openLynisCategory('fs')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#8b5cf6]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill lynis-cat">FILE-6280</span>
+            <span class="text-sm font-medium text-white">File Systems</span>
+          </div>
+          <span class="text-xs text-gray-400">38 tests</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs mb-1.5">
+          <span class="text-[#10b981]">✔ 30</span>
+          <span class="text-[#f59e0b]">⚠ 4</span>
+          <span class="text-[#60a5fa]">💡 4</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 79%; background: #f59e0b;"></div></div>
+      </div>
+
+      <!-- KRNL-5820 -->
+      <div onclick="openLynisCategory('kernel')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#8b5cf6]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill lynis-cat">KRNL-5820</span>
+            <span class="text-sm font-medium text-white">Kernel</span>
+          </div>
+          <span class="text-xs text-gray-400">28 tests</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs mb-1.5">
+          <span class="text-[#10b981]">✔ 22</span>
+          <span class="text-[#f59e0b]">⚠ 1</span>
+          <span class="text-[#60a5fa]">💡 5</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 79%; background: #f59e0b;"></div></div>
+      </div>
+
+      <!-- NETW-8500 -->
+      <div onclick="openLynisCategory('network')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#8b5cf6]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill lynis-cat">NETW-8500</span>
+            <span class="text-sm font-medium text-white">Networking</span>
+          </div>
+          <span class="text-xs text-gray-400">22 tests</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs mb-1.5">
+          <span class="text-[#10b981]">✔ 18</span>
+          <span class="text-[#f59e0b]">⚠ 0</span>
+          <span class="text-[#60a5fa]">💡 4</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 82%; background: #10b981;"></div></div>
+      </div>
+
+      <!-- LOGG-2100 -->
+      <div onclick="openLynisCategory('logging')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#8b5cf6]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill lynis-cat">LOGG-2100</span>
+            <span class="text-sm font-medium text-white">Logging</span>
+          </div>
+          <span class="text-xs text-gray-400">18 tests</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs mb-1.5">
+          <span class="text-[#10b981]">✔ 12</span>
+          <span class="text-[#f59e0b]">⚠ 0</span>
+          <span class="text-[#60a5fa]">💡 6</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 67%; background: #f59e0b;"></div></div>
+      </div>
+
+      <!-- DOCK-9310 -->
+      <div onclick="openLynisCategory('docker')" class="cat-card bg-[#1f2937] rounded-xl border border-[#2d3039] p-4 hover:border-[#8b5cf6]/40">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="cat-pill lynis-cat">DOCK-9310</span>
+            <span class="text-sm font-medium text-white">Docker</span>
+          </div>
+          <span class="text-xs text-gray-400">24 tests</span>
+        </div>
+        <div class="flex items-center gap-2.5 text-xs mb-1.5">
+          <span class="text-[#10b981]">✔ 16</span>
+          <span class="text-[#f59e0b]">⚠ 0</span>
+          <span class="text-[#60a5fa]">💡 8</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 67%; background: #f59e0b;"></div></div>
+      </div>
+
+    </div>
+
+    <!-- LYNIS CATEGORY DETAIL -->
+    <div id="lynis-category-detail" class="bg-[#1e2128] rounded-xl border border-[#2d3039] p-5 mb-6" style="display:none;">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <button onclick="closeLynisCategory()" class="text-xs px-2.5 py-1.5 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">← All Categories</button>
+          <div id="lynis-cat-title" class="text-base font-bold text-white"></div>
+        </div>
+      </div>
+      <!-- cat stats -->
+      <div class="grid grid-cols-3 gap-3 mb-4" id="lynis-cat-stats">
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center"><div class="text-xl font-bold text-white" id="lynis-cat-tests">-</div><div class="text-[11px] text-gray-400">Tests</div></div>
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center"><div class="text-xl font-bold text-[#f59e0b]" id="lynis-cat-warns">-</div><div class="text-[11px] text-gray-400">Warnings</div></div>
+        <div class="bg-[#1f2937] rounded-lg border border-[#2d3039] p-3 flex flex-col items-center"><div class="text-xl font-bold text-[#60a5fa]" id="lynis-cat-suggests">-</div><div class="text-[11px] text-gray-400">Suggestions</div></div>
+      </div>
+      <!-- cat tabs -->
+      <div class="flex items-center gap-1 mb-4 p-1 bg-[#1a1d23] rounded-lg border border-[#2d3039] w-fit">
+        <button onclick="switchLynisCatTab('details')" class="lynis-cat-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all active" id="lynis-cat-tab-details">📋 Warnings & Suggestions</button>
+        <button onclick="switchLynisCatTab('history')" class="lynis-cat-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all" id="lynis-cat-tab-history">📜 Category History</button>
+      </div>
+      <div id="lynis-cat-content-details" class="lynis-cat-content active">
+        <div class="space-y-1.5" id="lynis-cat-details-list">
+          <div class="p-3 rounded-lg bg-[#1f2937] border border-[#2d3039] flex items-start gap-2">
+            <span class="text-[#f59e0b] shrink-0 mt-0.5">⚠</span>
+            <div>
+              <span class="font-mono text-xs text-gray-400">AUTH-9328</span>
+              <span class="text-xs text-gray-300 ml-1">No password policy set</span>
+              <p class="text-[11px] text-gray-500 mt-0.5">Consider setting a password policy in /etc/pam.d/common-password</p>
+            </div>
+          </div>
+          <div class="p-3 rounded-lg bg-[#1f2937] border border-[#2d3039] flex items-start gap-2">
+            <span class="text-[#60a5fa] shrink-0 mt-0.5">💡</span>
+            <div>
+              <span class="font-mono text-xs text-gray-400">AUTH-9216</span>
+              <span class="text-xs text-gray-300 ml-1">Configure account lockout threshold</span>
+              <p class="text-[11px] text-gray-500 mt-0.5">Set deny=3 in /etc/pam.d/common-auth to lock accounts after 3 failures</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="lynis-cat-content-history" class="lynis-cat-content">
+        <div class="h-16 flex items-end gap-3 mb-3">
+          <div class="flex-1 flex flex-col items-center gap-0.5">
+            <span class="text-[9px] text-gray-500">80%</span><div class="w-full rounded-t-sm bg-[#8b5cf6]/50 bar" style="height: 26px;"></div><span class="text-[9px] text-gray-500">Feb</span>
+          </div>
+          <div class="flex-1 flex flex-col items-center gap-0.5">
+            <span class="text-[9px] text-gray-500">83%</span><div class="w-full rounded-t-sm bg-[#8b5cf6]/50 bar" style="height: 27px;"></div><span class="text-[9px] text-gray-500">Mar</span>
+          </div>
+          <div class="flex-1 flex flex-col items-center gap-0.5">
+            <span class="text-[9px] text-gray-500">85%</span><div class="w-full rounded-t-sm bg-[#8b5cf6]/50 bar" style="height: 28px;"></div><span class="text-[9px] text-gray-500">Apr</span>
+          </div>
+          <div class="flex-1 flex flex-col items-center gap-0.5">
+            <span class="text-[9px] text-gray-500">87%</span><div class="w-full rounded-t-sm bg-[#8b5cf6]/70 bar" style="height: 29px;"></div><span class="text-[9px] text-gray-500">May</span>
+          </div>
+          <div class="flex-1 flex flex-col items-center gap-0.5">
+            <span class="text-[9px] text-gray-500">90%</span><div class="w-full rounded-t-sm bg-[#8b5cf6] bar" style="height: 30px;"></div><span class="text-[9px] text-gray-500">Today</span>
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-[#1f2937] border border-[#2d3039]">
+            <div><span class="text-sm font-medium text-white">web-01</span><span class="text-xs text-gray-500 ml-2">2h ago · 38/42 passed</span></div>
+            <div class="flex items-center gap-3"><span class="text-sm font-bold text-[#a78bfa]">90%</span><button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151]">View</button></div>
+          </div>
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-[#1f2937] border border-[#2d3039]">
+            <div><span class="text-sm font-medium text-white">db-01</span><span class="text-xs text-gray-500 ml-2">3d ago · 35/42 passed</span></div>
+            <div class="flex items-center gap-3"><span class="text-sm font-bold text-[#a78bfa]">83%</span><button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151]">View</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GLOBAL WARNINGS & SUGGESTIONS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-2 h-2 rounded-full bg-[#f59e0b]"></span>
+          <span class="text-sm font-semibold text-gray-300">Warnings (8)</span>
+        </div>
+        <div class="space-y-2">
+          <div class="flex items-start gap-2 text-xs p-2 rounded-lg bg-[#1e2128]">
+            <span class="text-[#f59e0b] shrink-0 mt-0.5">⚠</span>
+            <div><span class="font-mono text-gray-400">AUTH-9328</span><span class="text-gray-300 ml-1">No password policy set</span><p class="text-gray-500 mt-0.5">Consider setting a password policy in /etc/pam.d/common-password</p></div>
+          </div>
+          <div class="flex items-start gap-2 text-xs p-2 rounded-lg bg-[#1e2128]">
+            <span class="text-[#f59e0b] shrink-0 mt-0.5">⚠</span>
+            <div><span class="font-mono text-gray-400">FILE-6332</span><span class="text-gray-300 ml-1">World-writable files found</span><p class="text-gray-500 mt-0.5">/var/tmp has world-writable permissions</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-2 h-2 rounded-full bg-[#60a5fa]"></span>
+          <span class="text-sm font-semibold text-gray-300">Suggestions (23)</span>
+        </div>
+        <div class="space-y-2">
+          <div class="flex items-start gap-2 text-xs p-2 rounded-lg bg-[#1e2128]">
+            <span class="text-[#60a5fa] shrink-0 mt-0.5">💡</span>
+            <div><span class="font-mono text-gray-400">KRNL-6000</span><span class="text-gray-300 ml-1">Enable kernel hardening options</span><p class="text-gray-500 mt-0.5">Consider enabling SMEP and SMAP in kernel boot options</p></div>
+          </div>
+          <div class="flex items-start gap-2 text-xs p-2 rounded-lg bg-[#1e2128]">
+            <span class="text-[#60a5fa] shrink-0 mt-0.5">💡</span>
+            <div><span class="font-mono text-gray-400">LOGG-2130</span><span class="text-gray-300 ml-1">Configure log rotation</span><p class="text-gray-500 mt-0.5">Set up logrotate for /var/log/syslog</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIT HISTORY -->
+    <div class="bg-[#1f2937] rounded-xl border border-[#2d3039] p-4">
+      <div class="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+        <span>📜</span> Audit History · Lynis
+      </div>
+      <div class="space-y-2">
+        <div class="flex items-center justify-between p-3 rounded-lg bg-[#1e2128] border border-[#2d3039]">
+          <div class="flex items-center gap-3">
+            <div class="w-2 h-2 rounded-full bg-[#8b5cf6]"></div>
+            <div><div class="text-sm font-medium text-white">web-01</div><div class="text-xs text-gray-500">2h ago · 243 tests</div></div>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="text-sm font-bold text-[#a78bfa]">78</span>
+            <span class="text-[10px] text-[#10b981]">↑ from 72</span>
+            <button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button>
+          </div>
+        </div>
+        <div class="flex items-center justify-between p-3 rounded-lg bg-[#1e2128] border border-[#2d3039]">
+          <div class="flex items-center gap-3">
+            <div class="w-2 h-2 rounded-full bg-[#8b5cf6]"></div>
+            <div><div class="text-sm font-medium text-white">web-01</div><div class="text-xs text-gray-500">Jun 5 · 238 tests</div></div>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="text-sm font-bold text-[#a78bfa]">72</span>
+            <span class="text-[10px] text-[#10b981]">↑ from 65</span>
+            <button class="text-xs px-2 py-1 rounded-md bg-[#2d3039] text-gray-400 border border-[#374151] hover:text-gray-200">View</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT                                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+// ─── Navigation ───
+function switchScreen(screen) {
+  document.querySelectorAll('.screen-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.mockup-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('screen-' + screen).classList.add('active');
+  document.getElementById('s-' + screen).classList.add('active');
+}
+
+// ─── CIS Category Data ───
+const categoryData = {
+  l1: {
+    ssh:    { title: 'SSH Configuration', total: 12, pass: 10, warn: 1, fail: 1, color: '#3b82f6', catClass: 'ssh' },
+    kernel: { title: 'Kernel Hardening',   total: 8,  pass: 6,  warn: 2, fail: 0, color: '#8b5cf6', catClass: 'kernel' },
+    fs:     { title: 'Filesystem Security', total: 8,  pass: 5,  warn: 2, fail: 1, color: '#f59e0b', catClass: 'fs' },
+    network:{ title: 'Network Security',    total: 6,  pass: 6,  warn: 0, fail: 0, color: '#10b981', catClass: 'network' },
+    auth:   { title: 'Authentication',      total: 6,  pass: 2,  warn: 3, fail: 1, color: '#ef4444', catClass: 'auth' },
+    logging:{ title: 'Logging & Auditing',  total: 4,  pass: 3,  warn: 1, fail: 0, color: '#c084fc', catClass: 'logging' },
+    users:  { title: 'User & Group Config', total: 4,  pass: 3,  warn: 0, fail: 1, color: '#fb923c', catClass: 'users' }
+  },
+  l2: {
+    ssh:    { title: 'SSH Configuration', total: 16, pass: 12, warn: 3, fail: 1, color: '#3b82f6', catClass: 'ssh' },
+    kernel: { title: 'Kernel Hardening',  total: 12, pass: 8,  warn: 3, fail: 1, color: '#8b5cf6', catClass: 'kernel' },
+    fs:     { title: 'Filesystem Security',total:10, pass: 6,  warn: 3, fail: 1, color: '#f59e0b', catClass: 'fs' },
+    network:{ title: 'Network Security',  total: 8,  pass: 7,  warn: 1, fail: 0, color: '#10b981', catClass: 'network' }
+  }
+};
+
+const lynisCategoryData = {
+  auth:   { title: 'Authentication', testID: 'AUTH-9282', tests: 42, passed: 38, warns: 2, suggests: 2 },
+  fs:     { title: 'File Systems',   testID: 'FILE-6280', tests: 38, passed: 30, warns: 4, suggests: 4 },
+  kernel: { title: 'Kernel',         testID: 'KRNL-5820', tests: 28, passed: 22, warns: 1, suggests: 5 },
+  network:{ title: 'Networking',     testID: 'NETW-8500', tests: 22, passed: 18, warns: 0, suggests: 4 },
+  logging:{ title: 'Logging',        testID: 'LOGG-2100', tests: 18, passed: 12, warns: 0, suggests: 6 },
+  docker: { title: 'Docker',         testID: 'DOCK-9310', tests: 24, passed: 16, warns: 0, suggests: 8 }
+};
+
+// ─── CIS Category drill-down ───
+function openCategory(profile, catKey) {
+  const data = categoryData[profile][catKey];
+  if (!data) return;
+
+  const id = profile + '-cat-';
+  document.getElementById(id + 'title').textContent = data.title + ' (' + data.catClass.toUpperCase() + ')';
+  document.getElementById(id + 'total').textContent = data.total;
+  document.getElementById(id + 'pass').textContent = data.pass;
+  document.getElementById(id + 'warn').textContent = data.warn;
+  document.getElementById(id + 'fail').textContent = data.fail;
+  document.getElementById(id + 'check-count').textContent = data.total + ' checks';
+
+  // populate checks
+  const checksEl = document.getElementById(id + 'checks-list');
+  const sampleChecks = [
+    { id: '1.1.1', title: 'Sample check 1 for ' + data.title, status: 'pass', cat: data.catClass, desc: 'Description for check 1' },
+    { id: '1.1.2', title: 'Sample check 2 for ' + data.title, status: data.fail > 0 ? 'fail' : 'warn', cat: data.catClass, desc: 'Description for check 2' },
+  ];
+  checksEl.innerHTML = sampleChecks.map(c => `
+    <div class="flex items-start gap-3 p-3 rounded-lg bg-[#1f2937] border border-[#2d3039]">
+      <div class="w-4 h-4 rounded-full bg-${c.status === 'pass' ? '[#10b981]' : c.status === 'fail' ? '[#ef4444]' : '[#f59e0b]'}/15 flex items-center justify-center shrink-0 mt-0.5">
+        <span class="text-[9px] text-${c.status === 'pass' ? '[#10b981]' : c.status === 'fail' ? '[#ef4444]' : '[#f59e0b]'}">${c.status === 'pass' ? '✓' : c.status === 'fail' ? '✗' : '!'}</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-mono text-gray-500">${c.id}</span>
+          <span class="text-sm font-medium text-white">${c.title}</span>
+          <span class="cat-pill ${c.cat}">${c.cat}</span>
+        </div>
+        <p class="text-xs text-gray-400 mt-0.5">${c.desc}</p>
+      </div>
+      <span class="text-xs px-2 py-0.5 rounded-full bg-${c.status === 'pass' ? '[#10b981]' : c.status === 'fail' ? '[#ef4444]' : '[#f59e0b]'}/15 text-${c.status === 'pass' ? '[#10b981]' : c.status === 'fail' ? '[#ef4444]' : '[#f59e0b]'} shrink-0">${c.status}</span>
+    </div>
+  `).join('');
+
+  // show detail
+  document.getElementById(profile + '-category-detail').style.display = 'block';
+  document.getElementById(profile + '-category-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // reset tabs to checks
+  switchCatTab(profile, 'checks');
+}
+
+function closeCategory(profile) {
+  document.getElementById(profile + '-category-detail').style.display = 'none';
+}
+
+function switchCatTab(profile, tab) {
+  const prefix = profile + '-cat-';
+  document.querySelectorAll('.' + prefix.replace('-', '') + 'content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.' + prefix.replace('-', '') + 'tab').forEach(el => el.classList.remove('active'));
+  document.getElementById(prefix + 'content-' + tab).classList.add('active');
+  document.getElementById(prefix + 'tab-' + tab).classList.add('active');
+}
+
+// ─── Lynis Category drill-down ───
+function openLynisCategory(catKey) {
+  const data = lynisCategoryData[catKey];
+  if (!data) return;
+
+  document.getElementById('lynis-cat-title').textContent = data.testID + ' — ' + data.title;
+  document.getElementById('lynis-cat-tests').textContent = data.tests;
+  document.getElementById('lynis-cat-warns').textContent = data.warns;
+  document.getElementById('lynis-cat-suggests').textContent = data.suggests;
+
+  document.getElementById('lynis-category-detail').style.display = 'block';
+  document.getElementById('lynis-category-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  switchLynisCatTab('details');
+}
+
+function closeLynisCategory() {
+  document.getElementById('lynis-category-detail').style.display = 'none';
+}
+
+function switchLynisCatTab(tab) {
+  document.querySelectorAll('.lynis-cat-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.lynis-cat-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('lynis-cat-content-' + tab).classList.add('active');
+  document.getElementById('lynis-cat-tab-' + tab).classList.add('active');
+}
+
+// ─── L1 Tabs ───
+function switchL1Tab(tab) {
+  document.querySelectorAll('.l1-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.l1-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('l1-' + tab).classList.add('active');
+  document.getElementById('l1-tab-' + tab).classList.add('active');
+}
+
+// ─── L2 Tabs ───
+function switchL2Tab(tab) {
+  document.querySelectorAll('.l2-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.l2-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('l2-' + tab).classList.add('active');
+  document.getElementById('l2-tab-' + tab).classList.add('active');
+}
+
+// ─── Init ───
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.screen-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('screen-global').classList.add('active');
+  document.getElementById('s-global').classList.add('active');
+
+  document.querySelectorAll('.l1-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('l1-allchecks').classList.add('active');
+  document.getElementById('l1-tab-allchecks').classList.add('active');
+
+  document.querySelectorAll('.l2-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('l2-allchecks').classList.add('active');
+  document.getElementById('l2-tab-allchecks').classList.add('active');
+});
+</script>
+
+</body>
+</html>

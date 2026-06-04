@@ -19,15 +19,25 @@ func GetClaims(ctx context.Context) *Claims {
 
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenStr := ""
+
+		// Check Authorization header first
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			common.Error(w, http.StatusUnauthorized, "missing authorization header")
-			return
+		if authHeader != "" {
+			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+			if tokenStr == authHeader {
+				common.Error(w, http.StatusUnauthorized, "invalid authorization format")
+				return
+			}
 		}
 
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenStr == authHeader {
-			common.Error(w, http.StatusUnauthorized, "invalid authorization format")
+		// Fall back to query parameter (for WebSocket connections)
+		if tokenStr == "" {
+			tokenStr = r.URL.Query().Get("token")
+		}
+
+		if tokenStr == "" {
+			common.Error(w, http.StatusUnauthorized, "missing authorization")
 			return
 		}
 
