@@ -146,6 +146,17 @@
 		if (role === 'viewer') return 'status-badge pending';
 		return 'status-badge';
 	}
+
+	// ─── Unlock ─────────────────────────────────────────────────────────────
+	async function handleUnlock(user) {
+		if (!confirm(`Unlock user ${user.name} (${user.email})?`)) return;
+		try {
+			await api.admin.users.unlock(user.id);
+			await loadUsers();
+		} catch (e) {
+			alert(e.message);
+		}
+	}
 </script>
 
 <div class="page-container">
@@ -233,6 +244,7 @@
 							<th class="hidden md:table-cell">Role</th>
 							<th class="hidden xl:table-cell">Groups</th>
 							<th class="hidden xl:table-cell">2FA</th>
+							<th class="hidden xl:table-cell">Status</th>
 							<th class="hidden xl:table-cell">Created</th>
 							<th class="w-20 md:w-24">Actions</th>
 						</tr>
@@ -267,11 +279,23 @@
 									<span class="status-badge" style="color: var(--color-text-muted);">Disabled</span>
 								{/if}
 							</td>
+							<td class="hidden xl:table-cell">
+								{#if user.status === 'locked'}
+									<span class="status-badge pending">Locked</span>
+								{:else}
+									<span class="status-badge online">Active</span>
+								{/if}
+							</td>
 							<td class="hidden text-sm xl:table-cell" style="color: var(--color-text-muted);">
 								{new Date(user.created_at).toLocaleDateString()}
 							</td>
 							<td>
 								<div class="flex items-center gap-1">
+									{#if user.status === 'locked'}
+										<button onclick={() => handleUnlock(user)} class="btn-icon h-8 w-8" title="Unlock" style="color: var(--color-warning);">
+											<Icon icon="solar:unlock-bold" class="h-4 w-4" />
+										</button>
+									{/if}
 									<button onclick={() => openEdit(user)} class="btn-icon h-8 w-8" title="Edit">
 										<Icon icon="solar:pen-bold" class="h-4 w-4" />
 									</button>

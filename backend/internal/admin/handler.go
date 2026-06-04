@@ -17,23 +17,27 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/ratelimit"
 )
 
 type Handler struct {
-	repo *db.Repository
+	repo        *db.Repository
+	rateLimiter *ratelimit.RateLimiter
 }
 
-func NewHandler(repo *db.Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *db.Repository, rl *ratelimit.RateLimiter) *Handler {
+	return &Handler{repo: repo, rateLimiter: rl}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Use(auth.RequireAdmin)
 	r.Get("/users", h.ListUsers)
 	r.Post("/users", h.CreateUser)
 	r.Get("/users/{id}", h.GetUser)
 	r.Put("/users/{id}", h.UpdateUser)
 	r.Delete("/users/{id}", h.DeleteUser)
+	r.Post("/users/{id}/unlock", h.UnlockUser)
 	r.Get("/audit-log", h.ListAuditLogs)
 	r.Get("/audit-log/actions", h.ListAuditActions)
 	r.Get("/audit-log/entity-types", h.ListAuditEntityTypes)
@@ -52,27 +56,38 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 	// Strip sensitive fields
 	type userResponse struct {
-		ID           string    `json:"id"`
-		Email        string    `json:"email"`
-		Name         string    `json:"name"`
-		Role         string    `json:"role"`
-		AllowedGroups []string `json:"allowed_groups"`
-		TOTPEnabled  bool      `json:"totp_enabled"`
-		CreatedAt    time.Time `json:"created_at"`
-		UpdatedAt    time.Time `json:"updated_at"`
+		ID              string     `json:"id"`
+		Email           string     `json:"email"`
+		Name            string     `json:"name"`
+		Role            string     `json:"role"`
+		AllowedGroups   []string   `json:"allowed_groups"`
+		TOTPEnabled     bool       `json:"totp_enabled"`
+		LockedUntil     *time.Time `json:"locked_until"`
+		FailedAttempts  int        `json:"failed_attempts"`
+		Status          string     `json:"status"`
+		CreatedAt       time.Time  `json:"created_at"`
+		UpdatedAt       time.Time  `json:"updated_at"`
 	}
 	resp := make([]userResponse, 0, len(users))
+	now := time.Now()
 	for _, u := range users {
+		status := "unlocked"
+		if u.LockedUntil != nil && u.LockedUntil.After(now) {
+			status = "locked"
+		}
 		groups, _ := h.repo.GetUserServerGroups(r.Context(), u.ID)
 		resp = append(resp, userResponse{
-			ID:           u.ID,
-			Email:        u.Email,
-			Name:         u.Name,
-			Role:         u.Role,
-			AllowedGroups: groups,
-			TOTPEnabled:  u.TOTPEnabled,
-			CreatedAt:    u.CreatedAt,
-			UpdatedAt:    u.UpdatedAt,
+			ID:              u.ID,
+			Email:           u.Email,
+			Name:            u.Name,
+			Role:            u.Role,
+			AllowedGroups:   groups,
+			TOTPEnabled:     u.TOTPEnabled,
+			LockedUntil:     u.LockedUntil,
+			FailedAttempts:  u.FailedLoginAttempts,
+			Status:          status,
+			CreatedAt:       u.CreatedAt,
+			UpdatedAt:       u.UpdatedAt,
 		})
 	}
 
@@ -130,7 +145,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	if req.Role == "" {
 		req.Role = model.RoleDeveloper
 	}
-	if req.Role != model.RoleAdmin && req.Role != model.RoleDeveloper && req.Role != model.RoleMember && req.Role != model.RoleViewer {
+	if req.Role != model.RoleAdmin && req.Role != model.RoleDeveloper && req.Role != model.RoleViewer {
 		common.Error(w, http.StatusBadRequest, "invalid role: must be admin, developer, or viewer")
 		return
 	}
@@ -232,7 +247,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Role != nil && *req.Role != user.Role {
 		role := *req.Role
-		if role != model.RoleAdmin && role != model.RoleDeveloper && role != model.RoleMember && role != model.RoleViewer {
+		if role != model.RoleAdmin && role != model.RoleDeveloper && role != model.RoleViewer {
 			common.Error(w, http.StatusBadRequest, "invalid role")
 			return
 		}
@@ -343,6 +358,33 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		json.RawMessage(meta))
 
 	common.JSON(w, http.StatusOK, map[string]string{"message": "user deleted"})
+}
+
+// ─── Unlock User ────────────────────────────────────────────────────────────
+
+func (h *Handler) UnlockUser(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	user, err := h.repo.GetUserByID(r.Context(), id)
+	if err != nil {
+		common.Error(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	if err := h.repo.ResetUserLockout(r.Context(), id); err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to unlock user")
+		return
+	}
+
+	// Clear Redis-based lockout so the user can log in immediately
+	if h.rateLimiter != nil {
+		h.rateLimiter.ClearLockout(r.Context(), user.Email)
+	}
+
+	h.logAudit(r, "user.unlock", "user", id,
+		fmt.Sprintf("Unlocked user %s (%s)", user.Name, user.Email))
+
+	common.JSON(w, http.StatusOK, map[string]string{"message": "user unlocked"})
 }
 
 // ─── Audit Log ─────────────────────────────────────────────────────────────

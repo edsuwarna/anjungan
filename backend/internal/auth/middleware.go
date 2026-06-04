@@ -51,3 +51,16 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+// RequireAdmin is middleware that enforces admin role.
+// Use on routes that should only be accessible to admin users.
+func RequireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims := GetClaims(r.Context())
+		if claims == nil || claims.Role != "admin" {
+			common.Error(w, http.StatusForbidden, "admin access required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}

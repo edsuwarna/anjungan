@@ -1,6 +1,6 @@
 <script>
 	import Icon from '@iconify/svelte';
-	import { sidebarCollapsed, theme } from '$lib/stores/auth.js';
+	import { sidebarCollapsed, theme, user } from '$lib/stores/auth.js';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api.svelte.js';
@@ -14,7 +14,7 @@
 		} catch (_) {}
 	});
 
-	const categories = [
+	const allCategories = [
 		{
 			name: 'Dashboard',
 			items: [
@@ -25,7 +25,7 @@
 			name: 'Infrastructure',
 			items: [
 				{ href: '/servers', icon: 'solar:server-square-bold', label: 'Servers' },
-				{ href: '/ssh-keys', icon: 'solar:key-minimalistic-bold', label: 'SSH Keys' },
+				{ href: '/ssh-keys', icon: 'solar:key-minimalistic-bold', label: 'SSH Keys', adminOnly: true },
 				{ href: '/containers', icon: 'solar:box-bold', label: 'Containers', badge: 'containerCount' },
 			],
 		},
@@ -51,11 +51,22 @@
 		{
 			name: 'Administration',
 			items: [
-				{ href: '/admin/users', icon: 'solar:shield-user-bold', label: 'Users' },
-				{ href: '/admin/audit-log', icon: 'solar:notes-bold', label: 'Audit Log' },
+				{ href: '/admin/users', icon: 'solar:shield-user-bold', label: 'Users', adminOnly: true },
+				{ href: '/admin/audit-log', icon: 'solar:notes-bold', label: 'Audit Log', adminOnly: true },
 			],
 		},
 	];
+
+	// Filter out admin-only items for non-admin users, then remove empty categories
+	let categories = $derived(allCategories
+		.map(cat => ({
+			...cat,
+			items: $user?.role === 'admin'
+				? cat.items
+				: cat.items.filter(item => !item.adminOnly),
+		}))
+		.filter(cat => cat.items.length > 0)
+	);
 
 	function isActive(href) {
 		return $page.url.pathname === href;

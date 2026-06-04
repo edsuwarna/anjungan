@@ -29,6 +29,7 @@ func NewSSHKeyHandler(repo *db.Repository) *SSHKeyHandler {
 
 func (h *SSHKeyHandler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Use(auth.RequireAdmin)
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
 	r.Get("/{id}", h.Get)
