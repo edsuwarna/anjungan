@@ -1,0 +1,1 @@
+ALTER TABLE registry_users ADD COLUMN IF NOT EXISTS anjungan_user_id VARCHAR(255) NULL UNIQUE;

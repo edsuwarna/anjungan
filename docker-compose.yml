@@ -48,6 +48,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       REGISTRY_URL: ${REGISTRY_URL:-http://zot:5000}
+      REGISTRY_EXTERNAL_URL: ${REGISTRY_EXTERNAL_URL:-registry.anjungan.io}
+      ZOT_ADMIN_USER: ${ZOT_ADMIN_USER:-admin}
+      ZOT_ADMIN_PASS: ${ZOT_ADMIN_PASS:-z0t_4dm1n_p4ss}
+      ZOT_HTPASSWD_PATH: ${ZOT_HTPASSWD_PATH:-/data/zot/htpasswd}
+      ZOT_CONTAINER_NAME: ${ZOT_CONTAINER_NAME:-anjungan-zot}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MIGRATIONS_PATH: /migrations
     ports:
@@ -59,6 +64,8 @@ services:
         condition: service_healthy
     volumes:
       - sshkeys:/data/ssh
+      - ./zot:/data/zot:rw
+      - /var/run/docker.sock:/var/run/docker.sock:rw
 
   frontend:
     build:
@@ -70,16 +77,25 @@ services:
     depends_on:
       - backend
 
-  # ─── Optional: Container Registry ─────────────────────────────────────────
-  # zot:
-  #   image: ghcr.io/project-zot/zot-linux-amd64:latest
-  #   container_name: anjungan-zot
-  #   ports:
-  #     - "5000:5000"
-  #   volumes:
-  #     - zotdata:/var/lib/zot
-  #   environment:
-  #     ZOT_STORAGE_ROOT_DIRECTORY: /var/lib/zot
+  # ─── Container Registry (Zot) ────────────────────────────────────────────
+  # Access: internal Docker network only — backend (http://zot:5000)
+  # External access: route /v2/* via your reverse proxy to zot:5000 with basic auth
+  #   Nginx: proxy_pass http://zot:5000; auth_basic "Registry";
+  #   Traefik: label traefik.http.routers.zot.rule=Host(\`registry.example.com\`)
+  #   Caddy: reverse_proxy /v2/* zot:5000
+  zot:
+    image: ghcr.io/project-zot/zot-linux-amd64:latest
+    container_name: anjungan-zot
+    expose:
+      - "5000"
+    volumes:
+      - zotdata:/var/lib/zot
+      - ./zot/config.json:/etc/zot/config.json:ro
+      - ./zot/htpasswd:/etc/zot/htpasswd:ro
+    command:
+      - serve
+      - /etc/zot/config.json
+    restart: unless-stopped
 
   # ─── Metrics Storage: VictoriaMetrics ───────────────────────────────────
   victoria-metrics:
@@ -100,4 +116,4 @@ volumes:
   redisdata:
   vmdata:
   sshkeys:
-  # zotdata:
+  zotdata:

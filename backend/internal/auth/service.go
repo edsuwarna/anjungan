@@ -92,7 +92,7 @@ func (s *Service) Register(ctx context.Context, email, name, password string) (*
 		Email:        email,
 		Name:         name,
 		PasswordHash: string(hash),
-		Role:         "member",
+		Role:         "developer",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}

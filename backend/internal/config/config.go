@@ -67,7 +67,12 @@ type GitHubConfig struct {
 }
 
 type RegistryConfig struct {
-	URL string
+	URL             string
+	ExternalURL     string
+	AdminUser       string
+	AdminPass       string
+	HtpasswdPath    string
+	ZotContainer    string
 }
 
 type SecurityConfig struct {
@@ -132,7 +137,12 @@ func Load() *Config {
 			Token: getEnv("GITHUB_TOKEN", ""),
 		},
 		Registry: RegistryConfig{
-			URL: getEnv("REGISTRY_URL", "http://zot:5000"),
+			URL:             getEnv("REGISTRY_URL", "http://zot:5000"),
+			ExternalURL:     getEnv("REGISTRY_EXTERNAL_URL", "registry.anjungan.io"),
+			AdminUser:       getEnv("ZOT_ADMIN_USER", "admin"),
+			AdminPass:       getEnv("ZOT_ADMIN_PASS", "z0t_4dm1n_p4ss"),
+			HtpasswdPath:    getEnv("ZOT_HTPASSWD_PATH", "/data/zot/htpasswd"),
+			ZotContainer:    getEnv("ZOT_CONTAINER_NAME", "anjungan-zot"),
 		},
 		Security: SecurityConfig{
 			RateLimitMaxAttempts:  getEnvInt("RATE_LIMIT_MAX_ATTEMPTS", 5),

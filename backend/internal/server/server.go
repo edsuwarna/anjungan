@@ -72,13 +72,13 @@ func New(cfg *config.Config) (*Server, error) {
 	authH := auth.NewHandler(authSvc, repo)
 
 	srv := &Server{cfg: cfg, db: database}
-	srv.setupRouter(authH, authSvc, repo, vmClient)
+	srv.setupRouter(authH, authSvc, repo, rl, vmClient)
 	return srv, nil
 }
 
 func (s *Server) Handler() http.Handler { return s.mux }
 
-func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, vmClient *metrics.VMClient) {
+func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, rl *ratelimit.RateLimiter, vmClient *metrics.VMClient) {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -99,11 +99,11 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			r.Mount("/servers", infra.NewHandler(repo, vmClient).Routes())
 			r.Mount("/ssh-keys", infra.NewSSHKeyHandler(repo).Routes())
 			r.Mount("/containers", container.NewHandler(repo).Routes())
-			r.Mount("/registry", registry.NewHandler().Routes())
+			r.Mount("/registry", registry.NewHandler(s.cfg.Registry, repo).Routes())
 			r.Mount("/repositories", repoapi.NewHandler().Routes())
 			r.Mount("/deployments", deployment.NewHandler().Routes())
 			r.Mount("/compliance", compliance.NewHandler(repo).Routes())
-			r.Mount("/admin", admin.NewHandler(repo).Routes())
+			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
 			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
 		})
 	})

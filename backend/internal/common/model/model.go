@@ -218,6 +218,46 @@ func (k *SSHKey) ToResponse() SSHKeyResponse {
 	}
 }
 
+type RegistryUser struct {
+	ID             string    `json:"id"`
+	Username       string    `json:"username"`
+	PasswordHash   string    `json:"-"`
+	Role           string    `json:"role"`
+	AnjunganUserID string    `json:"anjungan_user_id,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// RegistryUserResponse is the public-safe version (no password hash exposed)
+type RegistryUserResponse struct {
+	ID        string    `json:"id"`
+	Username  string    `json:"username"`
+	Role      string    `json:"role"`
+	Access    string    `json:"access"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (u *RegistryUser) ToResponse() RegistryUserResponse {
+	access := ""
+	switch u.Role {
+	case "admin":
+		access = "Read, write, delete — full access to all repositories"
+	case "deploy":
+		access = "Read and push — CI/CD pipelines and developer workstations"
+	case "readonly":
+		access = "Read-only — pull only"
+	}
+	return RegistryUserResponse{
+		ID:        u.ID,
+		Username:  u.Username,
+		Role:      u.Role,
+		Access:    access,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+	}
+}
+
 type Alert struct {
 	ID           string    `json:"id"`
 	ServerID     string    `json:"server_id"`
@@ -467,6 +507,5 @@ type SecuritySummary struct {
 const (
     RoleAdmin     = "admin"
     RoleDeveloper = "developer"
-    RoleMember    = "member"
     RoleViewer    = "viewer"
 )

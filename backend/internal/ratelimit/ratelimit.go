@@ -149,6 +149,20 @@ func (rl *RateLimiter) RecordSuccess(ctx context.Context, ip, email string) {
 	rl.redis.Del(ctx, lockoutKey)
 }
 
+// ClearLockout clears all rate-limit and lockout keys for a given email.
+// This is used by admin to manually unlock a user.
+func (rl *RateLimiter) ClearLockout(ctx context.Context, email string) {
+	lockoutKey := fmt.Sprintf("lockout:%s", email)
+	rl.redis.Del(ctx, lockoutKey)
+
+	// Also clear any per-IP keys for this email (approximate — scan for matching keys)
+	// We clear by pattern matching to handle all IPs the user may have tried from
+	iter := rl.redis.Scan(ctx, 0, fmt.Sprintf("rate:login:*:%s", email), 100).Iterator()
+	for iter.Next(ctx) {
+		rl.redis.Del(ctx, iter.Val())
+	}
+}
+
 // IsLocked checks if an account is currently locked out.
 // Returns whether the account is locked, the remaining lockout duration, and
 // any error encountered.

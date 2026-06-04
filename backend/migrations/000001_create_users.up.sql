@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     totp_secret TEXT DEFAULT '',
     totp_enabled BOOLEAN DEFAULT FALSE,
-    role        VARCHAR(50) NOT NULL DEFAULT 'member',
+    role        VARCHAR(50) NOT NULL DEFAULT 'developer',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
