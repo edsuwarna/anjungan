@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Repositories Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#10b981',
+        'primary-dark': '#059669',
+        'surface-dark': '#1a1d23',
+        'surface-darker': '#14161a',
+        'sidebar-dark': '#111318',
+        'card-dark': '#1e2128',
+        'border-dark': '#2a2d35',
+        'text-dark': '#e2e4e9',
+        'text-secondary-dark': '#8b8f9b',
+        'text-muted-dark': '#5c5f6b',
+        'surface-light': '#f4f5f7',
+        'sidebar-light': '#ffffff',
+        'card-light': '#ffffff',
+        'border-light': '#e2e4e9',
+        'text-light': '#1a1d23',
+        'text-secondary-light': '#6b6f7b',
+        'text-muted-light': '#9ca0ab',
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  /* layout */
+  .app-layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 256px; flex-shrink: 0;
+    border-right: 1px solid;
+    display: flex; flex-direction: column;
+  }
+  .main-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    height: 64px; border-bottom: 1px solid;
+    display: flex; align-items: center; padding: 0 24px;
+    gap: 16px;
+  }
+  .page { flex: 1; padding: 24px 32px; overflow-y: auto; }
+
+  /* sidebar */
+  .logo-area {
+    height: 64px; border-bottom: 1px solid;
+    display: flex; align-items: center; gap: 12px; padding: 0 24px;
+  }
+  .logo-box {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: #fff;
+  }
+  .nav-category { padding: 0 12px; margin-top: 16px; }
+  .nav-category:first-child { margin-top: 16px; }
+  .nav-category-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 0 12px; margin-bottom: 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; border-radius: 8px;
+    font-size: 14px; font-weight: 500;
+    transition: all 0.15s; cursor: pointer;
+    text-decoration: none;
+  }
+  .nav-item.active {
+    font-weight: 600;
+  }
+  .nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
+  .nav-badge {
+    margin-left: auto;
+    height: 20px; min-width: 20px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; padding: 0 6px; color: #fff;
+  }
+
+  /* cards */
+  .repo-card {
+    border-radius: 12px; padding: 20px;
+    transition: box-shadow 0.2s, transform 0.15s;
+  }
+  .repo-card:hover { transform: translateY(-1px); }
+  .provider-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+  }
+  .ci-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 600;
+  }
+  .stat-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 500;
+  }
+
+  /* variant B table */
+  .repo-table { width: 100%; border-collapse: collapse; }
+  .repo-table th {
+    text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 8px 12px; border-bottom: 1px solid;
+  }
+  .repo-table td {
+    padding: 12px; font-size: 13px; border-bottom: 1px solid;
+  }
+  .repo-table tr:hover { cursor: pointer; }
+
+  /* filter bar */
+  .filter-btn {
+    padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    border: 1px solid; cursor: pointer; transition: all 0.15s;
+  }
+  .search-input {
+    padding: 8px 12px 8px 36px; border-radius: 8px; font-size: 13px;
+    border: 1px solid; outline: none; width: 300px;
+    transition: all 0.15s;
+  }
+  .search-input:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.15); }
+
+  /* tabs */
+  .variant-tabs {
+    position: fixed; top: 12px; right: 12px; z-index: 100;
+    display: flex; gap: 4px;
+    border-radius: 10px; padding: 4px;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+  }
+  .variant-tab {
+    padding: 6px 14px; border-radius: 7px;
+    font-size: 12px; font-weight: 600; cursor: pointer; border: none;
+    color: #aaa; background: transparent;
+    transition: all 0.15s;
+  }
+  .variant-tab.active { background: #10b981; color: #fff; }
+
+  /* dark */
+  .dark { background: #1a1d23; }
+  .dark .sidebar { background: #111318; border-color: #2a2d35; }
+  .dark .topbar { background: #1a1d23; border-color: #2a2d35; }
+  .dark .nav-category-label { color: #5c5f6b; }
+  .dark .nav-item { color: #8b8f9b; }
+  .dark .nav-item:hover { background: #1e2128; color: #e2e4e9; }
+  .dark .nav-item.active { background: rgba(16,185,129,0.12); color: #10b981; }
+  .dark .repo-card { background: #1e2128; border: 1px solid #2a2d35; }
+  .dark .repo-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-color: #10b981; }
+  .dark .provider-badge.github { background: rgba(255,255,255,0.08); color: #ccc; }
+  .dark .provider-badge.forgejo { background: rgba(16,185,129,0.12); color: #10b981; }
+  .dark .ci-badge.pass { background: rgba(16,185,129,0.12); color: #10b981; }
+  .dark .ci-badge.fail { background: rgba(239,68,68,0.12); color: #ef4444; }
+  .dark .ci-badge.pending { background: rgba(234,179,8,0.12); color: #eab308; }
+  .dark .stat-chip { color: #8b8f9b; }
+  .dark .page { color: #e2e4e9; }
+  .dark .repo-table th { color: #5c5f6b; border-color: #2a2d35; }
+  .dark .repo-table td { border-color: #2a2d35; color: #e2e4e9; }
+  .dark .repo-table tr:hover td { background: #1e2128; }
+  .dark .filter-btn { border-color: #2a2d35; color: #8b8f9b; background: transparent; }
+  .dark .filter-btn.active { background: rgba(16,185,129,0.12); border-color: #10b981; color: #10b981; }
+  .dark .filter-btn:hover { border-color: #10b981; color: #e2e4e9; }
+  .dark .search-input { background: #1e2128; border-color: #2a2d35; color: #e2e4e9; }
+
+  /* light */
+  .light { background: #f4f5f7; }
+  .light .sidebar { background: #ffffff; border-color: #e2e4e9; }
+  .light .topbar { background: #ffffff; border-color: #e2e4e9; }
+  .light .nav-category-label { color: #9ca0ab; }
+  .light .nav-item { color: #6b6f7b; }
+  .light .nav-item:hover { background: #f0f1f3; color: #1a1d23; }
+  .light .nav-item.active { background: rgba(16,185,129,0.08); color: #10b981; }
+  .light .repo-card { background: #ffffff; border: 1px solid #e2e4e9; }
+  .light .repo-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); border-color: #10b981; }
+  .light .provider-badge.github { background: #f0f1f3; color: #333; }
+  .light .provider-badge.forgejo { background: rgba(16,185,129,0.08); color: #059669; }
+  .light .ci-badge.pass { background: rgba(16,185,129,0.08); color: #059669; }
+  .light .ci-badge.fail { background: rgba(239,68,68,0.08); color: #dc2626; }
+  .light .ci-badge.pending { background: rgba(234,179,8,0.08); color: #ca8a04; }
+  .light .stat-chip { color: #6b6f7b; }
+  .light .page { color: #1a1d23; }
+  .light .repo-table th { color: #9ca0ab; border-color: #e2e4e9; }
+  .light .repo-table td { border-color: #e2e4e9; color: #1a1d23; }
+  .light .repo-table tr:hover td { background: #f0f1f3; }
+  .light .filter-btn { border-color: #e2e4e9; color: #6b6f7b; background: #fff; }
+  .light .filter-btn.active { background: rgba(16,185,129,0.08); border-color: #10b981; color: #10b981; }
+  .light .filter-btn:hover { border-color: #10b981; color: #1a1d23; }
+  .light .search-input { background: #fff; border-color: #e2e4e9; color: #1a1d23; }
+
+  /* variant visibility */
+  .variant { display: none; }
+  .variant.active { display: block; }
+
+  /* detail panel in variant A */
+  .detail-panel {
+    border-radius: 12px; padding: 24px;
+    border: 1px solid;
+  }
+  .dark .detail-panel { background: #1e2128; border-color: #2a2d35; }
+  .light .detail-panel { background: #fff; border-color: #e2e4e9; }
+  .detail-panel { display: none; }
+  .detail-panel.open { display: block; }
+
+  .icon-svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .icon-svg-sm { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* quick action btn */
+  .action-btn {
+    padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    border: 1px solid; cursor: pointer; transition: all 0.15s;
+  }
+  .dark .action-btn { border-color: #2a2d35; color: #8b8f9b; background: transparent; }
+  .dark .action-btn:hover { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.08); }
+  .light .action-btn { border-color: #e2e4e9; color: #6b6f7b; background: transparent; }
+  .light .action-btn:hover { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.06); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 500;
+  }
+  .dark .pill.deploy { background: rgba(99,102,241,0.1); color: #818cf8; }
+  .light .pill.deploy { background: rgba(99,102,241,0.06); color: #6366f1; }
+
+  .empty-state { text-align: center; padding: 60px 20px; }
+  .empty-state h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; }
+
+  /* responsive */
+  @media (max-width: 768px) {
+    .page { padding: 16px; }
+    .search-input { width: 100%; }
+    .sidebar { display: none; }
+    .variant-tabs { top: 8px; right: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Variant switcher -->
+<div class="variant-tabs">
+  <button class="variant-tab active" onclick="switchVariant('a')" id="tab-a">✦ Card Explorer</button>
+  <button class="variant-tab" onclick="switchVariant('b')" id="tab-b">☰ Compact Workspace</button>
+</div>
+
+<!-- ========== VARIANT A: Card Explorer ========== -->
+<div id="variant-a" class="variant active">
+<div class="app-layout dark">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo-area">
+      <div class="logo-box" style="background: #10b981;">A</div>
+      <span style="font-size: 18px; font-weight: 600; color: #e2e4e9;">Anjungan</span>
+    </div>
+    <nav style="flex: 1; overflow-y: auto; padding: 8px 0;">
+      <div class="nav-category">
+        <div class="nav-category-label">Dashboard</div>
+        <a class="nav-item" href="#">
+          <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Overview
+        </a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Infrastructure</div>
+        <a class="nav-item" href="#"><svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>Servers</a>
+        <a class="nav-item" href="#"><svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>SSH Keys</a>
+        <a class="nav-item" href="#">
+          <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          Containers
+          <span class="nav-badge" style="background: #10b981;">24</span>
+        </a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Artifact</div>
+        <a class="nav-item" href="#"><svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V4"/></svg>Registry</a>
+        <a class="nav-item active" href="#">
+          <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+          Repositories
+          <span class="nav-badge" style="background: rgba(16,185,129,0.15); color: #10b981; font-weight: 600;">2</span>
+        </a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Ops</div>
+        <a class="nav-item" href="#"><svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>Deployments</a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Security</div>
+        <a class="nav-item" href="#"><svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>Compliance</a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Administration</div>
+        <a class="nav-item" href="#"><svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Users</a>
+        <a class="nav-item" href="#"><svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Audit Log</a>
+      </div>
+    </nav>
+    <div style="border-top: 1px solid #2a2d35; padding: 12px;">
+      <a class="nav-item" href="#" onclick="toggleTheme(event)">
+        <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <span id="theme-label">Light Mode</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <!-- Topbar -->
+    <div class="topbar">
+      <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+        <h1 style="font-size: 18px; font-weight: 600; color: #e2e4e9;">Repositories</h1>
+        <span style="font-size: 12px; color: #5c5f6b; background: #1e2128; padding: 2px 10px; border-radius: 999px; border: 1px solid #2a2d35;">
+          8 repos
+        </span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button class="filter-btn active" onclick="setFilter(this, 'all')">All</button>
+        <button class="filter-btn" onclick="setFilter(this, 'github')">
+          <span style="display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            GitHub
+          </span>
+        </button>
+        <button class="filter-btn" onclick="setFilter(this, 'forgejo')">
+          <span style="display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>
+            Forgejo
+          </span>
+        </button>
+        <button class="filter-btn" onclick="setFilter(this, 'connected')">
+          <span style="display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            Connected
+          </span>
+        </button>
+      </div>
+      <div style="position: relative;">
+        <svg style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #5c5f6b;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input class="search-input" placeholder="Search repositories..." style="padding-left: 36px;">
+      </div>
+    </div>
+
+    <!-- Page content -->
+    <div class="page">
+      <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+        <span class="provider-badge github" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </span>
+        <span class="provider-badge forgejo" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+          Forgejo
+        </span>
+      </div>
+
+      <!-- Connected Accounts Status -->
+      <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+        <div class="repo-card" style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 14px 18px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#10b981"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <div style="flex: 1;">
+            <div style="font-size: 13px; font-weight: 600; color: #e2e4e9;">GitHub</div>
+            <div style="font-size: 12px; color: #8b8f9b;">edsuwarna • Connected</div>
+          </div>
+          <span style="font-size: 12px; color: #10b981;">●</span>
+        </div>
+        <div class="repo-card" style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 14px 18px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+          <div style="flex: 1;">
+            <div style="font-size: 13px; font-weight: 600; color: #e2e4e9;">Forgejo</div>
+            <div style="font-size: 12px; color: #8b8f9b;">git.internal.edsuwarna.id • Connected</div>
+          </div>
+          <span style="font-size: 12px; color: #10b981;">●</span>
+        </div>
+      </div>
+
+      <!-- Repo Cards Grid -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px;">
+
+        <!-- Card 1: anjungan (GitHub) -->
+        <div class="repo-card" onclick="toggleDetail('detail-anjungan')" style="cursor: pointer;">
+          <div style="display: flex; align-items: start; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(16,185,129,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="20" height="20" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">edsuwarna/anjungan</span>
+                <span class="provider-badge github">GitHub</span>
+              </div>
+              <div style="font-size: 12px; color: #5c5f6b; margin-bottom: 10px;">
+                Internal Developer Platform — Go + SvelteKit
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span class="ci-badge pass">● Pass</span>
+                <span class="ci-badge pass">● Pass</span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  main
+                </span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  2h ago
+                </span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                  3 PRs
+                </span>
+              </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <span class="pill deploy">🚀 Anjungan Frontend • running</span>
+                <span class="pill deploy">🚀 Anjungan Backend • running</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="action-btn" onclick="event.stopPropagation()" title="Deploy">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <button class="action-btn" onclick="event.stopPropagation()" title="Open in GitHub">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: hermes-agent (GitHub) -->
+        <div class="repo-card" onclick="toggleDetail('detail-hermes')" style="cursor: pointer;">
+          <div style="display: flex; align-items: start; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(99,102,241,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="20" height="20" fill="none" stroke="#818cf8" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">nousresearch/hermes-agent</span>
+                <span class="provider-badge github">GitHub</span>
+              </div>
+              <div style="font-size: 12px; color: #5c5f6b; margin-bottom: 10px;">
+                Hermes Agent — terminal AI agent framework
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span class="ci-badge pass">● Pass</span>
+                <span class="ci-badge pending">◐ Pending</span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  develop
+                </span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  5h ago
+                </span>
+              </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <span class="pill deploy" style="opacity: 0.6;">No deployments linked</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="action-btn" onclick="event.stopPropagation()" disabled style="opacity: 0.4;" title="Deploy">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <button class="action-btn" onclick="event.stopPropagation()" title="Open in GitHub">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Forgejo self-hosted -->
+        <div class="repo-card" onclick="toggleDetail('detail-ops')" style="cursor: pointer;">
+          <div style="display: flex; align-items: start; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(16,185,129,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="20" height="20" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">ops/infra-config</span>
+                <span class="provider-badge forgejo">Forgejo</span>
+              </div>
+              <div style="font-size: 12px; color: #5c5f6b; margin-bottom: 10px;">
+                Infrastructure configuration & Docker Compose files
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span class="ci-badge pass">● Pass</span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  main
+                </span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  1d ago
+                </span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                  1 PR
+                </span>
+              </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <span class="pill deploy">🚀 Dokploy • running</span>
+                <span class="pill deploy">🚀 Zot Registry • running</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="action-btn" onclick="event.stopPropagation()" title="Deploy">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <button class="action-btn" onclick="event.stopPropagation()" title="Open in Forgejo">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4: whatilearned (GitHub) -->
+        <div class="repo-card" onclick="toggleDetail('detail-wil')" style="cursor: pointer;">
+          <div style="display: flex; align-items: start; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(245,158,11,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="20" height="20" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">edsuwarna/whatilearned</span>
+                <span class="provider-badge github">GitHub</span>
+              </div>
+              <div style="font-size: 12px; color: #5c5f6b; margin-bottom: 10px;">
+                Personal wiki & learning notes
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span class="ci-badge pass">● Pass</span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  main
+                </span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  3d ago
+                </span>
+              </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <span class="pill deploy" style="opacity: 0.6;">No deployments linked</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="action-btn" onclick="event.stopPropagation()" disabled style="opacity: 0.4;" title="Deploy">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <button class="action-btn" onclick="event.stopPropagation()" title="Open in GitHub">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 5: serversphere (Forgejo) -->
+        <div class="repo-card" onclick="toggleDetail('detail-ss')" style="cursor: pointer;">
+          <div style="display: flex; align-items: start; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(245,158,11,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="20" height="20" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">ops/serversphere</span>
+                <span class="provider-badge forgejo">Forgejo</span>
+              </div>
+              <div style="font-size: 12px; color: #5c5f6b; margin-bottom: 10px;">
+                Server monitoring dashboard — FastAPI + Alpine.js
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span class="ci-badge fail">✕ Fail</span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  main
+                </span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  6h ago
+                </span>
+              </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <span class="pill deploy">🚀 Serversphere Web • running</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="action-btn" onclick="event.stopPropagation()" title="Deploy">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <button class="action-btn" onclick="event.stopPropagation()" title="Open in Forgejo">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 6: stem (GitHub) -->
+        <div class="repo-card" onclick="toggleDetail('detail-stem')" style="cursor: pointer;">
+          <div style="display: flex; align-items: start; gap: 12px;">
+            <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(139,92,246,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="20" height="20" fill="none" stroke="#8b5cf6" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">edsuwarna/stem-lab</span>
+                <span class="provider-badge github">GitHub</span>
+              </div>
+              <div style="font-size: 12px; color: #5c5f6b; margin-bottom: 10px;">
+                Interactive STEM simulations for kids
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span class="ci-badge pass">● Pass</span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  main
+                </span>
+                <span class="stat-chip">
+                  <svg class="icon-svg-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  2w ago
+                </span>
+              </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <span class="pill deploy">🚀 stem.edsuwarna.id • running</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="action-btn" onclick="event.stopPropagation()" title="Deploy">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <button class="action-btn" onclick="event.stopPropagation()" title="Open in GitHub">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Detail panel (expanded card) -->
+      <div id="detail-anjungan" class="detail-panel" style="margin-top: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(16,185,129,0.12); display: flex; align-items: center; justify-content: center;">
+              <svg width="22" height="22" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+            </div>
+            <div>
+              <div style="font-size: 16px; font-weight: 600; color: #e2e4e9;">edsuwarna/anjungan</div>
+              <div style="font-size: 12px; color: #5c5f6b;">Internal Developer Platform</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="action-btn" style="padding: 6px 16px;">⟳ Trigger Workflow</button>
+            <button class="action-btn" style="padding: 6px 16px;">⎆ Deploy Branch</button>
+            <button class="action-btn" style="padding: 6px 16px;">↗ Open on GitHub</button>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+          <div style="padding: 14px; border-radius: 8px; border: 1px solid #2a2d35; background: rgba(16,185,129,0.04);">
+            <div style="font-size: 11px; color: #5c5f6b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Deployments</div>
+            <div style="font-size: 14px; font-weight: 600; color: #e2e4e9;">2 linked</div>
+            <div style="font-size: 12px; color: #8b8f9b; margin-top: 2px;">Anjungan Frontend • Anjungan Backend</div>
+          </div>
+          <div style="padding: 14px; border-radius: 8px; border: 1px solid #2a2d35;">
+            <div style="font-size: 11px; color: #5c5f6b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Latest CI</div>
+            <div style="font-size: 14px; font-weight: 600; color: #10b981;">✓ All checks passing</div>
+            <div style="font-size: 12px; color: #8b8f9b; margin-top: 2px;">Build • Lint • Test • Container Scan</div>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 12px; font-weight: 600; color: #8b8f9b; margin-bottom: 4px;">RECENT COMMITS</div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.02);">
+            <span style="font-family: monospace; font-size: 11px; color: #8b8f9b;">a3f2c1d</span>
+            <span style="flex: 1; font-size: 13px; color: #e2e4e9;">feat: add repository multi-provider support</span>
+            <span style="font-size: 11px; color: #5c5f6b;">2h ago</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.02);">
+            <span style="font-family: monospace; font-size: 11px; color: #8b8f9b;">b7e8f2a</span>
+            <span style="flex: 1; font-size: 13px; color: #e2e4e9;">fix: container security scan sorting</span>
+            <span style="font-size: 11px; color: #5c5f6b;">5h ago</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.02);">
+            <span style="font-family: monospace; font-size: 11px; color: #8b8f9b;">d4c5e6b</span>
+            <span style="flex: 1; font-size: 13px; color: #e2e4e9;">refactor: extract GitProvider interface</span>
+            <span style="font-size: 11px; color: #5c5f6b;">1d ago</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ========== VARIANT B: Compact Workspace ========== -->
+<div id="variant-b" class="variant">
+<div class="app-layout dark">
+
+  <!-- Sidebar (same) -->
+  <aside class="sidebar">
+    <div class="logo-area">
+      <div class="logo-box" style="background: #10b981;">A</div>
+      <span style="font-size: 18px; font-weight: 600; color: #e2e4e9;">Anjungan</span>
+    </div>
+    <nav style="flex: 1; overflow-y: auto; padding: 8px 0;">
+      <div class="nav-category">
+        <div class="nav-category-label">Dashboard</div>
+        <a class="nav-item" href="#">◉ Overview</a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Infrastructure</div>
+        <a class="nav-item" href="#">◉ Servers</a>
+        <a class="nav-item" href="#">◉ SSH Keys</a>
+        <a class="nav-item" href="#">◉ Containers <span class="nav-badge" style="background: #10b981;">24</span></a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Artifact</div>
+        <a class="nav-item" href="#">◉ Registry</a>
+        <a class="nav-item active" href="#">◉ Repositories</a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Ops</div>
+        <a class="nav-item" href="#">◉ Deployments</a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Security</div>
+        <a class="nav-item" href="#">◉ Compliance</a>
+      </div>
+      <div class="nav-category">
+        <div class="nav-category-label">Administration</div>
+        <a class="nav-item" href="#">◉ Users</a>
+        <a class="nav-item" href="#">◉ Audit Log</a>
+      </div>
+    </nav>
+    <div style="border-top: 1px solid #2a2d35; padding: 12px;">
+      <a class="nav-item" href="#" onclick="toggleTheme(event)">◉ Light Mode</a>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar" style="gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+        <h1 style="font-size: 18px; font-weight: 600; color: #e2e4e9;">Repositories</h1>
+        <span style="font-size: 12px; color: #5c5f6b; background: #1e2128; padding: 2px 10px; border-radius: 999px;">8 repos</span>
+      </div>
+      <div style="position: relative;">
+        <input class="search-input" placeholder="Search name, owner, provider..." style="width: 280px;">
+      </div>
+      <button class="action-btn" style="padding: 7px 16px;">+ Connect Provider</button>
+    </div>
+
+    <div class="page" style="padding: 16px 24px;">
+      <!-- Provider tabs -->
+      <div style="display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid #2a2d35;">
+        <button class="filter-btn active" style="border-radius: 8px 8px 0 0; border-bottom: 2px solid #10b981; padding: 8px 20px;">All (8)</button>
+        <button class="filter-btn" style="border-radius: 8px 8px 0 0; padding: 8px 20px;">
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            GitHub (5)
+          </span>
+        </button>
+        <button class="filter-btn" style="border-radius: 8px 8px 0 0; padding: 8px 20px;">
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+            Forgejo (3)
+          </span>
+        </button>
+        <div style="flex: 1; border-bottom: 1px solid #2a2d35;"></div>
+        <span style="display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; color: #10b981; border-bottom: 1px solid #2a2d35;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981;"></span>
+          All connected
+        </span>
+      </div>
+
+      <!-- Table -->
+      <table class="repo-table">
+        <thead>
+          <tr>
+            <th style="width: 24px;"><input type="checkbox"></th>
+            <th>Repository</th>
+            <th>Provider</th>
+            <th>Branch</th>
+            <th>CI Status</th>
+            <th>PRs</th>
+            <th>Updated</th>
+            <th>Deployments</th>
+            <th style="width: 80px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><span style="font-weight: 600; color: #e2e4e9;">edsuwarna/anjungan</span></td>
+            <td><span class="provider-badge github">GitHub</span></td>
+            <td><span style="font-family: monospace; font-size: 12px;">main</span></td>
+            <td><span class="ci-badge pass">● Pass</span></td>
+            <td><span style="color: #e2e4e9;">3</span></td>
+            <td><span style="color: #8b8f9b;">2h ago</span></td>
+            <td><span class="pill deploy">2</span></td>
+            <td>
+              <button class="action-btn" title="Deploy">▶</button>
+              <button class="action-btn" title="Open">↗</button>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><span style="font-weight: 600; color: #e2e4e9;">nousresearch/hermes-agent</span></td>
+            <td><span class="provider-badge github">GitHub</span></td>
+            <td><span style="font-family: monospace; font-size: 12px;">develop</span></td>
+            <td><span class="ci-badge pending">◐ Pending</span></td>
+            <td><span style="color: #e2e4e9;">5</span></td>
+            <td><span style="color: #8b8f9b;">5h ago</span></td>
+            <td><span style="color: #5c5f6b;">—</span></td>
+            <td>
+              <button class="action-btn" disabled style="opacity: 0.4;">▶</button>
+              <button class="action-btn" title="Open">↗</button>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><span style="font-weight: 600; color: #e2e4e9;">ops/infra-config</span></td>
+            <td><span class="provider-badge forgejo">Forgejo</span></td>
+            <td><span style="font-family: monospace; font-size: 12px;">main</span></td>
+            <td><span class="ci-badge pass">● Pass</span></td>
+            <td><span style="color: #e2e4e9;">1</span></td>
+            <td><span style="color: #8b8f9b;">1d ago</span></td>
+            <td><span class="pill deploy">2</span></td>
+            <td>
+              <button class="action-btn" title="Deploy">▶</button>
+              <button class="action-btn" title="Open">↗</button>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><span style="font-weight: 600; color: #e2e4e9;">edsuwarna/whatilearned</span></td>
+            <td><span class="provider-badge github">GitHub</span></td>
+            <td><span style="font-family: monospace; font-size: 12px;">main</span></td>
+            <td><span class="ci-badge pass">● Pass</span></td>
+            <td><span style="color: #e2e4e9;">0</span></td>
+            <td><span style="color: #8b8f9b;">3d ago</span></td>
+            <td><span style="color: #5c5f6b;">—</span></td>
+            <td>
+              <button class="action-btn" disabled style="opacity: 0.4;">▶</button>
+              <button class="action-btn" title="Open">↗</button>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><span style="font-weight: 600; color: #e2e4e9;">ops/serversphere</span></td>
+            <td><span class="provider-badge forgejo">Forgejo</span></td>
+            <td><span style="font-family: monospace; font-size: 12px;">main</span></td>
+            <td><span class="ci-badge fail">✕ Fail</span></td>
+            <td><span style="color: #e2e4e9;">2</span></td>
+            <td><span style="color: #8b8f9b;">6h ago</span></td>
+            <td><span class="pill deploy">1</span></td>
+            <td>
+              <button class="action-btn" title="Deploy">▶</button>
+              <button class="action-btn" title="Open">↗</button>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><span style="font-weight: 600; color: #e2e4e9;">edsuwarna/stem-lab</span></td>
+            <td><span class="provider-badge github">GitHub</span></td>
+            <td><span style="font-family: monospace; font-size: 12px;">main</span></td>
+            <td><span class="ci-badge pass">● Pass</span></td>
+            <td><span style="color: #e2e4e9;">0</span></td>
+            <td><span style="color: #8b8f9b;">2w ago</span></td>
+            <td><span class="pill deploy">1</span></td>
+            <td>
+              <button class="action-btn" title="Deploy">▶</button>
+              <button class="action-btn" title="Open">↗</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Quick actions bar -->
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 12px 16px; border-radius: 8px; border: 1px dashed #2a2d35;">
+        <span style="font-size: 13px; color: #8b8f9b;">Bulk actions:</span>
+        <button class="action-btn" disabled style="opacity: 0.4;">Deploy Selected</button>
+        <button class="action-btn" disabled style="opacity: 0.4;">Trigger CI</button>
+        <button class="action-btn" disabled style="opacity: 0.4;">Open All</button>
+        <span style="font-size: 11px; color: #5c5f6b; margin-left: auto;">Select repos to enable bulk actions</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+  let currentTheme = 'dark';
+  let currentVariant = 'a';
+
+  function switchVariant(v) {
+    currentVariant = v;
+    document.querySelectorAll('.variant').forEach(el => el.classList.remove('active'));
+    document.getElementById('variant-' + v).classList.add('active');
+    document.querySelectorAll('.variant-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + v).classList.add('active');
+  }
+
+  function toggleTheme(e) {
+    if (e) e.preventDefault();
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    const containers = document.querySelectorAll('.app-layout');
+    containers.forEach(el => {
+      el.classList.remove('dark', 'light');
+      el.classList.add(currentTheme);
+    });
+    const label = document.getElementById('theme-label');
+    if (label) label.textContent = currentTheme === 'dark' ? 'Light Mode' : 'Dark Mode';
+  }
+
+  function toggleDetail(id) {
+    const panel = document.getElementById(id);
+    if (panel) {
+      panel.classList.toggle('open');
+      panel.style.display = panel.classList.contains('open') ? 'block' : 'none';
+    }
+  }
+
+  function setFilter(btn, filter) {
+    const parent = btn.parentElement;
+    parent.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>
