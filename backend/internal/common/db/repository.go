@@ -1923,3 +1923,92 @@ func (r *Repository) ListAuditLogsAll(ctx context.Context, q model.AuditLogQuery
 	}
 	return entries, nil
 }
+
+// ─── Registry User Management ─────────────────────────────────────────────
+
+func (r *Repository) GetRegistryUserByAnjunganUserID(ctx context.Context, anjunganUserID string) (*model.RegistryUser, error) {
+	u := &model.RegistryUser{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, username, password_hash, role, COALESCE(anjungan_user_id, ''), created_at, updated_at FROM registry_users WHERE anjungan_user_id = $1`,
+		anjunganUserID,
+	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.AnjunganUserID, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func (r *Repository) ListRegistryUsers(ctx context.Context) ([]*model.RegistryUser, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, username, password_hash, role, COALESCE(anjungan_user_id, ''), created_at, updated_at FROM registry_users ORDER BY username`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*model.RegistryUser
+	for rows.Next() {
+		u := &model.RegistryUser{}
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.AnjunganUserID, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	if users == nil {
+		users = []*model.RegistryUser{}
+	}
+	return users, nil
+}
+
+func (r *Repository) GetRegistryUserByUsername(ctx context.Context, username string) (*model.RegistryUser, error) {
+	u := &model.RegistryUser{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, username, password_hash, role, COALESCE(anjungan_user_id, ''), created_at, updated_at FROM registry_users WHERE username = $1`,
+		username,
+	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.AnjunganUserID, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func (r *Repository) GetRegistryUserByID(ctx context.Context, id string) (*model.RegistryUser, error) {
+	u := &model.RegistryUser{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, username, password_hash, role, COALESCE(anjungan_user_id, ''), created_at, updated_at FROM registry_users WHERE id = $1`,
+		id,
+	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.AnjunganUserID, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func (r *Repository) CreateRegistryUser(ctx context.Context, u *model.RegistryUser) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO registry_users (id, username, password_hash, role, anjungan_user_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		u.ID, u.Username, u.PasswordHash, u.Role, u.AnjunganUserID, u.CreatedAt, u.UpdatedAt,
+	)
+	return err
+}
+
+func (r *Repository) UpdateRegistryUser(ctx context.Context, u *model.RegistryUser) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE registry_users SET username=$1, role=$2, updated_at=NOW() WHERE id=$3`,
+		u.Username, u.Role, u.ID,
+	)
+	return err
+}
+
+func (r *Repository) UpdateRegistryUserPassword(ctx context.Context, id, passwordHash string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE registry_users SET password_hash=$1, updated_at=NOW() WHERE id=$2`,
+		passwordHash, id,
+	)
+	return err
+}
+
+func (r *Repository) DeleteRegistryUser(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM registry_users WHERE id = $1`, id)
+	return err
+}

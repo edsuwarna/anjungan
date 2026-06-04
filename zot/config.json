@@ -18,12 +18,16 @@
         "**": {
           "policies": [
             {
-              "users": ["admin"],
-              "actions": ["read", "create", "update", "delete"]
+              "users": ["**"],
+              "actions": ["read"]
             },
             {
               "users": ["deploy"],
               "actions": ["read", "create"]
+            },
+            {
+              "users": ["admin"],
+              "actions": ["read", "create", "update", "delete"]
             }
           ]
         }

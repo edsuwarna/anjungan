@@ -39,6 +39,21 @@
 	// ── Confirmation Modal ──────────────────────────────
 	let confirmModal = $state({ show: false, title: '', message: '', action: null, danger: false });
 
+	function registryLink(image) {
+		if (!image) return null;
+		// Only link images that have a registry host prefix (e.g. "localhost:5000/" or "registry.anjungan.io/")
+		// Docker Hub images like "nginx:latest" won't have a prefix — skip linking
+		if (!/^[^\/]+\//.test(image)) return null;
+		// Strip registry host prefix
+		const clean = image.replace(/^[^\/]+\//, '');
+		const parts = clean.split(':');
+		if (parts.length >= 2 && parts[0]) {
+			return `/registry/${encodeURIComponent(parts[0])}/${encodeURIComponent(parts[1])}`;
+		}
+		// No tag? link to repo page
+		return `/registry/${encodeURIComponent(clean)}`;
+	}
+
 	function serverColor(name) {
 		const colors = [
 			{ bg: '#10b981', label: '#059669' },
@@ -1082,7 +1097,19 @@
 										<div class="px-4 pb-2 space-y-1">
 											<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">
 												<Icon icon="solar:box-bold" class="h-3 w-3 shrink-0" style="color: var(--color-text-muted);" />
-												<span class="truncate font-mono" title={c.image}>{c.image}</span>
+												<span class="truncate font-mono" title={c.image}>
+													{#if registryLink(c.image)}
+														<button
+															class="hover:underline transition-colors"
+															style="color: var(--color-primary);"
+															onclick={() => goto(registryLink(c.image))}
+														>
+															{c.image}
+														</button>
+													{:else}
+														<span style="color: var(--color-text);">{c.image}</span>
+													{/if}
+												</span>
 											</div>
 											{#if c.ports}
 												<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">

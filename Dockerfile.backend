@@ -14,9 +14,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 # ─── Runtime stage ─────────────────────────────────────────────────────────
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tzdata openssh-client curl
+RUN apk add --no-cache ca-certificates tzdata openssh-client curl docker-cli
 
-RUN addgroup -S anjungan && adduser -S anjungan -G anjungan
+RUN addgroup -S -g 1000 anjungan && adduser -S -u 1000 -G anjungan anjungan
 
 COPY --from=builder /server /usr/local/bin/server
 COPY migrations/ /migrations/

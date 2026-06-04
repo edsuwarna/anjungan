@@ -125,10 +125,27 @@ export const api = {
 	},
 
 	registry: {
-		list: () => request('/registry/repos'),
-		listTags: (name) => request(`/registry/repos/${encodeURIComponent(name)}/tags`),
+		config: () => request('/registry/config'),
+		myCredentials: () => request('/registry/my-credentials'),
+		resetMyPassword: (data) => request('/registry/my-credentials/reset-password', { method: 'POST', body: JSON.stringify(data) }),
+		list: (params) => {
+			const q = params ? '?' + new URLSearchParams(params).toString() : '';
+			return request(`/registry/repos${q}`);
+		},
+		listTags: (name, params) => {
+			const q = params ? '?' + new URLSearchParams(params).toString() : '';
+			return request(`/registry/repos/${encodeURIComponent(name)}/tags${q}`);
+		},
 		detail: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`),
 		delete: (name, digest) => request(`/registry/repos/${encodeURIComponent(name)}/manifests/${encodeURIComponent(digest)}`, { method: 'DELETE' }),
+		deleteTag: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
+		gc: () => request('/registry/gc', { method: 'POST' }),
+		users: () => request('/registry/users'),
+		createUser: (data) => request('/registry/users', { method: 'POST', body: JSON.stringify(data) }),
+		updateUser: (id, data) => request(`/registry/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		deleteUser: (id) => request(`/registry/users/${id}`, { method: 'DELETE' }),
+		resetPassword: (id, data) => request(`/registry/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify(data) }),
+		syncHtpasswd: () => request('/registry/sync-htpasswd', { method: 'POST' }),
 	},
 
 	repositories: {
@@ -211,6 +228,7 @@ export const api = {
 			create: (data) => request('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
 			update: (id, data) => request(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 			delete: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
+			unlock: (id) => request(`/admin/users/${id}/unlock`, { method: 'POST' }),
 		},
 		alerts: {
 			list: () => request('/admin/alerts'),

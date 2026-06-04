@@ -1,16 +1,20 @@
 <script>
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 	import { api } from '$lib/api.svelte.js';
+	import { user } from '$lib/stores/auth.js';
 	import Icon from '@iconify/svelte';
-
-	let { name, tag } = $props();
+	import { page } from '$app/stores';
+	let name = $derived($page.params.name);
+	let tag = $derived($page.params.tag);
 
 	let detail = $state(null);
 	let loading = $state(true);
 	let error = $state('');
 	let activeTab = $state('info');
 	let showPassword = $state(false);
+	let deleting = $state(false);
+	let deleteConfirm = $state(false);
+	let isAdmin = $derived($user?.role === 'admin');
 
 	onMount(() => {
 		loadDetail();
@@ -26,6 +30,20 @@
 			error = e.message || 'Failed to load image details';
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function handleDelete() {
+		if (!deleteConfirm) return;
+		deleting = true;
+		try {
+			await api.registry.deleteTag(name, tag);
+			window.history.back();
+		} catch (e) {
+			error = e.message || 'Failed to delete';
+		} finally {
+			deleting = false;
+			deleteConfirm = false;
 		}
 	}
 
@@ -48,8 +66,30 @@
 		return d.length > 25 ? d.slice(0, 25) + '...' : d;
 	}
 
-	function copyToClipboard(text) {
-		navigator.clipboard?.writeText(text);
+	let copiedTarget = $state('');
+
+	async function copyToClipboard(text, target) {
+		copiedTarget = target; // Show feedback immediately (optimistic)
+		try {
+			if (navigator.clipboard?.writeText) {
+				await navigator.clipboard.writeText(text);
+			} else {
+				// Fallback for HTTP context (no HTTPS → clipboard API blocked)
+				const ta = document.createElement('textarea');
+				ta.value = text;
+				ta.style.position = 'fixed';
+				ta.style.opacity = '0';
+				document.body.appendChild(ta);
+				ta.select();
+				document.execCommand('copy');
+				document.body.removeChild(ta);
+			}
+		} catch {
+			// Clipboard write failed but feedback is already shown
+		}
+		setTimeout(() => {
+			if (copiedTarget === target) copiedTarget = '';
+		}, 2000);
 	}
 
 	const tabs = [
@@ -71,7 +111,21 @@
 		</a>
 		<Icon icon="solar:alt-arrow-right-outline" class="h-3 w-3" style="color: var(--color-text-muted);" />
 		<span class="font-medium" style="color: var(--color-text);">{name}:{tag}</span>
+		<div class="ml-auto flex items-center gap-2">
+			{#if isAdmin}
+			<button
+				class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+				style="color: var(--color-danger); border: 1px solid rgba(239,68,68,0.3);"
+				onclick={() => deleteConfirm = true}
+			>
+				<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
+				Delete Tag
+			</button>
+			{/if}
+		</div>
 	</div>
+
+	<!-- Copy tooltip removed — inline per button -->
 
 	{#if loading}
 		<div class="flex items-center justify-center py-20">
@@ -101,18 +155,24 @@
 						</div>
 						<div class="mt-1 flex items-center gap-2">
 							<code class="font-mono text-[11px]" style="color: var(--color-text-muted);">{shortDigest(detail.digest)}</code>
-							<button class="flex-shrink-0" onclick={() => copyToClipboard(detail.digest)}>
+							<button class="flex-shrink-0" onclick={() => copyToClipboard(detail.digest, 'digest')}>
 								<Icon icon="solar:copy-outline" class="h-3 w-3" style="color: var(--color-text-muted);" />
 							</button>
+							{#if copiedTarget === 'digest'}
+								<span class="text-[10px]" style="color: var(--color-success);">✓ Copied</span>
+							{/if}
 						</div>
 					</div>
 				</div>
 				<button
 					class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
 					style="background-color: var(--color-primary-subtle); color: var(--color-primary);"
-					onclick={() => copyToClipboard(pullCmd)}>
+					onclick={() => copyToClipboard(pullCmd, 'pull-cmd')}>
 					<Icon icon="solar:copy-bold" class="h-3.5 w-3.5" />
 					Copy Pull Command
+					{#if copiedTarget === 'pull-cmd'}
+						<span style="color: var(--color-success);">✓ Copied</span>
+					{/if}
 				</button>
 			</div>
 		</div>
@@ -172,9 +232,12 @@
 					<div class="rounded-lg p-3" style="background-color: var(--color-primary-subtle);">
 						<div class="flex items-center gap-2">
 							<code class="flex-1 font-mono text-xs break-all" style="color: var(--color-text);">{pullCmd}</code>
-							<button class="flex-shrink-0" onclick={() => copyToClipboard(pullCmd)}>
+							<button class="flex-shrink-0" onclick={() => copyToClipboard(pullCmd, 'pull-card')}>
 								<Icon icon="solar:copy-outline" class="h-3.5 w-3.5" style="color: var(--color-text-muted);" />
 							</button>
+							{#if copiedTarget === 'pull-card'}
+								<span class="text-[10px]" style="color: var(--color-success);">✓ Copied</span>
+							{/if}
 						</div>
 					</div>
 				</div>
@@ -367,3 +430,51 @@
 		{/if}
 	{/if}
 </div>
+
+<!-- Delete Confirmation Modal -->
+{#if deleteConfirm}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center"
+		style="background-color: rgba(0,0,0,0.6);"
+		onclick={() => deleteConfirm = false}
+	>
+		<div
+			class="mx-4 w-full max-w-md rounded-xl border shadow-2xl"
+			style="background-color: var(--color-card); border-color: var(--color-border);"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="p-5">
+				<div class="flex items-start gap-3">
+					<div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style="background-color: rgba(239,68,68,0.15);">
+						<Icon icon="solar:danger-triangle-bold" class="h-4.5 w-4.5" style="color: var(--color-danger);" />
+					</div>
+					<div class="min-w-0 flex-1">
+						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Delete Image Tag</h3>
+						<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">Are you sure you want to delete <strong>{name}:{tag}</strong>? This action is irreversible.</p>
+					</div>
+				</div>
+			</div>
+			<div class="flex items-center justify-end gap-2 rounded-b-xl border-t px-5 py-3" style="border-color: var(--color-border); background-color: var(--color-topbar-bg);">
+				<button
+					class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+					style="color: var(--color-text-secondary);"
+					onclick={() => deleteConfirm = false}
+				>Cancel</button>
+				<button
+					class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors"
+					style="background-color: var(--color-danger);"
+					onclick={handleDelete}
+					disabled={deleting}
+				>
+					{#if deleting}
+						<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
+						Deleting...
+					{:else}
+						<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
+						Delete Tag
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
