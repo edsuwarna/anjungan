@@ -42,10 +42,12 @@ func (h *Handler) Routes() chi.Router {
 		r.Post("/scan/lynis", h.TriggerLynisScan)
 		r.Post("/scan/docker", h.TriggerDockerScan)
 		r.Post("/scan/containers", h.TriggerContainerScan)
+		r.Post("/scan/containers/{containerID}", h.TriggerSingleContainerScan)
 		r.Post("/scan/check/{checkID}", h.TriggerSingleCheck)
 		r.Get("/history/categories/{category}", h.CategoryHistory)
 		r.Get("/history", h.ScanHistory)
 		r.Get("/history/{scanID}", h.ScanDetail)
+		r.Get("/containers/{containerName}/history", h.ContainerScanHistory)
 	})
 	return r
 }
@@ -578,6 +580,128 @@ func (h *Handler) TriggerContainerScan(w http.ResponseWriter, r *http.Request) {
 	}(scanResult, srv)
 }
 
+// ─── POST /compliance/{serverID}/scan/containers/{containerID} ────────────
+
+// TriggerSingleContainerScan runs a container security scan on one specific container.
+func (h *Handler) TriggerSingleContainerScan(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "serverID")
+	containerID := chi.URLParam(r, "containerID")
+
+	srv, err := h.authorizeView(r.Context(), serverID)
+	if err != nil {
+		common.Error(w, http.StatusNotFound, "server not found")
+		return
+	}
+
+	now := time.Now()
+	scanResult := &model.ScanResult{
+		ID:        uuid.New().String(),
+		ServerID:  serverID,
+		ScanType:  "Container Security",
+		Status:    "running",
+		StartedAt: &now,
+		CreatedAt: now,
+	}
+
+	if err := h.repo.CreateScanResult(r.Context(), scanResult); err != nil {
+		log.Err(err).Msg("failed to create container scan result")
+		common.Error(w, http.StatusInternalServerError, "failed to create scan result")
+		return
+	}
+
+	// Return immediately — scan runs in background
+	common.JSON(w, http.StatusAccepted, map[string]interface{}{
+		"scan_id":      scanResult.ID,
+		"status":       "running",
+		"scan_type":    "Container Security",
+		"container_id": containerID,
+	})
+
+	go func(sr *model.ScanResult, server *model.Server) {
+		ctx := context.Background()
+
+		if err := h.resolveSSHKey(ctx, server); err != nil {
+			completedAt := time.Now()
+			zero := 0
+			sr.Status = "failed"
+			sr.ErrorMessage = "SSH key error: " + err.Error()
+			sr.CompletedAt = &completedAt
+			sr.Score = &zero
+			_ = h.repo.UpdateScanResult(ctx, sr)
+			return
+		}
+
+		sshCfg, err := h.sshConfigForServer(ctx, server)
+		if err != nil {
+			completedAt := time.Now()
+			zero := 0
+			sr.Status = "failed"
+			sr.ErrorMessage = "SSH config error: " + err.Error()
+			sr.CompletedAt = &completedAt
+			sr.Score = &zero
+			_ = h.repo.UpdateScanResult(ctx, sr)
+			return
+		}
+
+		ctxTimeout, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+
+		scanner := NewContainerScanner()
+		result, err := scanner.ScanSingleContainer(ctxTimeout, sshCfg, containerID)
+		if err != nil {
+			completedAt := time.Now()
+			zero := 0
+			sr.Status = "failed"
+			sr.ErrorMessage = "Container scan error: " + err.Error()
+			sr.CompletedAt = &completedAt
+			sr.Score = &zero
+			_ = h.repo.UpdateScanResult(ctx, sr)
+			return
+		}
+
+		completedAt := time.Now()
+		score := result.Score
+		sr.Status = "completed"
+		sr.Score = &score
+		sr.TotalChecks = len(result.Findings)
+		criticalCount := 0
+		for _, f := range result.Findings {
+			if f.Status == "fail" && (f.Severity == "critical" || f.Severity == "high") {
+				criticalCount++
+			}
+		}
+		sr.Criticals = criticalCount
+		sr.CompletedAt = &completedAt
+
+		if err := h.repo.UpdateScanResult(ctx, sr); err != nil {
+			log.Err(err).Str("scan_id", sr.ID).Msg("failed to update scan result")
+		}
+
+		// Save findings
+		var findings []model.ScanFinding
+		now := time.Now()
+		for _, f := range result.Findings {
+			findings = append(findings, model.ScanFinding{
+				ID:          uuid.New().String(),
+				ScanID:      sr.ID,
+				CheckID:     f.CheckID,
+				Category:    result.ContainerName,
+				Severity:    f.Severity,
+				Title:       result.ContainerName + ": " + f.Title,
+				Description: f.Description,
+				Remediation: f.Remediation,
+				Status:      f.Status,
+				CreatedAt:   now,
+			})
+		}
+		if len(findings) > 0 {
+			if err := h.repo.CreateScanFindings(ctx, findings); err != nil {
+				log.Warn().Err(err).Str("scan_id", sr.ID).Msg("failed to save findings")
+			}
+		}
+	}(scanResult, srv)
+}
+
 // ─── POST /compliance/{serverID}/scan/check/{checkID} ─────────────────────
 
 func (h *Handler) TriggerSingleCheck(w http.ResponseWriter, r *http.Request) {
@@ -758,6 +882,30 @@ func (h *Handler) CategoryHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.JSON(w, http.StatusOK, result)
+}
+
+// ─── GET /compliance/{serverID}/containers/{containerName}/history ───────────
+
+func (h *Handler) ContainerScanHistory(w http.ResponseWriter, r *http.Request) {
+	serverID := chi.URLParam(r, "serverID")
+	containerName := chi.URLParam(r, "containerName")
+
+	_, err := h.authorizeView(r.Context(), serverID)
+	if err != nil {
+		common.Error(w, http.StatusNotFound, "server not found")
+		return
+	}
+
+	history, err := h.repo.GetContainerScanHistory(r.Context(), serverID, containerName)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to get container scan history")
+		return
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"results": history,
+		"container_name": containerName,
+	})
 }
 
 // ─── EOF ──────────────────────────────────────────────────────────────────

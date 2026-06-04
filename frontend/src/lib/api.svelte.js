@@ -116,6 +116,7 @@ export const api = {
 		byServer: () => request('/containers/by-server'),
 		globalStats: () => request('/containers/stats'),
 		get: (id, serverId) => request(`/containers/${id}${serverId ? '?server_id=' + serverId : ''}`),
+		security: (id, serverId) => request(`/containers/${id}/security?server_id=${serverId}`),
 		start: (id, serverId) => request(`/containers/${id}/start?server_id=${serverId}`, { method: 'POST' }),
 		stop: (id, serverId) => request(`/containers/${id}/stop?server_id=${serverId}`, { method: 'POST' }),
 		restart: (id, serverId) => request(`/containers/${id}/restart?server_id=${serverId}`, { method: 'POST' }),
@@ -185,6 +186,10 @@ export const api = {
 			request(`/compliance/${serverId}/scan/docker`, { method: 'POST' }),
 		scanContainers: (serverId) =>
 			request(`/compliance/${serverId}/scan/containers`, { method: 'POST' }),
+		scanContainer: (serverId, containerId) =>
+			request(`/compliance/${serverId}/scan/containers/${containerId}`, { method: 'POST' }),
+		containerScanHistory: (serverId, containerName) =>
+			request(`/compliance/${serverId}/containers/${encodeURIComponent(containerName)}/history`),
 		history: (serverId, params = {}) => {
 			const qs = new URLSearchParams();
 			if (params.page) qs.set('page', params.page);

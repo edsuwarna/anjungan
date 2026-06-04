@@ -1314,6 +1314,180 @@ func (r *Repository) GetCategoryBreakdowns(ctx context.Context, scanID string) (
 	return breakdowns, nil
 }
 
+// ─── Container Security Repository ─────────────────────────────────────────
+
+// ContainerSecurityData holds per-container security results from scan findings.
+type ContainerSecurityData struct {
+	ContainerName string           `json:"container_name"`
+	Score         int              `json:"score"`
+	Findings      []model.ScanFinding `json:"findings"`
+	Badges        []string         `json:"badges"`
+	ScannedAt     *time.Time       `json:"scanned_at"`
+}
+
+// GetContainerSecurityByServer returns the latest Container Security scan findings
+// grouped by container name for a given server.
+func (r *Repository) GetContainerSecurityByServer(ctx context.Context, serverID string) (map[string]*ContainerSecurityData, error) {
+	result := make(map[string]*ContainerSecurityData)
+
+	// Get latest Container Security scan
+	scan, err := r.GetLatestScanResultByType(ctx, serverID, "Container Security")
+	if err != nil {
+		// No scan found — return empty map, not an error
+		return result, nil
+	}
+	if scan == nil || scan.Status != "completed" {
+		return result, nil
+	}
+
+	// Get all findings for this scan
+	findings, err := r.GetFindingsByScanID(ctx, scan.ID)
+	if err != nil {
+		return result, nil
+	}
+
+	// Group findings by category (container name)
+	containerFindings := make(map[string][]model.ScanFinding)
+	for _, f := range findings {
+		name := f.Category
+		if name == "" {
+			continue
+		}
+		containerFindings[name] = append(containerFindings[name], f)
+	}
+
+	// Compute scores per container
+	for name, f := range containerFindings {
+		score := 100
+		var badges []string
+		for _, ff := range f {
+			if ff.Status == "fail" {
+				switch ff.Severity {
+				case "critical":
+					score -= 25
+				case "high":
+					score -= 15
+				case "medium":
+					score -= 10
+				case "low":
+					score -= 5
+				}
+			}
+		}
+		if score < 0 {
+			score = 0
+		}
+
+		// Generate badges from findings
+		for _, ff := range f {
+			if ff.Status == "fail" {
+				switch ff.CheckID {
+				case "ctr_01":
+					badges = append(badges, "🔓 privileged")
+				case "ctr_02":
+					badges = append(badges, "🔓 root user")
+				case "ctr_03":
+					badges = append(badges, "🌐 host net")
+				case "ctr_04":
+					badges = append(badges, "🔓 ports")
+				case "ctr_05":
+					badges = append(badges, "🛡️ no seccomp")
+				case "ctr_06":
+					badges = append(badges, "📁 writable")
+				case "ctr_07":
+					if ff.Severity == "high" || ff.Severity == "critical" {
+						badges = append(badges, "🔓 caps")
+					}
+				case "ctr_08":
+					badges = append(badges, "🏥 no healthcheck")
+				case "ctr_09":
+					badges = append(badges, "📁 bind mounts")
+				case "ctr_10":
+					badges = append(badges, "💾 no limits")
+				}
+			} else if ff.Status == "pass" {
+				switch ff.CheckID {
+				case "ctr_01":
+					badges = append(badges, "🔒 unprivileged")
+				case "ctr_02":
+					badges = append(badges, "📦 non-root")
+				case "ctr_05":
+					badges = append(badges, "🛡️ seccomp")
+				case "ctr_06":
+					badges = append(badges, "📁 read-only")
+				case "ctr_07":
+					badges = append(badges, "🔒 caps dropped")
+				case "ctr_10":
+					badges = append(badges, "💾 limits")
+				}
+			}
+		}
+
+		// Deduplicate badges
+		seen := make(map[string]bool)
+		var uniqueBadges []string
+		for _, b := range badges {
+			if !seen[b] {
+				seen[b] = true
+				uniqueBadges = append(uniqueBadges, b)
+			}
+		}
+
+		result[name] = &ContainerSecurityData{
+			ContainerName: name,
+			Score:         score,
+			Findings:      f,
+			Badges:        uniqueBadges,
+			ScannedAt:     scan.CompletedAt,
+		}
+	}
+
+	return result, nil
+}
+
+// GetContainerScanHistory returns scan history entries for a specific container
+// by finding all Container Security scans that have findings with the given category (container name).
+func (r *Repository) GetContainerScanHistory(ctx context.Context, serverID, containerName string) ([]model.ContainerScanHistoryItem, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT sr.id, sr.score,
+			COUNT(sf.id) AS total,
+			COUNT(sf.id) FILTER (WHERE sf.status = 'fail') AS failed,
+			COUNT(sf.id) FILTER (WHERE sf.status = 'pass') AS passed,
+			COUNT(sf.id) FILTER (WHERE sf.severity = 'critical') AS criticals,
+			COUNT(sf.id) FILTER (WHERE sf.severity = 'high') AS high,
+			COUNT(sf.id) FILTER (WHERE sf.severity = 'medium') AS medium,
+			COUNT(sf.id) FILTER (WHERE sf.severity = 'low') AS low,
+			sr.completed_at, sr.created_at
+		 FROM scan_results sr
+		 INNER JOIN scan_findings sf ON sf.scan_id = sr.id AND sf.category = $2
+		 WHERE sr.server_id = $1 AND sr.scan_type = 'Container Security'
+		 GROUP BY sr.id
+		 ORDER BY sr.created_at DESC
+		 LIMIT 20`,
+		serverID, containerName,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []model.ContainerScanHistoryItem
+	for rows.Next() {
+		var item model.ContainerScanHistoryItem
+		if err := rows.Scan(&item.ScanID, &item.Score,
+			&item.Total, &item.Failed, &item.Passed,
+			&item.Criticals, &item.High, &item.Medium, &item.Low,
+			&item.CompletedAt, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if items == nil {
+		items = []model.ContainerScanHistoryItem{}
+	}
+	return items, nil
+}
+
 // GetCategoryHistory returns per-category history across scans for a server.
 func (r *Repository) GetCategoryHistory(ctx context.Context, serverID, category string, limit int) (*model.CategoryHistoryResponse, error) {
 	if limit < 1 {

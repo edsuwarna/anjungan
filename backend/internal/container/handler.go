@@ -39,6 +39,16 @@ type ContainerInfo struct {
 	ServerID string `json:"server_id"`
 	ServerName string `json:"server_name"`
 	ServerHost string `json:"server_host"`
+	// Security scan info (populated from latest Container Security scan)
+	Security *ContainerSecurity `json:"security,omitempty"`
+}
+
+// ContainerSecurity holds per-container security data from the latest scan.
+type ContainerSecurity struct {
+	Score     int                   `json:"score"`
+	Badges    []string              `json:"badges"`
+	Findings  []model.ScanFinding   `json:"findings"`
+	ScannedAt *time.Time            `json:"scanned_at"`
 }
 
 type ContainerStats struct {
@@ -144,6 +154,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/", h.List)
 	r.Get("/by-server", h.ByServer)
 	r.Get("/{id}", h.Get)
+	r.Get("/{id}/security", h.GetSecurity)
 	r.Post("/{id}/start", h.Start)
 	r.Post("/{id}/stop", h.Stop)
 	r.Post("/{id}/restart", h.Restart)
@@ -271,6 +282,10 @@ func (h *Handler) ByServer(w http.ResponseWriter, r *http.Request) {
 				c.ServerID = srv.ID
 				c.ServerName = srv.Name
 				c.ServerHost = srv.Host
+
+				// Attach security data if available
+				c.Security = h.attachContainerSecurity(r.Context(), srv.ID, c.Name)
+
 				ctrs = append(ctrs, c)
 			}
 			results <- serverResult{server: srv, containers: ctrs, hasDocker: true}
@@ -343,6 +358,30 @@ func (h *Handler) ByServer(w http.ResponseWriter, r *http.Request) {
 			ServersWithDocker: serverCount,
 		},
 	})
+}
+
+// attachContainerSecurity looks up the latest Container Security scan findings
+// for a container on a given server by name, and returns a ContainerSecurity summary.
+func (h *Handler) attachContainerSecurity(ctx context.Context, serverID, containerName string) *ContainerSecurity {
+	// Normalize: strip leading / from container names
+	name := strings.TrimPrefix(containerName, "/")
+
+	secData, err := h.repo.GetContainerSecurityByServer(ctx, serverID)
+	if err != nil || secData == nil {
+		return nil
+	}
+
+	data, ok := secData[name]
+	if !ok || data == nil {
+		return nil
+	}
+
+	return &ContainerSecurity{
+		Score:     data.Score,
+		Badges:    data.Badges,
+		Findings:  data.Findings,
+		ScannedAt: data.ScannedAt,
+	}
 }
 
 // ─── Single Container Stats ───────────────────────────────────────────────────
@@ -711,4 +750,83 @@ func (h *Handler) Logs(w http.ResponseWriter, r *http.Request) {
 	common.JSON(w, http.StatusOK, map[string]interface{}{
 		"logs": out,
 	})
+}
+
+// ─── Get Container Security Report ──────────────────────────────────────────
+
+// GetSecurity returns container info + server info + security data for the security report page.
+func (h *Handler) GetSecurity(w http.ResponseWriter, r *http.Request) {
+	containerID := chi.URLParam(r, "id")
+	serverID := r.URL.Query().Get("server_id")
+
+	srv, err := h.resolveServer(r.Context(), containerID, serverID)
+	if err != nil {
+		common.Error(w, http.StatusNotFound, "container not found")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	// Get container info via docker ps
+	out, err := h.runDockerSSH(ctx, srv, fmt.Sprintf(
+		`docker ps -a --filter id=%s --format '{"id":"{{.ID}}","name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}","created":"{{.CreatedAt}}"}'`,
+		containerID,
+	))
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to get container info: "+err.Error())
+		return
+	}
+
+	line := strings.TrimSpace(out)
+	if line == "" {
+		common.Error(w, http.StatusNotFound, "container not found on server")
+		return
+	}
+
+	var c struct {
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Image   string `json:"image"`
+		Status  string `json:"status"`
+		State   string `json:"state"`
+		Ports   string `json:"ports"`
+		Created string `json:"created"`
+	}
+	if err := json.Unmarshal([]byte(line), &c); err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to parse container info")
+		return
+	}
+
+	// Attach security data
+	sec := h.attachContainerSecurity(r.Context(), srv.ID, c.Name)
+
+	resp := model.ContainerSecurityResponse{
+		Container: model.ContainerSecurityContainer{
+			ID:      c.ID,
+			Name:    c.Name,
+			Image:   c.Image,
+			Status:  c.Status,
+			State:   c.State,
+			Ports:   c.Ports,
+			Created: c.Created,
+		},
+		Server: model.ContainerSecurityServer{
+			ID:   srv.ID,
+			Name: srv.Name,
+			Host: srv.Host,
+			Port: srv.Port,
+		},
+	}
+
+	if sec != nil {
+		resp.Security = &model.SecuritySummary{
+			Score:     sec.Score,
+			Badges:    sec.Badges,
+			Findings:  sec.Findings,
+			ScannedAt: sec.ScannedAt,
+		}
+	}
+
+	common.JSON(w, http.StatusOK, resp)
 }

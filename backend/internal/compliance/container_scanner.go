@@ -258,6 +258,35 @@ func (cs *ContainerScanner) scanContainer(ctx context.Context, sshCfg sshtool.Co
 	}, nil
 }
 
+// ScanSingleContainer runs container security checks on a single container
+// identified by containerID on the target server via SSH.
+func (cs *ContainerScanner) ScanSingleContainer(ctx context.Context, sshCfg sshtool.Config, containerID string) (ContainerSecurityResult, error) {
+	// Get container info
+	infoCmd := fmt.Sprintf(`docker inspect '%s' --format '{{.Name}}|{{.Config.Image}}|{{.Status}}|{{.State.Status}}' 2>/dev/null || echo "not-found"`, containerID)
+	raw, err := sshtool.RunCommand(ctx, sshCfg, infoCmd)
+	if err != nil {
+		return ContainerSecurityResult{}, fmt.Errorf("get container info: %w", err)
+	}
+
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "not-found" || trimmed == "" {
+		return ContainerSecurityResult{}, fmt.Errorf("container %s not found on server", containerID)
+	}
+
+	parts := strings.SplitN(trimmed, "|", 4)
+	containerName := strings.TrimPrefix(strings.TrimSpace(parts[0]), "/")
+	image := ""
+	status := ""
+	if len(parts) > 1 {
+		image = strings.TrimSpace(parts[1])
+	}
+	if len(parts) > 2 {
+		status = strings.TrimSpace(parts[2])
+	}
+
+	return cs.scanContainer(ctx, sshCfg, containerID, containerName, image, status)
+}
+
 // ─── Individual check implementations ────────────────────────────────────
 
 func checkPrivileged(hostConfig map[string]interface{}) ContainerFinding {
