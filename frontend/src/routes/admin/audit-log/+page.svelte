@@ -15,6 +15,26 @@
 	let startDate = $state('');
 	let endDate = $state('');
 
+	// Sort / order
+	let sortColumn = $state('created_at');
+	let sortOrder = $state('desc');
+
+	function toggleSort(col) {
+		if (sortColumn === col) {
+			sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+		} else {
+			sortColumn = col;
+			sortOrder = 'desc';
+		}
+		page = 1;
+		loadLogs();
+	}
+
+	function sortIcon(col) {
+		if (sortColumn !== col) return 'solar:arrow-up-wide-narrow-linear';
+		return sortOrder === 'desc' ? 'solar:sort-from-top-bold' : 'solar:sort-from-bottom-bold';
+	}
+
 	// Filter options
 	let actionOptions = $state([]);
 	let entityOptions = $state([]);
@@ -55,6 +75,8 @@
 				search: searchQuery || undefined,
 				start_date: startDate || undefined,
 				end_date: endDate || undefined,
+				sort: sortColumn,
+				order: sortOrder,
 			});
 			entries = result || [];
 			if (result && result._meta) {
@@ -308,12 +330,42 @@
 				<thead>
 					<tr>
 						<th class="w-8"></th>
-						<th>Action</th>
-						<th class="hidden lg:table-cell">Entity</th>
-						<th>Description</th>
-						<th class="hidden md:table-cell">User</th>
-						<th class="hidden lg:table-cell">IP</th>
-						<th class="hidden md:table-cell">Time</th>
+						<th class="hidden md:table-cell" style="cursor: pointer;" onclick={() => toggleSort('created_at')}>
+							<div class="flex items-center gap-1">
+								Time
+								<Icon icon={sortIcon('created_at')} class="h-3 w-3" />
+							</div>
+						</th>
+						<th style="cursor: pointer;" onclick={() => toggleSort('action')}>
+							<div class="flex items-center gap-1">
+								Action
+								<Icon icon={sortIcon('action')} class="h-3 w-3" />
+							</div>
+						</th>
+						<th class="hidden lg:table-cell" style="cursor: pointer;" onclick={() => toggleSort('entity_type')}>
+							<div class="flex items-center gap-1">
+								Entity
+								<Icon icon={sortIcon('entity_type')} class="h-3 w-3" />
+							</div>
+						</th>
+						<th style="cursor: pointer;" onclick={() => toggleSort('description')}>
+							<div class="flex items-center gap-1">
+								Description
+								<Icon icon={sortIcon('description')} class="h-3 w-3" />
+							</div>
+						</th>
+						<th class="hidden md:table-cell" style="cursor: pointer;" onclick={() => toggleSort('user_email')}>
+							<div class="flex items-center gap-1">
+								User
+								<Icon icon={sortIcon('user_email')} class="h-3 w-3" />
+							</div>
+						</th>
+						<th class="hidden lg:table-cell" style="cursor: pointer;" onclick={() => toggleSort('ip_address')}>
+							<div class="flex items-center gap-1">
+								IP
+								<Icon icon={sortIcon('ip_address')} class="h-3 w-3" />
+							</div>
+						</th>
 						<th class="w-10"></th>
 					</tr>
 				</thead>
@@ -323,6 +375,9 @@
 							style={expandedRow === entry.id ? `background-color: rgba(16, 185, 129, 0.05); border-bottom-color: transparent;` : ''}>
 								<td>
 									<Icon icon={actionIcon(entry.action)} class="h-4 w-4" style="color: {actionColor(entry.action)};" />
+								</td>
+								<td class="hidden text-sm md:table-cell whitespace-nowrap" style="color: var(--color-text-muted);">
+									{formatTime(entry.created_at)}
 								</td>
 								<td>
 									<span class="code-inline">{entry.action}</span>
@@ -350,9 +405,6 @@
 								</td>
 								<td class="hidden font-mono text-xs lg:table-cell" style="color: var(--color-text-muted);">
 									{entry.ip_address || '-'}
-								</td>
-								<td class="hidden text-sm md:table-cell" style="color: var(--color-text-muted);">
-									{formatTime(entry.created_at)}
 								</td>
 								<td>
 									<button class="btn-icon h-7 w-7" onclick={(e) => { e.stopPropagation(); toggleRow(entry.id); }}>

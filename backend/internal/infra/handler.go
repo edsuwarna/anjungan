@@ -1366,6 +1366,16 @@ func (h *Handler) ContainerExec(w http.ResponseWriter, r *http.Request) {
 		common.Error(w, http.StatusInternalServerError, "SSH config error")
 		return
 	}
+
+	// Resolve container name for audit log
+	containerName := container
+	nameCmd := fmt.Sprintf("docker ps --filter id=%s --format '{{.Names}}'", container)
+	if nameOut, nameErr := sshtool.RunCommand(ctx, sshCfg, nameCmd); nameErr == nil {
+		if n := strings.TrimSpace(nameOut); n != "" {
+			containerName = n
+		}
+	}
+
 	cmd := fmt.Sprintf("docker exec %s %s", container, req.Command)
 	out, err := sshtool.RunCommand(ctx, sshCfg, cmd)
 	if err != nil {
@@ -1375,12 +1385,14 @@ func (h *Handler) ContainerExec(w http.ResponseWriter, r *http.Request) {
 	// Audit log
 	if claims := auth.GetClaims(r.Context()); claims != nil {
 		meta, _ := json.Marshal(map[string]string{
-			"container_name": container,
+			"container_id":   container,
+			"container_name": containerName,
+			"server_id":      id,
 			"command":        req.Command,
 		})
 		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
-			"container.exec", "container", container,
-			fmt.Sprintf("Executed command in container %s on %s", container, id),
+			"container.exec", "container", containerName,
+			fmt.Sprintf("Executed command in container %s on %s", containerName, srv.Name),
 			json.RawMessage(meta))
 	}
 	common.JSON(w, http.StatusOK, map[string]interface{}{
@@ -1504,6 +1516,28 @@ func (h *Handler) ContainerExecWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg.Timeout = 10 * time.Second
+
+	// Resolve container name for audit log
+	containerName := container
+	if nameOut, nameErr := sshtool.RunCommand(ctx, cfg, fmt.Sprintf("docker ps --filter id=%s --format '{{.Names}}'", container)); nameErr == nil {
+		if n := strings.TrimSpace(nameOut); n != "" {
+			containerName = n
+		}
+	}
+
+	// Audit log — call before entering interactive session
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		meta, _ := json.Marshal(map[string]string{
+			"container_id":   container,
+			"container_name": containerName,
+			"server_id":      id,
+			"server_name":    srv.Name,
+		})
+		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+			"container.exec", "container", containerName,
+			fmt.Sprintf("Opened interactive terminal in container %s on %s", containerName, srv.Name),
+			json.RawMessage(meta))
+	}
 
 	// Detect available shell inside container
 	shell := sshtool.DetectContainerShell(ctx, cfg, container)

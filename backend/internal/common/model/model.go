@@ -252,6 +252,8 @@ type AuditLogQuery struct {
 	EntityType string  `json:"entity_type"`
 	UserID     string  `json:"user_id"`
 	Search     string  `json:"search"`
+	Sort       string  `json:"sort"`
+	Order      string  `json:"order"`
 	StartDate  *string `json:"start_date,omitempty"`
 	EndDate    *string `json:"end_date,omitempty"`
 }
@@ -414,6 +416,52 @@ type CategoryHistoryResponse struct {
 	Results    []CategoryHistoryItem `json:"results"`
 	Total      int                   `json:"total"`
 	Category   string                `json:"category"`
+}
+
+// ContainerScanHistoryItem is a single scan entry in per-container scan history.
+type ContainerScanHistoryItem struct {
+	ScanID     string     `json:"scan_id"`
+	Score      int        `json:"score"`
+	Total      int        `json:"total"`
+	Failed     int        `json:"failed"`
+	Passed     int        `json:"passed"`
+	Criticals  int        `json:"criticals"`
+	High       int        `json:"high"`
+	Medium     int        `json:"medium"`
+	Low        int        `json:"low"`
+	CompletedAt *time.Time `json:"completed_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// ContainerSecurityResponse wraps container info + server info + security data for the security report page.
+type ContainerSecurityResponse struct {
+	Container ContainerSecurityContainer `json:"container"`
+	Server    ContainerSecurityServer    `json:"server"`
+	Security  *SecuritySummary           `json:"security,omitempty"`
+}
+
+type ContainerSecurityContainer struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Image  string `json:"image"`
+	Status string `json:"status"`
+	State  string `json:"state"`
+	Ports  string `json:"ports"`
+	Created string `json:"created"`
+}
+
+type ContainerSecurityServer struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
+
+type SecuritySummary struct {
+	Score     int           `json:"score"`
+	Badges    []string      `json:"badges"`
+	Findings  []ScanFinding `json:"findings"`
+	ScannedAt *time.Time    `json:"scanned_at"`
 }
 
 const (

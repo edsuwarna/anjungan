@@ -49,6 +49,7 @@ const (
 	ProfileCISLevel1 ScanProfile = 1
 	ProfileCISLevel2 ScanProfile = 2
 	ProfileAll       ScanProfile = 0
+	ProfileDocker    ScanProfile = 3
 )
 
 // String returns the human-readable profile name.
@@ -58,6 +59,8 @@ func (p ScanProfile) String() string {
 		return "CIS Level 1"
 	case ProfileCISLevel2:
 		return "CIS Level 2"
+	case ProfileDocker:
+		return "CIS Docker"
 	case ProfileAll:
 		return "All Checks"
 	default:

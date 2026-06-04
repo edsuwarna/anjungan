@@ -29,3 +29,6 @@ frontend/.svelte-kit/
 
 # ─── SSH keys (generated at runtime) ───────────────────────────────────────
 /data/ssh/
+
+# ─── Mockups / Design assets ──────────────────────────────────────
+mockups/

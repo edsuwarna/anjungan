@@ -116,6 +116,7 @@ export const api = {
 		byServer: () => request('/containers/by-server'),
 		globalStats: () => request('/containers/stats'),
 		get: (id, serverId) => request(`/containers/${id}${serverId ? '?server_id=' + serverId : ''}`),
+		security: (id, serverId) => request(`/containers/${id}/security?server_id=${serverId}`),
 		start: (id, serverId) => request(`/containers/${id}/start?server_id=${serverId}`, { method: 'POST' }),
 		stop: (id, serverId) => request(`/containers/${id}/stop?server_id=${serverId}`, { method: 'POST' }),
 		restart: (id, serverId) => request(`/containers/${id}/restart?server_id=${serverId}`, { method: 'POST' }),
@@ -181,6 +182,14 @@ export const api = {
 			request(`/compliance/${serverId}/scan/check/${checkId}`, { method: 'POST' }),
 		scanLynis: (serverId) =>
 			request(`/compliance/${serverId}/scan/lynis`, { method: 'POST' }),
+		scanDocker: (serverId) =>
+			request(`/compliance/${serverId}/scan/docker`, { method: 'POST' }),
+		scanContainers: (serverId) =>
+			request(`/compliance/${serverId}/scan/containers`, { method: 'POST' }),
+		scanContainer: (serverId, containerId) =>
+			request(`/compliance/${serverId}/scan/containers/${containerId}`, { method: 'POST' }),
+		containerScanHistory: (serverId, containerName) =>
+			request(`/compliance/${serverId}/containers/${encodeURIComponent(containerName)}/history`),
 		history: (serverId, params = {}) => {
 			const qs = new URLSearchParams();
 			if (params.page) qs.set('page', params.page);
@@ -216,6 +225,8 @@ export const api = {
 				if (params.search) qs.set('search', params.search);
 				if (params.start_date) qs.set('start_date', params.start_date);
 				if (params.end_date) qs.set('end_date', params.end_date);
+				if (params.sort) qs.set('sort', params.sort);
+				if (params.order) qs.set('order', params.order);
 				const q = qs.toString();
 				return request(`/admin/audit-log${q ? '?' + q : ''}`);
 			},

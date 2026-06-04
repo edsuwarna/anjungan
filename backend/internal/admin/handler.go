@@ -355,6 +355,8 @@ func (h *Handler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 		EntityType: r.URL.Query().Get("entity_type"),
 		UserID:     r.URL.Query().Get("user_id"),
 		Search:     r.URL.Query().Get("search"),
+		Sort:       r.URL.Query().Get("sort"),
+		Order:      r.URL.Query().Get("order"),
 	}
 
 	if sd := r.URL.Query().Get("start_date"); sd != "" {
@@ -404,6 +406,8 @@ func (h *Handler) ExportAuditLogs(w http.ResponseWriter, r *http.Request) {
 		EntityType: r.URL.Query().Get("entity_type"),
 		UserID:     r.URL.Query().Get("user_id"),
 		Search:     r.URL.Query().Get("search"),
+		Sort:       r.URL.Query().Get("sort"),
+		Order:      r.URL.Query().Get("order"),
 	}
 	if sd := r.URL.Query().Get("start_date"); sd != "" {
 		q.StartDate = &sd
