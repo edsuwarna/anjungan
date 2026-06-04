@@ -635,6 +635,15 @@ func (h *Handler) performAction(w http.ResponseWriter, r *http.Request, action s
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	// Get container name for audit log
+	containerName := containerID
+	nameCmd := fmt.Sprintf("docker ps --filter id=%s --format '{{.Names}}'", containerID)
+	if nameOut, nameErr := h.runDockerSSH(ctx, srv, nameCmd); nameErr == nil {
+		if n := strings.TrimSpace(nameOut); n != "" {
+			containerName = n
+		}
+	}
+
 	out, err := h.runDockerSSH(ctx, srv, fmt.Sprintf("docker %s %s", action, containerID))
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to "+action+" container: "+err.Error())
@@ -644,13 +653,14 @@ func (h *Handler) performAction(w http.ResponseWriter, r *http.Request, action s
 	// Audit log
 	if claims := auth.GetClaims(r.Context()); claims != nil {
 		meta, _ := json.Marshal(map[string]string{
-			"container_id": containerID,
-			"server_id":    srv.ID,
-			"server_name":  srv.Name,
+			"container_id":   containerID,
+			"container_name": containerName,
+			"server_id":      srv.ID,
+			"server_name":    srv.Name,
 		})
 		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
 			"container."+action, "container", containerID,
-			fmt.Sprintf("%s container %s on %s", action, containerID[:12], srv.Name),
+			fmt.Sprintf("%s container %s on %s", action, containerName, srv.Name),
 			json.RawMessage(meta))
 	}
 

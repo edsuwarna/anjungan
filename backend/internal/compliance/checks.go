@@ -14,8 +14,3 @@ func DefaultChecks() []CheckDefinition {
 	all = append(all, DockerChecks()...)
 	return all
 }
-
-// DockerChecks returns the existing Docker-related CIS checks.
-func DockerChecks() []CheckDefinition {
-	return nil
-}

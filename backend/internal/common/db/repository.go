@@ -921,12 +921,32 @@ func (r *Repository) ListAuditLogs(ctx context.Context, q model.AuditLogQuery) (
 	}
 	offset := (page - 1) * limit
 
+	// Dynamic sort/order
+	sortCol := "a.created_at"
+	if q.Sort == "action" {
+		sortCol = "LOWER(a.action)"
+	} else if q.Sort == "entity_type" {
+		sortCol = "LOWER(a.entity_type)"
+	} else if q.Sort == "user_email" {
+		sortCol = "LOWER(a.user_email)"
+	} else if q.Sort == "description" {
+		sortCol = "LOWER(a.description)"
+	} else if q.Sort == "ip_address" {
+		sortCol = "LOWER(a.ip_address)"
+	} else if q.Sort == "created_at" {
+		sortCol = "a.created_at"
+	}
+	orderDir := "DESC"
+	if q.Order == "asc" {
+		orderDir = "ASC"
+	}
+
 	dataQuery := fmt.Sprintf(
 		`SELECT a.id, a.action, a.entity_type, COALESCE(a.entity_id, ''), a.description,
 		 COALESCE(a.user_id::text, ''), COALESCE(a.user_email, ''), COALESCE(a.ip_address, ''),
 		 COALESCE(a.metadata, '{}'), a.created_at
-		 FROM audit_logs a %s ORDER BY a.created_at DESC LIMIT $%d OFFSET $%d`,
-		whereClause, argIdx, argIdx+1,
+		 FROM audit_logs a %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		whereClause, sortCol, orderDir, argIdx, argIdx+1,
 	)
 	args = append(args, limit, offset)
 

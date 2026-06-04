@@ -7,6 +7,7 @@ import { goto } from '$app/navigation';
 const scanProfilePages = {
 	cis_l1: '/compliance/cis-level-1',
 	cis_l2: '/compliance/cis-level-2',
+	cis_docker: '/compliance/cis-docker',
 	lynis: '/compliance/lynis',
 };
 
@@ -257,12 +258,12 @@ const scanProfilePages = {
 			</div>
 		</div>
 
-		<!-- BENCHMARK CARDS — sesuai mockup -->
-		<div class="flex items-center gap-2 mb-3">
-			<h3 class="text-sm font-semibold" style="color: var(--color-text);">Benchmarks</h3>
-			<span class="text-xs" style="color: var(--color-text-muted);">Aggregate scores across all scanned targets</span>
-		</div>
-		<div class="grid gap-3 grid-cols-1 md:grid-cols-3 mb-6">
+<!-- BENCHMARK CARDS — sesuai mockup -->
+			<div class="flex items-center gap-2 mb-3">
+				<h3 class="text-sm font-semibold" style="color: var(--color-text);">Benchmarks</h3>
+				<span class="text-xs" style="color: var(--color-text-muted);">Aggregate scores across all scanned targets</span>
+			</div>
+			<div class="grid gap-3 grid-cols-1 md:grid-cols-4 mb-6">
 			<!-- CIS L1 Card → clickable to detail page -->
 			<div class="card !p-4 clickable-card" style="border-left: 3px solid var(--color-success);"
 				role="button" tabindex="0"
@@ -363,13 +364,49 @@ const scanProfilePages = {
 				</div>
 				<div class="progress-track">
 					<div class="progress-fill" style="width: 72%; background: var(--color-accent);"></div>
-				</div>
+			</div>
 			<div class="flex items-center justify-between mt-2">
-					<span class="text-[11px]" style="color: var(--color-text-muted);">12 categories · {scannedCount} server{scannedCount !== 1 ? 's' : ''}</span>
-					<Icon icon="solar:alt-arrow-right-bold" class="h-3.5 w-3.5" style="color: var(--color-text-muted);" />
-				</div>
+				<span class="text-[11px]" style="color: var(--color-text-muted);">12 categories · {scannedCount} server{scannedCount !== 1 ? 's' : ''}</span>
+				<Icon icon="solar:alt-arrow-right-bold" class="h-3.5 w-3.5" style="color: var(--color-text-muted);" />
 			</div>
 		</div>
+
+		<!-- CIS Docker Card -->
+		<div class="card !p-4 clickable-card" style="border-left: 3px solid #06b6d4;"
+			role="button" tabindex="0"
+			onclick={() => goto('/compliance/cis-docker')}
+			onkeydown={(e) => e.key === 'Enter' && goto('/compliance/cis-docker')}>
+			<div class="flex items-center justify-between mb-3">
+				<div class="flex items-center gap-2.5">
+					<div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm" style="background: rgba(6,182,212,0.12);">
+						<Icon icon="solar:box-bold" class="h-5 w-5" style="color: #06b6d4;" />
+					</div>
+					<div>
+						<div class="text-sm font-semibold" style="color: var(--color-text);">CIS Docker</div>
+						<div class="text-xs" style="color: var(--color-text-muted);">Docker host security</div>
+					</div>
+				</div>
+				<div class="text-right">
+					<div class="text-lg font-bold" style="color: #06b6d4;">{scannedCount > 0 ? profileScore : '—'}{scannedCount > 0 ? '%' : ''}</div>
+					<div class="text-[10px]" style="color: var(--color-text-muted);">avg score</div>
+				</div>
+			</div>
+			<div class="flex items-center gap-2 text-xs mb-2" style="color: var(--color-text-muted);">
+				<span><strong style="color: var(--color-text);">{checkStats.total}</strong> checks</span>
+				<span>·</span>
+				<span><strong style="color: var(--color-success);">0</strong> pass</span>
+				<span><strong style="color: var(--color-warning);">0</strong> warn</span>
+				<span><strong style="color: var(--color-danger);">0</strong> fail</span>
+			</div>
+			<div class="progress-track">
+				<div class="progress-fill" style="width: 0%; background: #06b6d4;"></div>
+			</div>
+			<div class="flex items-center justify-between mt-2">
+				<span class="text-[11px]" style="color: var(--color-text-muted);">6 categories · {scannedCount} server{scannedCount !== 1 ? 's' : ''}</span>
+				<Icon icon="solar:alt-arrow-right-bold" class="h-3.5 w-3.5" style="color: var(--color-text-muted);" />
+			</div>
+		</div>
+	</div>
 
 		<!-- STATUS FILTER -->
 		<div class="flex flex-wrap items-center gap-2 mb-4">

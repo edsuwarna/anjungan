@@ -252,6 +252,8 @@ type AuditLogQuery struct {
 	EntityType string  `json:"entity_type"`
 	UserID     string  `json:"user_id"`
 	Search     string  `json:"search"`
+	Sort       string  `json:"sort"`
+	Order      string  `json:"order"`
 	StartDate  *string `json:"start_date,omitempty"`
 	EndDate    *string `json:"end_date,omitempty"`
 }

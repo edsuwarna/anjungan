@@ -27,6 +27,11 @@
 				{ href: '/servers', icon: 'solar:server-square-bold', label: 'Servers' },
 				{ href: '/ssh-keys', icon: 'solar:key-minimalistic-bold', label: 'SSH Keys' },
 				{ href: '/containers', icon: 'solar:box-bold', label: 'Containers', badge: 'containerCount' },
+			],
+		},
+		{
+			name: 'Artifact',
+			items: [
 				{ href: '/registry', icon: 'solar:archive-down-minimlistic-bold', label: 'Registry' },
 				{ href: '/repositories', icon: 'solar:code-square-bold', label: 'Repositories' },
 			],

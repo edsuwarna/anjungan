@@ -45,6 +45,10 @@
 	let logsModal = $state({ show: false, container: '', logs: '', loading: false });
 	let inspectModal = $state({ show: false, container: '', data: null, loading: false });
 
+	// ── Container Security state ─────────────────────────
+	let containerSecurity = $state(null);
+	let containerScanning = $state(false);
+
 	// ── Compliance state ────────────────────────────────────
 	let scan = $state(null);
 	let scanLoading = $state(true);
@@ -209,6 +213,52 @@ let showAllHistory = $state(false);
 		} catch (e) {
 			containerActions = { ...containerActions, [key]: 'error' };
 			setTimeout(() => { containerActions = { ...containerActions, [key]: undefined }; }, 3000);
+		}
+	}
+
+	// ── Container Security Scan ───────────────────────────
+	async function runContainerScan() {
+		containerScanning = true;
+		containerSecurity = null;
+		try {
+			const resp = await api.compliance.scanContainers($page.params.id);
+			// Poll until complete
+			for (let i = 0; i < 60; i++) {
+				await new Promise(r => setTimeout(r, 2000));
+				try {
+					const detail = await api.compliance.latest($page.params.id, { scan_type: 'Container Security' });
+					if (detail && detail.status === 'completed') {
+						// Parse findings per container
+						const findings = detail.findings || [];
+						const containerMap = {};
+						for (const f of findings) {
+							if (!containerMap[f.category]) containerMap[f.category] = [];
+							containerMap[f.category].push(f);
+						}
+						// Match with container list
+						containerSecurity = {
+							score: detail.score,
+							total: detail.total_checks,
+							criticals: detail.criticals,
+							warnings: detail.warnings,
+							containers: containers.map(ctr => ({
+								name: ctr.name,
+								id: ctr.id,
+								findings: containerMap[ctr.name] || [],
+							})),
+						};
+						break;
+					}
+					if (detail && detail.status === 'failed') {
+						containerSecurity = { error: detail.error_message || 'Scan failed' };
+						break;
+					}
+				} catch (_) {}
+			}
+		} catch (e) {
+			containerSecurity = { error: e.message };
+		} finally {
+			containerScanning = false;
 		}
 	}
 
@@ -1173,7 +1223,18 @@ let showAllHistory = $state(false);
 			<div class="card mt-5">
 				<div class="flex items-center justify-between mb-3">
 					<h3 class="text-base font-semibold" style="color: var(--color-text);">Containers</h3>
-					<span class="text-xs" style="color: var(--color-text-muted);">{containers.length} container{containers.length !== 1 ? 's' : ''}</span>
+					<div class="flex items-center gap-2">
+						{#if containerSecurity && !containerScanning}
+							<span class="text-xs px-2 py-1 rounded-md font-medium" style="background: rgba(16,185,129,0.1); color: var(--color-success);">
+								Score: {containerSecurity.score}%
+							</span>
+						{/if}
+						<button onclick={runContainerScan} disabled={containerScanning} class="btn-secondary flex items-center gap-1.5 text-xs">
+							<Icon icon={containerScanning ? 'solar:spinner-bold' : 'solar:shield-check-bold'} class="h-3.5 w-3.5 {containerScanning ? 'animate-spin' : ''}" />
+							{containerScanning ? 'Scanning...' : 'Scan Security'}
+						</button>
+						<span class="text-xs" style="color: var(--color-text-muted);">{containers.length} container{containers.length !== 1 ? 's' : ''}</span>
+					</div>
 				</div>
 
 				{#if containersLoading && containers.length === 0}
@@ -1222,6 +1283,27 @@ let showAllHistory = $state(false);
 											<Icon icon="solar:clock-circle-bold" class="h-3 w-3 shrink-0" />
 											<span class="truncate">{c.created}</span>
 										</div>
+									{/if}
+									{#if containerSecurity && !containerScanning}
+										{@const ctrSec = containerSecurity.containers?.find(cs => cs.name === c.name)}
+										{#if ctrSec && ctrSec.findings.length > 0}
+											{@const ctrlFindings = ctrSec.findings.filter(f => f.status === 'fail' || f.status === 'warn')}
+											<div class="flex flex-wrap gap-1 pt-1">
+												{#each ctrlFindings.slice(0, 4) as f}
+													<span class="badge text-[10px] px-1.5 py-0.5 rounded font-medium"
+														style="background: {f.severity === 'critical' ? 'rgba(239,68,68,0.1)' : f.severity === 'high' ? 'rgba(245,158,11,0.1)' : 'rgba(99,102,241,0.1)'}; color: {f.severity === 'critical' ? 'var(--color-danger)' : f.severity === 'high' ? 'var(--color-warning)' : 'var(--color-accent)'};">
+														{f.title.length > 25 ? f.title.slice(0, 22) + '...' : f.title}
+													</span>
+												{/each}
+												{#if ctrlFindings.length > 4}
+													<span class="text-[10px] font-medium" style="color: var(--color-text-muted);">+{ctrlFindings.length - 4} more</span>
+												{/if}
+											</div>
+										{:else if ctrSec}
+											<div class="flex items-center gap-1 pt-1">
+												<span class="text-[10px] font-medium" style="color: var(--color-success);">✅ All checks passed</span>
+											</div>
+										{/if}
 									{/if}
 								</div>
 								<div class="flex items-center gap-1 border-t px-4 py-2" style="border-color: var(--color-border-light);" onclick={(e) => e.stopPropagation()}>
