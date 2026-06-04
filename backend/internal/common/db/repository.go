@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/edsuwarna/anjungan/internal/common/model"
 )
 
@@ -2011,4 +2012,293 @@ func (r *Repository) UpdateRegistryUserPassword(ctx context.Context, id, passwor
 func (r *Repository) DeleteRegistryUser(ctx context.Context, id string) error {
 	_, err := r.db.Pool.Exec(ctx, `DELETE FROM registry_users WHERE id = $1`, id)
 	return err
+}
+
+// ─── Environment Repository ─────────────────────────────────────────────────
+
+func (r *Repository) ListEnvironments(ctx context.Context) ([]*model.Environment, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at
+		 FROM environments ORDER BY is_protected DESC, name ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var envs []*model.Environment
+	for rows.Next() {
+		e := &model.Environment{}
+		if err := rows.Scan(&e.ID, &e.Name, &e.Color, &e.Description, &e.IsProtected, &e.CreatedAt, &e.UpdatedAt); err != nil {
+			return nil, err
+		}
+		envs = append(envs, e)
+	}
+	return envs, nil
+}
+
+func (r *Repository) GetEnvironment(ctx context.Context, id string) (*model.Environment, error) {
+	e := &model.Environment{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at
+		 FROM environments WHERE id = $1`, id,
+	).Scan(&e.ID, &e.Name, &e.Color, &e.Description, &e.IsProtected, &e.CreatedAt, &e.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return e, nil
+}
+
+func (r *Repository) CreateEnvironment(ctx context.Context, e *model.Environment) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO environments (id, name, color, description, is_protected, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		e.ID, e.Name, e.Color, e.Description, e.IsProtected, e.CreatedAt, e.UpdatedAt,
+	)
+	return err
+}
+
+func (r *Repository) UpdateEnvironment(ctx context.Context, e *model.Environment) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE environments SET name=$1, color=$2, description=$3, updated_at=NOW() WHERE id=$4`,
+		e.Name, e.Color, e.Description, e.ID,
+	)
+	return err
+}
+
+func (r *Repository) DeleteEnvironment(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM environments WHERE id = $1`, id)
+	return err
+}
+
+// ─── Repo Connection Repository ─────────────────────────────────────────────
+
+func (r *Repository) ListRepoConnections(ctx context.Context, userID string) ([]*model.RepoConnection, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, user_id, provider, COALESCE(label,''), COALESCE(base_url,''), token_encrypted, is_active, COALESCE(affiliations,'owner,collaborator,organization_member'), created_at, updated_at
+		 FROM repo_connections WHERE user_id = $1 ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var conns []*model.RepoConnection
+	for rows.Next() {
+		c := &model.RepoConnection{}
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Provider, &c.Label, &c.BaseURL, &c.TokenEncrypted, &c.IsActive, &c.Affiliations, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
+		conns = append(conns, c)
+	}
+	return conns, nil
+}
+
+func (r *Repository) CreateRepoConnection(ctx context.Context, c *model.RepoConnection) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO repo_connections (id, user_id, provider, label, base_url, token_encrypted, is_active, affiliations, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		c.ID, c.UserID, c.Provider, c.Label, c.BaseURL, c.TokenEncrypted, c.IsActive, c.Affiliations, c.CreatedAt, c.UpdatedAt,
+	)
+	return err
+}
+
+func (r *Repository) DeleteRepoConnection(ctx context.Context, id, userID string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM repo_connections WHERE id = $1 AND user_id = $2`, id, userID)
+	return err
+}
+
+// ─── Repo Selection Repository ──────────────────────────────────────────────
+
+func (r *Repository) GetRepoSelections(ctx context.Context, userID string) ([]*model.RepoSelection, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, user_id, provider, owner, repo_name, selected, created_at, updated_at
+		 FROM repo_selections WHERE user_id = $1`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var selections []*model.RepoSelection
+	for rows.Next() {
+		s := &model.RepoSelection{}
+		if err := rows.Scan(&s.ID, &s.UserID, &s.Provider, &s.Owner, &s.RepoName, &s.Selected, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, err
+		}
+		selections = append(selections, s)
+	}
+	return selections, nil
+}
+
+func (r *Repository) BulkSetRepoSelections(ctx context.Context, userID string, items []model.RepoSelectionItem) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, item := range items {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO repo_selections (id, user_id, provider, owner, repo_name, selected, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+			 ON CONFLICT (user_id, provider, owner, repo_name)
+			 DO UPDATE SET selected = $6, updated_at = NOW()`,
+			uuid.New().String(), userID, item.Provider, item.Owner, item.RepoName, item.Selected,
+		)
+		if err != nil {
+			return fmt.Errorf("upsert selection %s/%s/%s: %w", item.Provider, item.Owner, item.RepoName, err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// ─── Deployment Repository ──────────────────────────────────────────────────
+
+func (r *Repository) ListDeployments(ctx context.Context, environmentID string) ([]*model.Deployment, error) {
+	query := `SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
+		d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
+		d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
+		COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
+		FROM deployments d
+		LEFT JOIN environments e ON e.id = d.environment_id
+		LEFT JOIN servers s ON s.id = d.server_id`
+	var args []interface{}
+	if environmentID != "" {
+		query += ` WHERE d.environment_id = $1`
+		args = append(args, environmentID)
+	}
+	query += ` ORDER BY d.deployed_at DESC`
+
+	rows, err := r.db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var deps []*model.Deployment
+	for rows.Next() {
+		d := &model.Deployment{}
+		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
+			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
+			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
+			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
+			return nil, err
+		}
+		deps = append(deps, d)
+	}
+	return deps, nil
+}
+
+func (r *Repository) GetDeployment(ctx context.Context, id string) (*model.Deployment, error) {
+	d := &model.Deployment{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
+			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
+			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
+			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
+			FROM deployments d
+			LEFT JOIN environments e ON e.id = d.environment_id
+			LEFT JOIN servers s ON s.id = d.server_id
+			WHERE d.id = $1`, id,
+	).Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
+		&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
+		&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
+		&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+func (r *Repository) CreateDeployment(ctx context.Context, d *model.Deployment) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO deployments (id, name, environment_id, repo_provider, repo_owner, repo_name,
+			branch, commit_sha, server_id, service_name, image, status, deployed_by, deployed_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		d.ID, d.Name, d.EnvironmentID, d.RepoProvider, d.RepoOwner, d.RepoName,
+		d.Branch, d.CommitSHA, d.ServerID, d.ServiceName, d.Image, d.Status,
+		d.DeployedBy, d.DeployedAt, d.UpdatedAt,
+	)
+	return err
+}
+
+func (r *Repository) UpdateDeploymentStatus(ctx context.Context, id, status, message string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE deployments SET status=$1, updated_at=NOW() WHERE id=$2`,
+		status, id,
+	)
+	if err != nil {
+		return err
+	}
+	// Record history entry
+	_, err = r.db.Pool.Exec(ctx,
+		`INSERT INTO deployment_history (id, deployment_id, status, message, created_at)
+		 VALUES (gen_random_uuid(), $1, $2, $3, NOW())`,
+		id, status, message,
+	)
+	return err
+}
+
+func (r *Repository) RollbackDeployment(ctx context.Context, id, rollbackFromID string) error {
+	// Copy the old deployment data into current
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE deployments SET rollback_from=$1, updated_at=NOW() WHERE id=$2`,
+		rollbackFromID, id,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Pool.Exec(ctx,
+		`INSERT INTO deployment_history (id, deployment_id, status, message, created_at)
+		 VALUES (gen_random_uuid(), $1, 'rolled_back', 'Rolled back', NOW())`,
+		id,
+	)
+	return err
+}
+
+func (r *Repository) ListDeploymentHistory(ctx context.Context, deploymentID string) ([]*model.DeploymentHistory, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, deployment_id, status, COALESCE(message,''), created_at
+		 FROM deployment_history WHERE deployment_id = $1 ORDER BY created_at DESC`, deploymentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var hist []*model.DeploymentHistory
+	for rows.Next() {
+		h := &model.DeploymentHistory{}
+		if err := rows.Scan(&h.ID, &h.DeploymentID, &h.Status, &h.Message, &h.CreatedAt); err != nil {
+			return nil, err
+		}
+		hist = append(hist, h)
+	}
+	return hist, nil
+}
+
+func (r *Repository) ListDeploymentsByRepo(ctx context.Context, provider, owner, name string) ([]*model.Deployment, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
+			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
+			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
+			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
+			FROM deployments d
+			LEFT JOIN environments e ON e.id = d.environment_id
+			LEFT JOIN servers s ON s.id = d.server_id
+			WHERE d.repo_provider = $1 AND d.repo_owner = $2 AND d.repo_name = $3
+			ORDER BY d.deployed_at DESC`,
+		provider, owner, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var deps []*model.Deployment
+	for rows.Next() {
+		d := &model.Deployment{}
+		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
+			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
+			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
+			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
+			return nil, err
+		}
+		deps = append(deps, d)
+	}
+	return deps, nil
 }
