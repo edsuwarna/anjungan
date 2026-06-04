@@ -17,6 +17,10 @@
 	let stateFilter = $state('all');
 	let sortBy = $state('name'); // name, score, state, uptime
 
+	// ── Tab State ────────────────────────────────────────
+	let activeTab = $state('containers'); // 'containers' | 'security'
+	let scanStatusFilter = $state('all'); // 'all' | 'scanned' | 'unscanned'
+
 	// Action loading states
 	let actionLoading = $state({});
 	let scanningAll = $state(false);
@@ -96,6 +100,70 @@
 		}
 		return s;
 	});
+
+	// ── Security Report Derived ──────────────────────────
+	let allContainers = $derived.by(() => {
+		if (!data?.servers) return [];
+		let list = [];
+		for (const sv of data.servers) {
+			for (const c of sv.containers) {
+				list.push({ ...c, serverName: sv.server.name, serverId: sv.server.id });
+			}
+		}
+		// Apply filters
+		if (scanStatusFilter === 'scanned') list = list.filter(c => c.security?.score != null);
+		else if (scanStatusFilter === 'unscanned') list = list.filter(c => c.security?.score == null);
+		if (serverFilter !== 'all') list = list.filter(c => c.server_id === serverFilter);
+		if (searchQuery) {
+			const q = searchQuery.toLowerCase();
+			list = list.filter(c => c.name.toLowerCase().includes(q) || (c.image || '').toLowerCase().includes(q));
+		}
+		// Sort: unscanned last, then by score ascending (worst first)
+		list.sort((a, b) => {
+			const aScore = a.security?.score ?? -1;
+			const bScore = b.security?.score ?? -1;
+			if (aScore === -1 && bScore === -1) return (a.name || '').localeCompare(b.name || '');
+			if (aScore === -1) return 1;
+			if (bScore === -1) return -1;
+			return aScore - bScore;
+		});
+		return list;
+	});
+
+	let secReportStats = $derived.by(() => {
+		const all = !data?.servers ? [] : data.servers.flatMap(sv => sv.containers.map(c => ({ ...c, serverName: sv.server.name })));
+		const scanned = all.filter(c => c.security?.score != null);
+		const unscanned = all.filter(c => c.security?.score == null);
+		const scores = scanned.map(c => c.security.score);
+		const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+		const bySeverity = { critical: 0, high: 0, medium: 0, low: 0 };
+		for (const c of scanned) {
+			for (const f of c.security?.findings || []) {
+				if (bySeverity[f.severity?.toLowerCase()] != null) bySeverity[f.severity.toLowerCase()]++;
+			}
+		}
+		return { total: all.length, scanned: scanned.length, unscanned: unscanned.length, avgScore, bySeverity };
+	});
+
+	let scanningUnscanned = $state(false);
+
+	async function scanAllUnscanned() {
+		scanningUnscanned = true;
+		const unscannedList = allContainers.filter(c => c.security?.score == null);
+		const byServer = {};
+		for (const c of unscannedList) {
+			if (!byServer[c.serverId]) byServer[c.serverId] = [];
+			byServer[c.serverId].push(c);
+		}
+		for (const [serverId, containers] of Object.entries(byServer)) {
+			try {
+				await api.compliance.scanContainers(serverId);
+			} catch (_) {}
+		}
+		await new Promise(r => setTimeout(r, 5000));
+		await loadData();
+		scanningUnscanned = false;
+	}
 
 	// ── Filtered & Sorted Servers ───────────────────────
 	let filteredData = $derived.by(() => {
@@ -718,8 +786,31 @@
 		</div>
 	</div>
 
-	<!-- Toolbar: Search + Filters -->
-	<div class="flex flex-wrap items-center gap-2 mb-4">
+	<!-- Tab Navigation -->
+	<div class="flex items-center gap-1 mb-4 border-b" style="border-color: var(--color-border-light);">
+		<button onclick={() => activeTab = 'containers'}
+			class="px-4 py-2 text-sm font-semibold transition-all rounded-t-lg"
+			style="border-bottom: 2px solid {activeTab === 'containers' ? 'var(--color-primary)' : 'transparent'}; color: {activeTab === 'containers' ? 'var(--color-primary)' : 'var(--color-text-muted)'}">
+			<Icon icon="solar:box-bold" class="h-3.5 w-3.5 inline-block mr-1.5" />
+			All Containers
+		</button>
+		<button onclick={() => activeTab = 'security'}
+			class="px-4 py-2 text-sm font-semibold transition-all rounded-t-lg"
+			style="border-bottom: 2px solid {activeTab === 'security' ? 'var(--color-primary)' : 'transparent'}; color: {activeTab === 'security' ? 'var(--color-primary)' : 'var(--color-text-muted)'}">
+			<Icon icon="solar:shield-bold" class="h-3.5 w-3.5 inline-block mr-1.5" />
+			Security Report
+			{#if secReportStats.unscanned > 0}
+				<span class="ml-1.5 inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded text-[9px] font-bold"
+					style="background-color: rgba(239,68,68,0.15); color: var(--color-danger);">
+					{secReportStats.unscanned}
+				</span>
+			{/if}
+		</button>
+	</div>
+
+	{#if activeTab === 'containers'}
+		<!-- Toolbar: Search + Filters -->
+		<div class="flex flex-wrap items-center gap-2 mb-4">
 		<div class="relative flex-1 min-w-[200px] max-w-sm">
 			<Icon icon="solar:minimalistic-magnifer-bold" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style="color: var(--color-text-muted);" />
 			<input
@@ -1198,6 +1289,214 @@
 			</div>
 		{/each}
 	{/if}
+{:else}
+	<!-- ─── Security Report View ──────────────────── -->
+	{#if loading}
+		<div class="flex items-center justify-center py-20">
+			<div class="flex flex-col items-center gap-3">
+				<Icon icon="solar:spinner-bold" class="h-8 w-8 animate-spin" style="color: var(--color-primary);" />
+				<p class="text-sm" style="color: var(--color-text-muted);">Loading security data...</p>
+			</div>
+		</div>
+	{:else if !data}
+		<div class="flex flex-col items-center py-16 text-center">
+			<Icon icon="solar:shield-bold" class="mb-3 inline-block h-12 w-12" style="color: var(--color-text-muted);" />
+			<h3 class="mb-1 text-base font-semibold" style="color: var(--color-text);">No data available</h3>
+		</div>
+	{:else}
+		<!-- Security Report Stats -->
+		<div class="grid gap-3 mb-4 sm:grid-cols-2 lg:grid-cols-4">
+			<div class="card" style="border-left: 3px solid var(--color-primary);">
+				<div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-primary);">
+					<Icon icon="solar:box-bold" class="h-3.5 w-3.5" /> Total Containers
+				</div>
+				<p class="mt-1 text-2xl font-bold" style="color: var(--color-text);">{secReportStats.total}</p>
+			</div>
+			<div class="card" style="border-left: 3px solid {secReportStats.avgScore != null ? securityColor(secReportStats.avgScore) : 'var(--color-text-muted)'};">
+				<div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: {secReportStats.avgScore != null ? securityColor(secReportStats.avgScore) : 'var(--color-text-muted)'};">
+					<Icon icon="solar:shield-bold" class="h-3.5 w-3.5" /> Avg Score
+				</div>
+				<p class="mt-1 text-2xl font-bold" style="color: {secReportStats.avgScore != null ? securityColor(secReportStats.avgScore) : 'var(--color-text-muted)'};">
+					{secReportStats.avgScore != null ? secReportStats.avgScore + '/100' : '—'}
+				</p>
+			</div>
+			<div class="card" style="border-left: 3px solid var(--color-success);">
+				<div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-success);">
+					<Icon icon="solar:shield-check-bold" class="h-3.5 w-3.5" /> Scanned
+				</div>
+				<p class="mt-1 text-2xl font-bold" style="color: var(--color-success);">{secReportStats.scanned}</p>
+				<p class="text-[10px] mt-0.5" style="color: var(--color-text-muted);">of {secReportStats.total}</p>
+			</div>
+			<div class="card" style="border-left: 3px solid {secReportStats.unscanned > 0 ? 'var(--color-danger)' : 'var(--color-success)'};">
+				<div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: {secReportStats.unscanned > 0 ? 'var(--color-danger)' : 'var(--color-success)'};">
+					<Icon icon="solar:shield-minimalistic-bold" class="h-3.5 w-3.5" /> Unscanned
+				</div>
+				<p class="mt-1 text-2xl font-bold" style="color: {secReportStats.unscanned > 0 ? 'var(--color-danger)' : 'var(--color-success)'};">{secReportStats.unscanned}</p>
+			</div>
+		</div>
+
+		<!-- Severity breakdown -->
+		<div class="flex flex-wrap items-center gap-3 mb-4">
+			<span class="text-xs font-semibold" style="color: var(--color-text-muted);">Findings:</span>
+			{#each Object.entries(secReportStats.bySeverity) as [sev, count]}
+				{#if count > 0}
+					<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold"
+						style="background-color: {severityBg(sev)}; color: {severityColor(sev)};">
+						{sev}: {count}
+					</span>
+				{/if}
+			{/each}
+			<div class="flex-1"></div>
+			<button onclick={scanAllUnscanned} disabled={scanningUnscanned || secReportStats.unscanned === 0}
+				class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+				style="background-color: var(--color-primary); color: #fff; {secReportStats.unscanned === 0 ? 'opacity:0.5;' : ''}">
+				<Icon icon={scanningUnscanned ? 'solar:spinner-bold' : 'solar:shield-bold'}
+					class="h-4 w-4 {scanningUnscanned ? 'animate-spin' : ''}" />
+				{scanningUnscanned ? 'Scanning...' : `Scan All Unscanned (${secReportStats.unscanned})`}
+			</button>
+		</div>
+
+		<!-- Security Report Toolbar -->
+		<div class="flex flex-wrap items-center gap-2 mb-3">
+			<div class="relative flex-1 min-w-[200px] max-w-sm">
+				<Icon icon="solar:minimalistic-magnifer-bold" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style="color: var(--color-text-muted);" />
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder="Search container / image..."
+					class="w-full rounded-lg border px-9 py-2 text-sm outline-none transition-colors"
+					style="background-color: var(--color-surface); border-color: var(--color-border); color: var(--color-text);"
+				/>
+				{#if searchQuery}
+					<button onclick={() => searchQuery = ''} class="absolute right-2 top-1/2 -translate-y-1/2 btn-icon h-5 w-5">
+						<Icon icon="solar:close-circle-bold" class="h-4 w-4" />
+					</button>
+				{/if}
+			</div>
+			<select
+				bind:value={serverFilter}
+				class="rounded-lg border px-3 py-2 text-sm outline-none transition-colors"
+				style="background-color: var(--color-surface); border-color: var(--color-border); color: var(--color-text);"
+			>
+				<option value="all">All Servers</option>
+				{#each data?.servers || [] as sv}
+					<option value={sv.server.id}>{sv.server.name}</option>
+				{/each}
+			</select>
+			<select
+				bind:value={scanStatusFilter}
+				class="rounded-lg border px-3 py-2 text-sm outline-none transition-colors"
+				style="background-color: var(--color-surface); border-color: var(--color-border); color: var(--color-text);"
+			>
+				<option value="all">All Status</option>
+				<option value="scanned">Scanned</option>
+				<option value="unscanned">Unscanned</option>
+			</select>
+			<span class="text-xs" style="color: var(--color-text-muted);">
+				<strong style="color: var(--color-text);">{allContainers.length}</strong> container{allContainers.length !== 1 ? 's' : ''}
+			</span>
+		</div>
+
+		<!-- Security Report Table -->
+		{#if allContainers.length === 0}
+			<div class="flex flex-col items-center py-16 text-center">
+				<Icon icon="solar:shield-bold" class="mb-3 inline-block h-12 w-12" style="color: var(--color-text-muted);" />
+				<h3 class="mb-1 text-base font-semibold" style="color: var(--color-text);">No containers found</h3>
+				<p class="text-sm" style="color: var(--color-text-secondary);">Try adjusting your filters</p>
+			</div>
+		{:else}
+			<div class="rounded-xl border overflow-hidden" style="background-color: var(--color-card); border-color: var(--color-border);">
+				<div class="overflow-x-auto">
+					<table class="w-full text-xs">
+						<thead>
+							<tr style="background-color: var(--color-surface); border-bottom: 1px solid var(--color-border-light);">
+								<th class="text-left px-3 py-2.5 font-semibold" style="color: var(--color-text-muted);">Container</th>
+								<th class="text-left px-3 py-2.5 font-semibold hidden sm:table-cell" style="color: var(--color-text-muted);">Server</th>
+								<th class="text-center px-3 py-2.5 font-semibold" style="color: var(--color-text-muted);">Score</th>
+								<th class="text-left px-3 py-2.5 font-semibold hidden md:table-cell" style="color: var(--color-text-muted);">Badges</th>
+								<th class="text-center px-3 py-2.5 font-semibold hidden lg:table-cell" style="color: var(--color-text-muted);">Findings</th>
+								<th class="text-right px-3 py-2.5 font-semibold hidden sm:table-cell" style="color: var(--color-text-muted);">Scanned</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each allContainers as c (c.id)}
+								<tr
+									onclick={() => goto(`/containers/${c.serverId}/${c.id}/security`)}
+									class="cursor-pointer transition-colors hover:opacity-80"
+									style="border-bottom: 1px solid var(--color-border-light);"
+									role="button"
+									tabindex="0"
+									onkeydown={(e) => e.key === 'Enter' && goto(`/containers/${c.serverId}/${c.id}/security`)}
+								>
+									<td class="px-3 py-2.5">
+										<div class="flex items-center gap-2">
+											<div class="w-1.5 h-1.5 rounded-full shrink-0"
+												style="background-color: {c.state === 'running' ? 'var(--color-success)' : c.state === 'exited' || c.state === 'stopped' ? 'var(--color-danger)' : '#eab308'};">
+											</div>
+											<div class="min-w-0">
+												<p class="text-sm font-semibold truncate max-w-[180px] sm:max-w-[240px]" style="color: var(--color-text);" title={c.name}>{c.name}</p>
+												<p class="text-[10px] font-mono truncate max-w-[180px] sm:max-w-[240px]" style="color: var(--color-text-muted);">{c.image}</p>
+											</div>
+										</div>
+									</td>
+									<td class="px-3 py-2.5 hidden sm:table-cell">
+										<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+											style="background-color: {serverColor(c.serverName || c.serverId).bg}18; color: {serverColor(c.serverName || c.serverId).label};">
+											{c.serverName || c.serverId}
+										</span>
+									</td>
+									<td class="px-3 py-2.5 text-center">
+										{#if c.security?.score != null}
+											<span class="inline-flex items-center justify-center h-6 min-w-[36px] px-1.5 rounded text-[11px] font-bold"
+												style="background-color: {securityBg(c.security.score)}; color: {securityColor(c.security.score)};">
+												{c.security.score}
+											</span>
+										{:else}
+											<span class="text-[10px] font-medium" style="color: var(--color-text-muted);">—</span>
+										{/if}
+									</td>
+									<td class="px-3 py-2.5 hidden md:table-cell">
+										<div class="flex flex-wrap gap-1">
+											{#if c.security?.badges?.length}
+												{#each c.security.badges.slice(0, 3) as badge}
+													<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium"
+														style="background-color: rgba(148,163,184,0.1); color: rgba(148,163,184,0.8);">
+														{badge}
+													</span>
+												{/each}
+												{#if c.security.badges.length > 3}
+													<span class="text-[9px]" style="color: var(--color-text-muted);">+{c.security.badges.length - 3}</span>
+												{/if}
+											{:else}
+												<span class="text-[9px]" style="color: var(--color-text-muted);">—</span>
+											{/if}
+										</div>
+									</td>
+									<td class="px-3 py-2.5 text-center hidden lg:table-cell">
+										{#if c.security?.findings?.length}
+											<span class="text-xs font-semibold" style="color: {c.security.findings.length > 5 ? 'var(--color-danger)' : 'var(--color-text)'};">
+												{c.security.findings.length}
+											</span>
+										{:else}
+											<span class="text-[10px]" style="color: var(--color-text-muted);">—</span>
+										{/if}
+									</td>
+									<td class="px-3 py-2.5 text-right hidden sm:table-cell">
+										{#if c.security?.scanned_at}
+											<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">{formatTime(c.security.scanned_at)}</span>
+										{:else}
+											<span class="text-[10px] font-medium" style="color: var(--color-danger);">Never</span>
+										{/if}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		{/if}
+	{/if}
+{/if}
 </div>
 
 <!-- ─── Confirmation Modal ───────────────────────── -->
