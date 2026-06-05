@@ -70,8 +70,8 @@
 | Container Security Scanner (10 checks) | PRD-compliance.md §F5 | ✅ | ✅ | 000009–000011 | Privileged, root, seccomp, capabilities, etc. |
 | Compliance Dashboard | PRD-compliance.md §F6 | ✅ | ✅ | — | KPI cards, benchmark cards, server list |
 | Scan History | PRD-compliance.md §F6 | ✅ | ✅ | 000009–000011 | Per-server, per-category, global |
-| **Trivy Vulnerability Scanner** | PRD-compliance.md §F7 | ❌ | ❌ | — | CI/CD webhook + live scan — not implemented |
-| **TruffleHog Secret Scanner** | PRD-compliance.md §F12 | ❌ | ❌ | — | Git + filesystem + webhook — not implemented |
+| **Trivy Vulnerability Scanner** | PRD-container-image-scanning.md §F2 | ❌ | ❌ | — | Agent-based image vulnerability scanning — not implemented |
+| **TruffleHog Secret Scanner** | PRD-secret-scanning.md §F6 | ❌ | ❌ | — | Git + filesystem + webhook — not implemented |
 | Scheduled Scans | PRD-compliance.md §F8 | ❌ | ❌ | — | Cron-based — not implemented |
 | Compliance Report Export (PDF) | PRD-compliance.md §F9 | ❌ | ❌ | — | Not implemented |
 | Compliance Trend Graph | PRD-compliance.md §F10 | ❌ | ❌ | — | Time series chart — not implemented |
@@ -222,8 +222,14 @@
 
 | Table | Purpose | PRD |
 |-------|---------|-----|
-| `trivy_scans` | Trivy vulnerability results | PRD-compliance.md |
-| `trufflehog_scans` / `trufflehog_findings` | Secret scan results | PRD-compliance.md |
+| `trivy_scans` | Trivy vulnerability results | PRD-container-image-scanning.md |
+| `trufflehog_scans` / `trufflehog_findings` | Secret scan results | PRD-secret-scanning.md |
+| `image_assets` | Docker image assets on servers | PRD-container-image-scanning.md |
+| `image_scans` | Trivy scan results per image | PRD-container-image-scanning.md |
+| `cve_findings` | Individual CVE entries | PRD-container-image-scanning.md |
+| `image_scan_schedules` | Image scan schedule config | PRD-container-image-scanning.md |
+| `secret_findings` | Individual secret findings | PRD-secret-scanning.md |
+| `secret_finding_status_history` | Finding status audit trail | PRD-secret-scanning.md |
 | `compliance_schedules` | Scheduled scan config | PRD-compliance.md |
 | `cluster_servers` | Cluster node registry | PRD-domain-management.md |
 | `domains` | Domain routing rules | PRD-domain-management.md |
@@ -249,8 +255,8 @@
 |--------|-------|
 | ✅ Done (fully implemented) | **43** features |
 | 🟡 Partial (some gaps) | **3** features |
-| ❌ Not Started (PRD exists) | **34** features |
-| **Total PRD-documented features** | **80** |
+| ❌ Not Started (PRD exists) | **45** features |
+| **Total PRD-documented features** | **91** |
 
 ### By Domain
 
@@ -261,7 +267,9 @@
 | Containers (PRD.md) | 7 | 0 | 0 |
 | Registry (PRD-registry.md) | 7 | 0 | 5 |
 | Repos & Deployments (PRD-repositories-deployments.md) | 12 | 1 | 4 |
-| Compliance & Scanning (PRD-compliance.md) | 6 | 0 | 7 |
+| Compliance & Scanning (PRD-compliance.md) | 6 | 0 | 4 |
+| Container Image Scanning (PRD-container-image-scanning.md) | 0 | 0 | 6 |
+| Secret Scanning (PRD-secret-scanning.md) | 0 | 0 | 7 |
 | Agent System (PRD-anj-agent.md) | 0 | 0 | 10 |
 | Domain Management (PRD-domain-management.md) | 0 | 0 | 6 |
 | Resource & Cost (PRD-resource-usage-cost.md) | 0 | 0 | 7 |
@@ -299,5 +307,5 @@
 
 ---
 
-*Generated from cross-referencing 8 PRD files against `main` branch implementation.
+*Generated from cross-referencing 10 PRD files against `main` branch implementation.
 For detailed specs, see individual PRDs in this directory.*
