@@ -2,6 +2,10 @@
 FROM node:22-alpine AS builder
 
 WORKDIR /app
+
+# Upgrade npm to avoid "Exit handler never called!" bug on npm 10.x
+RUN npm install -g npm@latest
+
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm install --legacy-peer-deps
 
