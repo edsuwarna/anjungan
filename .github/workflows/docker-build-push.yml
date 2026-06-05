@@ -49,7 +49,7 @@ jobs:
           # If triggered by a git tag (v*), use version-based tags
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"  # strip leading 'v'
-            TAGS="${IMAGE_NAME}:${VERSION},${IMAGE_NAME}:${SHORT_SHA}"
+            TAGS="${IMAGE_NAME}:${VERSION},${IMAGE_NAME}:latest"
           else
             # Push to main branch: latest + sha
             TAGS="${IMAGE_NAME}:latest,${IMAGE_NAME}:${SHORT_SHA}"
