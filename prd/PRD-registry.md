@@ -346,4 +346,4 @@ CREATE TABLE registry_policies (
 
 - [PRD.md](./PRD.md) — Main Anjungan PRD (Phase 2 Registry)
 - [PRD-repositories-deployments.md](./PRD-repositories-deployments.md)
-- [DECISIONS.md](./DECISIONS.md)
+- [DECISIONS.md](../DECISIONS.md)

@@ -1,7 +1,7 @@
 # Anjungan — PRD: Compliance & Security Scanning
 
-> **Version:** 1.0
-> **Status:** Draft — ✅ Fully Implemented (Trivy: 🔴 Planned)
+> **Version:** 2.0
+> **Status:** Draft — ✅ Fully Implemented (Trivy: 🔴 Planned | TruffleHog: 🔴 Planned)
 > **Author:** Endang Suwarna
 > **Last Updated:** June 5, 2026
 
@@ -37,7 +37,8 @@ Padahal ada tools kayak **Lynis** (auto system audit) dan **CIS benchmark script
 | Container Security | ✅ **Fully implemented** | 10 runtime checks per container |
 | Compliance Dashboard | ✅ **Fully implemented** | KPI cards, benchmark cards, server list |
 | Scan History | ✅ **Fully implemented** | Per-server, per-category, global |
-| **Trivy Vulnerability Scanner** | ❌ **Not implemented** | Planned — Phase 4 |
+| **Trivy Vulnerability Scanner** | ❌ **Not implemented** | Planned — Phase 4 (vulns + misconfig only) |
+| **TruffleHog Secret Scanner** | ❌ **Not implemented** | Planned — Phase 4 (replaces Trivy secrets) |
 | **Scheduled Scans** | ❌ **Not implemented** | Planned — Phase 4 |
 | **Compliance Report Export** | ❌ **Not implemented** | Planned — Phase 4 |
 
@@ -56,6 +57,7 @@ Padahal ada tools kayak **Lynis** (auto system audit) dan **CIS benchmark script
 | Container security score per container | ✅ Tracked |
 | Automated scan dari UI | ✅ < 3 detik trigger |
 | Real-time vulnerability scanning (Trivy) | 🔴 Planned |
+| Real-time secret leak detection (TruffleHog) | 🔴 Planned |
 
 ---
 
@@ -74,10 +76,10 @@ Anjungan Backend                          Target Server
 │ Scanner Engine           │             │                    │
 │ ├─ RunCISL1()            │             └────────────────────┘
 │ ├─ RunCISL2()                                        
-│ ├─ RunCISDocker()                        ┌────────────┐
-│ ├─ RunLynis()                            │ Zot Registry│
-│ └─ RunContainerSecurity() ──SSH/S3──▶    │ (CVE scan) │
-│                                           └────────────┘
+│ ├─ RunCISDocker()                                        
+│ ├─ RunLynis()                                            
+│ ├─ RunContainerSecurity() ──SSH──▶ Container runtime
+│ └─ RunTruffleHog()       ──SSH/filesystem──▶ Repo / Container FS
 │ Check Registry (80+ checks)
 │ ├─ checks_ssh.go       (18 checks)
 │ ├─ checks_kernel.go     (8 checks)
@@ -200,8 +202,9 @@ Lynis: System audit helper                                ├── Health check
 |---|---|
 | **Priority** | P1 |
 | **Status** | ❌ **Not implemented** |
-| **Backend** | Dua source scanning: (1) **CI/CD Webhook** — `POST /api/v1/trivy/webhook` menerima Trivy JSON dari GitHub Action, extract summary + misconfigs + secrets + vulns, simpan ke `trivy_scans` table. (2) **Live Scan** — SSH ke target → `docker run aquasec/trivy:latest image --format json IMAGE:TAG`, parse output, simpan dengan source=live. Backend parser bedain tiap `Result` dari Trivy JSON berdasarkan `Type` field: OS packages (alpine/debian/ubuntu), language deps (npm/gomod/pip), Dockerfile misconfig, secrets. |
-| **Frontend** | Route `/containers/vulnerabilities`. **Dashboard per-image card**: nama image, source badge (CI/CD vs Live), severity count, trend bar. **Cross-image trends**: CVE yang ngaruh ke multiple images. **KPI bar**: total critical, high, fix rate, scan count (7d). **Scan Detail** dengan 4 sub-tab — Vulnerabilities (expandable CVE cards), Misconfigurations (Dockerfile lint), Secrets (secret leak), Raw JSON. **Live vs CI/CD Comparison**: dual pane highlighting discrepancy. |
+| **Scope** | **Vulnerabilities + Misconfigurations only.** Secrets scanning **delegated to TruffleHog** (see F12). |
+| **Backend** | Dua source scanning: (1) **CI/CD Webhook** — `POST /api/v1/trivy/webhook` menerima Trivy JSON dari GitHub Action, extract summary + misconfigs + vulns, simpan ke `trivy_scans` table. (2) **Live Scan** — SSH ke target → `docker run aquasec/trivy:latest image --format json IMAGE:TAG`, parse output, simpan dengan source=live. Backend parser bedain tiap `Result` dari Trivy JSON berdasarkan `Type` field: OS packages (alpine/debian/ubuntu), language deps (npm/gomod/pip), Dockerfile misconfig. |
+| **Frontend** | Route `/containers/vulnerabilities`. **Dashboard per-image card**: nama image, source badge (CI/CD vs Live), severity count, trend bar. **Cross-image trends**: CVE yang ngaruh ke multiple images. **KPI bar**: total critical, high, fix rate, scan count (7d). **Scan Detail** dengan 2 sub-tab — Vulnerabilities (expandable CVE cards), Misconfigurations (Dockerfile lint), Raw JSON. **Live vs CI/CD Comparison**: dual pane highlighting discrepancy. |
 | **UX** | Badge system: 🔴 OS vs 📦 Dep packages. Status filter (fixable/unfixable/NEW). Delta badge vs previous scan (🔺 Critical +1). Trend chart 30 scans: bar chart critical+high. |
 
 ### F8 — Scheduled Scans (🔴 Planned)
@@ -231,6 +234,19 @@ Lynis: System audit helper                                ├── Health check
 |---|---|
 | **Backend** | K8s checks: kube-bench integration atau custom CIS K8s checks (8 categories, 100+ checks). SSH ke K8s node atau via kubectl. |
 | **Frontend** | Tab baru di compliance: "Kubernetes" — sama format kayak CIS L1/L2. |
+
+### F12 — TruffleHog Secret Scanner (🔴 Planned — Phase 4)
+
+| | |
+|---|---|
+| **Priority** | P1 |
+| **Status** | ❌ **Not implemented** |
+| **Scope** | **Replaces Trivy secrets.** Full-spectrum secret detection — 700+ detectors, verification engine, git history forensics. |
+| **Backend** | Tiga mode scanning: (1) **Git Scan** — `trufflehog git https://github.com/org/repo --json --no-verification`, scan repos via SSH atau GitHub API. (2) **Filesystem Scan** — `trufflehog filesystem --directory=/path --json`, scan container filesystem atau workspace mount. (3) **Webhook Receiver** — `POST /api/v1/secrets/webhook` menerima TruffleHog JSON output (dari GitHub Action / CI pipeline). Backend parser bedain **verified** (credential tested live via API) vs **unverified** (detected but not confirmed). |
+| **Verification** | **Unik vs secret scanner lain** — TruffleHog verification engine langsung nyoba credential ke API target (AWS, GitHub, Slack, Discord, 100+ services). Hasil: `verified: true/false`. Verified = **critical severity**, immediate notification. |
+| **Data Model** | Scan results: server_id/repo_url, findings array (file path, line number, detector name, verified status, raw value truncated). Historical leak tracking via git blame: secret yang udah dihapus dari file tapi masih ada di commit history. |
+| **Frontend** | Route `/secrets`. **Dashboard**: total scans, verified leaks count, unverified findings, trend. **Repo/Server cards**: recent findings, severity pie. **Detail view**: finding card — detector name (e.g. AWS Access Key), file path + line, verified badge, raw snippet (masked), first commit date, commit SHA. Filters: verified/unverified, detector type, repo. **Historical Leaks tab**: timeline — secret masuk commit → detected → fixed. |
+| **UX** | **Verified badge**: 🟢 verified (critical) vs 🟡 unverified (medium). Detector icons per category (AWS, GitHub, Slack, Generic). Raw snippet truncated + mask toggle (show/hide). "Scan Repo" button from repo detail page. |
 
 ---
 
@@ -264,10 +280,19 @@ GET    /api/v1/compliance/{serverID}/containers/{containerName}/history
 // === Future: Trivy ===
 POST   /api/v1/trivy/webhook                    // Receive Trivy JSON from CI/CD
 GET    /api/v1/trivy/scans                      // List all scans (?image=&source=&limit=)
-GET    /api/v1/trivy/scans/{id}                 // Detail: vulns, misconfigs, secrets, raw
+GET    /api/v1/trivy/scans/{id}                 // Detail: vulns, misconfigs, raw
 GET    /api/v1/trivy/scans/latest/{image}       // Latest scan per image
 GET    /api/v1/trivy/scans/{id}/compare/prev    // Delta vs previous scan
 POST   /api/v1/trivy/live-scan                 // Trigger live scan: {server_id, image, tag}
+
+// === Future: TruffleHog Secrets ===
+POST   /api/v1/secrets/webhook                 // Receive TruffleHog JSON from CI/CD
+POST   /api/v1/secrets/scan                    // Trigger scan: {type: git|filesystem, target, server_id?}
+GET    /api/v1/secrets/scans                   // List all scans (?repo=&status=&limit=)
+GET    /api/v1/secrets/scans/{id}              // Detail: findings, verified status
+GET    /api/v1/secrets/findings                // List findings (?verified=&detector=&repo=)
+GET    /api/v1/secrets/summary                 // Stats: total verified, unverified, by detector
+GET    /api/v1/secrets/history                 // Historical leak timeline
 
 // === Future: Scheduled Scans ===
 GET    /api/v1/compliance/schedules
@@ -343,8 +368,42 @@ CREATE TABLE trivy_scans (
   workflow_url TEXT,
   summary JSONB,                            -- {critical: N, high: N, medium: N, low: N}
   misconfigs JSONB,                         -- Dockerfile lint findings
-  secrets JSONB,                            -- Secret leak detection
-  raw_results JSONB,                        -- Full Trivy output
+  raw_results JSONB,                        -- Full Trivy output (vulns + misconfigs)
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Future: TruffleHog secret scans
+CREATE TABLE trufflehog_scans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scan_type VARCHAR(20) NOT NULL,           -- git, filesystem, webhook
+  target VARCHAR(500) NOT NULL,             -- repo URL or filesystem path
+  server_id UUID REFERENCES servers(id),   -- null for CI/webhook scans
+  status VARCHAR(20) DEFAULT 'pending',     -- pending, running, completed, failed
+  total_findings INTEGER DEFAULT 0,
+  verified_count INTEGER DEFAULT 0,
+  unverified_count INTEGER DEFAULT 0,
+  raw_output JSONB,                         -- Full TruffleHog JSON output
+  error_message TEXT,
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Future: TruffleHog findings
+CREATE TABLE trufflehog_findings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scan_id UUID REFERENCES trufflehog_scans(id),
+  detector_name VARCHAR(200) NOT NULL,      -- e.g. AWS Access Key, GitHub PAT
+  detector_type VARCHAR(100),               -- category: AWS, GitHub, Slack, Generic
+  verified BOOLEAN DEFAULT FALSE,           -- TruffleHog verification engine result
+  file_path TEXT,
+  line_number INTEGER,
+  commit_sha VARCHAR(40),
+  commit_timestamp TIMESTAMP,
+  author VARCHAR(255),
+  raw_value TEXT,                           -- masked for display, full for audit
+  severity VARCHAR(20) DEFAULT 'medium',    -- critical (verified) / medium (unverified)
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -448,9 +507,9 @@ CREATE TABLE compliance_schedules (
 | 12 | Container security frontend (1247 lines) | ✅ Done | 2 hari |
 | 13 | Scan history + trend | ✅ Done | 1 hari |
 
-### 🔴 Phase 4 — Trivy + Automation (Planned)
+### 🔴 Phase 4 — Trivy + TruffleHog + Automation (Planned)
 
-**Goal:** Vulnerability scanning + automation
+**Goal:** Vulnerability scanning + secret detection + automation
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
@@ -459,11 +518,17 @@ CREATE TABLE compliance_schedules (
 | 16 | Trivy live scan (SSH runner) | 1 hari | #14 |
 | 17 | Trivy frontend dashboard | 2-3 hari | #15, #16 |
 | 18 | CI/CD vs Live comparison | 1 hari | #17 |
-| 19 | Scheduled scans engine | 2 hari | Phase 1 |
-| 20 | Schedule editor UI | 1 hari | #19 |
-| 21 | Compliance report PDF export | 2 hari | — |
-| 22 | Trend graph (line chart 90d) | 1 hari | — |
-| 23 | Notifikasi score drop | 1 hari | #19 |
+| 19 | `trufflehog_scans` + `trufflehog_findings` tables + migration | 0.5 hari | — |
+| 20 | TruffleHog Git scan backend (SSH runner) | 1 hari | #19 |
+| 21 | TruffleHog filesystem scan backend | 0.5 hari | #19 |
+| 22 | TruffleHog webhook receiver (`POST /secrets/webhook`) | 1 hari | #19 |
+| 23 | TruffleHog frontend dashboard + detail pages | 2 hari | #20, #21, #22 |
+| 24 | Verified vs unverified severity scoring | 0.5 hari | #20 |
+| 25 | Scheduled scans engine | 2 hari | Phase 1 |
+| 26 | Schedule editor UI | 1 hari | #25 |
+| 27 | Compliance report PDF export | 2 hari | — |
+| 28 | Trend graph (line chart 90d) | 1 hari | — |
+| 29 | Notifikasi score drop | 1 hari | #25 |
 
 ---
 
@@ -494,12 +559,15 @@ CREATE TABLE compliance_schedules (
 | **Hardening Index** | Lynis score (0-100) — seberapa hardened suatu sistem |
 | **Scan Profile** | Kategori scan: all, cis_l1, cis_l2, cis_docker, lynis, container |
 | **Container Security** | Runtime security checks per container — 10 checks |
-| **Trivy** | Vulnerability scanner by Aqua Security — OS packages, language deps, misconfigs, secrets |
+| **Trivy** | Vulnerability scanner by Aqua Security — OS packages, language deps, Dockerfile misconfigs (secrets delegated to TruffleHog) |
 | **Fix Rate** | Percentage of vulnerabilities that have a fix version available |
+| **TruffleHog** | Open-source secret scanner by Truffle Security — 700+ detectors, verification engine (tests credentials live), git-aware, supports git/filesystem/Docker/S3/GitHub API |
 
 ## 11. References
 
 - [PRD.md](./PRD.md) — Main Anjungan PRD (Phase 3 Security & Governance)
 - [PRD-registry.md](./PRD-registry.md) — Registry & image management
-- [sketches/container-compliance/](./sketches/container-compliance/) — Trivy design sketches
-- [DECISIONS.md](./DECISIONS.md)
+- [sketches/container-compliance/](../sketches/container-compliance/) — Trivy design sketches
+- [DECISIONS.md](../DECISIONS.md)
+- [TruffleHog](https://github.com/trufflesecurity/trufflehog) — GitHub repo, 27K+ stars
+- [Trivy](https://github.com/aquasecurity/trivy) — GitHub repo

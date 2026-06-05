@@ -384,6 +384,6 @@ A: Exponential backoff reconnect. Agent queue operation kalo perlu (future). Bac
 ## 8. Related Documents
 
 - [PRD.md](./PRD.md) — PRD utama Anjungan
-- [ROADMAP.md](./ROADMAP.md) — Roadmap Anjungan
-- [DECISIONS.md](./DECISIONS.md) — Architecture decisions
-- [README.md](./README.md) — Technical docs
+- [ROADMAP.md](../ROADMAP.md) — Roadmap Anjungan
+- [DECISIONS.md](../DECISIONS.md) — Architecture decisions
+- [README.md](../README.md) — Technical docs
