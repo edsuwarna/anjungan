@@ -46,13 +46,13 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           IMAGE_NAME="${REGISTRY_URL}/anjungan-${{ matrix.service.name }}"
 
-          # If triggered by a git tag (v*), use version-based tags
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            # Release tag: version-specific + release-latest
             VERSION="${GITHUB_REF_NAME#v}"  # strip leading 'v'
-            TAGS="${IMAGE_NAME}:${VERSION},${IMAGE_NAME}:latest"
+            TAGS="${IMAGE_NAME}:${VERSION},${IMAGE_NAME}:release-latest"
           else
-            # Push to main branch: latest + sha
-            TAGS="${IMAGE_NAME}:latest,${IMAGE_NAME}:${SHORT_SHA}"
+            # Push to main: main-latest + sha
+            TAGS="${IMAGE_NAME}:main-latest,${IMAGE_NAME}:${SHORT_SHA}"
           fi
 
           echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
