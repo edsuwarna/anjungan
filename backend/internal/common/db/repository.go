@@ -439,6 +439,52 @@ func (r *Repository) CountDeployments(ctx context.Context) (int, error) {
 	return count, err
 }
 
+func (r *Repository) CountDeploymentsByStatus(ctx context.Context) (map[string]int, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT status, COUNT(*) FROM deployments GROUP BY status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := map[string]int{}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		result[status] = count
+	}
+	return result, nil
+}
+
+func (r *Repository) ListRecentDeployments(ctx context.Context, limit int) ([]*model.Deployment, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
+			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
+			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
+			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
+			FROM deployments d
+			LEFT JOIN environments e ON e.id = d.environment_id
+			LEFT JOIN servers s ON s.id = d.server_id
+			ORDER BY d.deployed_at DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var deps []*model.Deployment
+	for rows.Next() {
+		d := &model.Deployment{}
+		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
+			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
+			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
+			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
+			return nil, err
+		}
+		deps = append(deps, d)
+	}
+	return deps, nil
+}
+
 // ─── Server Metrics Repository ─────────────────────────────────────────────
 
 func (r *Repository) SaveMetrics(ctx context.Context, m *model.ServerMetricsPoint) error {
