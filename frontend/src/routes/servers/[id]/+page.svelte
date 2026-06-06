@@ -61,6 +61,7 @@
 	let availableChecks = $state([]);
 	let l1Categories = $state([]);
 	let l2Categories = $state([]);
+	let dockerCategories = $state([]);
 	let catLoading = $state(false);
 	let history = $state([]);
 	let compHistoryLoading = $state(false);
@@ -273,6 +274,10 @@ let showAllHistory = $state(false);
 			const l2 = await api.compliance.latestCategories($page.params.id, { scan_type: 'CIS Level 2' });
 			if (l2.categories) l2Categories = l2.categories.filter(c => c.total > 0);
 		} catch (_) {}
+		try {
+			const docker = await api.compliance.latestCategories($page.params.id, { scan_type: 'CIS Docker' });
+			if (docker.categories) dockerCategories = docker.categories.filter(c => c.total > 0);
+		} catch (_) {}
 		catLoading = false;
 	}
 
@@ -349,6 +354,7 @@ let showAllHistory = $state(false);
 	function profileToScanType(p) {
 		if (p === 'lynis') return 'Lynis';
 		if (p === 'cis_level_2') return 'CIS Level 2';
+		if (p === 'cis_docker') return 'CIS Docker';
 		return 'CIS Level 1';
 	}
 
@@ -503,7 +509,10 @@ let showAllHistory = $state(false);
 	let score = $derived(scan?.score ?? null);
 
 	const profileCategories = $derived.by(() => {
-		const cats = profile === 'cis_level_2' ? l2Categories : l1Categories;
+		let cats;
+		if (profile === 'cis_level_2') cats = l2Categories;
+		else if (profile === 'cis_docker') cats = dockerCategories;
+		else cats = l1Categories;
 		const meta = {
 			ssh: { label: 'SSH', icon: '🔒', color: '#3b82f6' },
 			kernel: { label: 'Kernel', icon: '⚙️', color: '#8b5cf6' },
@@ -569,11 +578,27 @@ let showAllHistory = $state(false);
 				{ icon: '📦', label: 'Docker', checks: 'DOCK-9310', desc: 'Container security, daemon config' },
 			],
 		},
+		cis_docker: {
+			title: 'CIS Docker',
+			desc: 'CIS Docker scans <strong>22 checks</strong> across <strong>6 categories</strong> covering Docker daemon config, container runtime security, and host-level hardening.',
+			color: '#06b6d4',
+			bg: '#ecfeff',
+			border: '#a5f3fc',
+			items: [
+				{ icon: '🐳', label: 'Host Config', checks: '6 checks', desc: 'Docker daemon config, socket security' },
+				{ icon: '📦', label: 'Daemon', checks: '5 checks', desc: 'Docker daemon files & directories' },
+				{ icon: '🔒', label: 'Container', checks: '4 checks', desc: 'Container runtime & policies' },
+				{ icon: '📁', label: 'Files', checks: '3 checks', desc: 'Docker config files & permissions' },
+				{ icon: '⚙️', label: 'Swarm', checks: '2 checks', desc: 'Swarm config & manager security' },
+				{ icon: '🛡️', label: 'Registry', checks: '2 checks', desc: 'Image registry & content trust' },
+			],
+		},
 	};
 
 	const currentInfo = $derived(whatsScannedInfo[profile] || whatsScannedInfo.cis_level_1);
 
 	const isLynisProfile = $derived(profile === 'lynis');
+	const isDockerProfile = $derived(profile === 'cis_docker');
 
 	const filteredScanCount = $derived.by(() => {
 		if (!history || history.length === 0) return 0;
@@ -584,6 +609,8 @@ let showAllHistory = $state(false);
 			items = items.filter(h => h.scan_type === 'CIS Level 1' || h.scan_type === 'All Checks');
 		} else if (profile === 'cis_level_2') {
 			items = items.filter(h => h.scan_type === 'CIS Level 2');
+		} else if (profile === 'cis_docker') {
+			items = items.filter(h => h.scan_type === 'CIS Docker' || h.scan_type?.toLowerCase().includes('docker'));
 		}
 		return items.length;
 	});
@@ -597,6 +624,8 @@ let showAllHistory = $state(false);
 			items = items.filter(h => h.scan_type === 'CIS Level 1' || h.scan_type === 'All Checks');
 		} else if (profile === 'cis_level_2') {
 			items = items.filter(h => h.scan_type === 'CIS Level 2');
+		} else if (profile === 'cis_docker') {
+			items = items.filter(h => h.scan_type === 'CIS Docker' || h.scan_type?.toLowerCase().includes('docker'));
 		}
 		return showAllHistory ? items : items.slice(0, 5);
 	});
@@ -637,13 +666,13 @@ let showAllHistory = $state(false);
 						<button onclick={() => confirmModal = { show: false, title: '', message: '', onConfirm: null, danger: false }} class="btn-secondary text-sm">Cancel</button>
 						<button onclick={() => confirmModal.onConfirm?.()} class="btn-danger text-sm">Delete</button>
 					</div>
-				</div>
-\t\t\t</div>
-\t\t{/if}
+		</div>
+			</div>
+		{/if}
 
-\t\t<!-- ── Breadcrumb ── -->
-\t\t<div class="flex items-center gap-2 text-sm mb-2" style="color: var(--color-text-muted);">
-\t\t\t<a href="/servers" class="hover:underline" style="color: var(--color-text-muted);">Servers</a>
+		<!-- ── Breadcrumb ── -->
+		<div class="flex items-center gap-2 text-sm mb-2" style="color: var(--color-text-muted);">
+			<a href="/servers" class="hover:underline" style="color: var(--color-text-muted);">Servers</a>
 			<span>/</span>
 			<span style="color: var(--color-text);">{server.name}</span>
 		</div>
@@ -983,6 +1012,10 @@ let showAllHistory = $state(false);
 								style={profile === 'lynis' ? 'background: var(--color-accent); color: #fff;' : 'color: var(--color-text-secondary); background: transparent;'}>
 								Lynis
 							</button>
+							<button onclick={() => switchProfile('cis_docker')} class="px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+								style={profile === 'cis_docker' ? 'background: #06b6d4; color: #fff;' : 'color: var(--color-text-secondary); background: transparent;'}>
+								Docker
+							</button>
 						</div>
 						<div class="flex items-center gap-2">
 							{#if isLynisProfile}
@@ -992,6 +1025,14 @@ let showAllHistory = $state(false);
 									<Icon icon={scanning ? 'solar:spinner-bold' : 'solar:bug-bold'}
 										class="h-4 w-4 {scanning ? 'animate-spin' : ''}" />
 									{scanning ? 'Scanning...' : 'Run Lynis'}
+								</button>
+							{:else if isDockerProfile}
+								<button onclick={runScan} disabled={scanning}
+									class="btn-secondary flex items-center gap-2 text-sm"
+									style="border-color: #06b6d4; color: #06b6d4;">
+									<Icon icon={scanning ? 'solar:spinner-bold' : 'solar:box-bold'}
+										class="h-4 w-4 {scanning ? 'animate-spin' : ''}" />
+									{scanning ? 'Scanning...' : 'Run Docker Scan'}
 								</button>
 							{:else}
 								<button onclick={runScan} disabled={scanning}
@@ -1007,8 +1048,8 @@ let showAllHistory = $state(false);
 
 				<!-- Reference link -->
 				<div class="flex items-center justify-end mb-4">
-					<a href={profile === 'lynis' ? '/compliance/lynis' : profile === 'cis_level_2' ? '/compliance/cis-level-2' : '/compliance/cis-level-1'} class="text-xs flex items-center gap-1.5 font-medium" style="color: var(--color-text-muted);">
-						View complete {profile === 'lynis' ? 'Lynis' : profile === 'cis_level_2' ? 'CIS L2' : 'CIS L1'} scan details →
+					<a href={profile === 'lynis' ? '/compliance/lynis' : profile === 'cis_level_2' ? '/compliance/cis-level-2' : profile === 'cis_docker' ? '/compliance/cis-docker' : '/compliance/cis-level-1'} class="text-xs flex items-center gap-1.5 font-medium" style="color: var(--color-text-muted);">
+						View complete {profile === 'lynis' ? 'Lynis' : profile === 'cis_level_2' ? 'CIS L2' : profile === 'cis_docker' ? 'CIS Docker' : 'CIS L1'} scan details →
 					</a>
 				</div>
 
@@ -1254,7 +1295,7 @@ let showAllHistory = $state(false);
 							<div class="card mb-4 py-6 text-center" style="border-left: 4px solid var(--color-text-muted);">
 								<Icon icon="solar:shield-warning-bold" class="h-6 w-6 mb-2" style="color: var(--color-text-muted);" />
 								<p class="text-sm" style="color: var(--color-text-muted);">
-									No <strong>{profile === 'cis_level_2' ? 'CIS Level 2' : 'CIS Level 1'}</strong> scan data yet.
+									No <strong>{profile === 'cis_level_2' ? 'CIS Level 2' : profile === 'cis_docker' ? 'CIS Docker' : 'CIS Level 1'}</strong> scan data yet.
 									Click <strong>Run Scan</strong> above to start.
 								</p>
 							</div>

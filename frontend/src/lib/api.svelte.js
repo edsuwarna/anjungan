@@ -234,7 +234,7 @@ export const api = {
 		scanLynis: (serverId) =>
 			request(`/compliance/${serverId}/scan/lynis`, { method: 'POST' }),
 		scanDocker: (serverId) =>
-			request(`/compliance/${serverId}/scan/docker`, { method: 'POST' }),
+			request(`/compliance/${serverId}/scan?profile=cis_docker`, { method: 'POST' }),
 		scanContainers: (serverId) =>
 			request(`/compliance/${serverId}/scan/containers`, { method: 'POST' }),
 		scanContainer: (serverId, containerId) =>

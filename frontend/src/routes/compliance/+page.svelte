@@ -23,17 +23,53 @@ const scanProfilePages = {
 
 	// ─── Filters ───
 	let filterStatus = $state('all');
+	let expandedServers = $state({});
 
 	// ─── Category breakdowns ───
 	let l1Categories = $state([]);
 	let l2Categories = $state([]);
+	let dockerCategories = $state([]);
 	let l1CategoriesLoading = $state(false);
 	let l2CategoriesLoading = $state(false);
+	let dockerCategoriesLoading = $state(false);
+
+	// ─── Docker scan ───
+
+	// ─── Global scan history ───
+	let globalHistory = $state([]);
+	let historyLoading = $state(false);
+	let historyFilter = $state('all');
+	let historyPage = $state(1);
+	let historyTotal = $state(0);
+	let historyLimit = 10;
 
 	// ─── On mount ───
 	onMount(async () => {
 		await Promise.all([loadSummary(), loadCheckInfo()]);
+		loadGlobalHistory();
 	});
+
+	async function loadGlobalHistory(scanType = null, pg = 1) {
+		historyLoading = true;
+		historyPage = pg;
+		try {
+			const params = { page: historyPage, limit: historyLimit };
+			if (scanType && scanType !== 'all') params.scan_type = scanType;
+			const data = await api.compliance.globalHistory(params);
+			globalHistory = data.results || [];
+			historyTotal = data.total || 0;
+		} catch (_) {
+			globalHistory = [];
+			historyTotal = 0;
+		} finally {
+			historyLoading = false;
+		}
+	}
+
+	function filterHistory(type) {
+		historyFilter = type;
+		loadGlobalHistory(type === 'all' ? null : type, 1);
+	}
 
 	async function loadCheckInfo() {
 		try {
@@ -88,6 +124,12 @@ const scanProfilePages = {
 			if (l2Data.categories) l2Categories = l2Data.categories.filter(c => c.total > 0);
 		} catch (_) {}
 		l2CategoriesLoading = false;
+
+		try {
+			const dockerData = await api.compliance.latestCategories(srv.id, { scan_type: 'CIS Docker' });
+			if (dockerData.categories) dockerCategories = dockerData.categories.filter(c => c.total > 0);
+		} catch (_) {}
+		dockerCategoriesLoading = false;
 	}
 
 	async function scanAll() {
@@ -96,6 +138,10 @@ const scanProfilePages = {
 			try { await api.compliance.scan(s.id); } catch (_) {}
 		}
 		await loadSummary();
+	}
+
+	function toggleServer(id) {
+		expandedServers = { ...expandedServers, [id]: !expandedServers[id] };
 	}
 
 	// ─── Helpers ───
@@ -160,6 +206,13 @@ const scanProfilePages = {
 		const total = cats.reduce((s, c) => s + c.total, 0);
 		const passed = cats.reduce((s, c) => s + c.passed, 0);
 		return total > 0 ? Math.round((passed / total) * 100) : 0;
+	});
+
+	let dockerScore = $derived.by(() => {
+		if (dockerCategories.length === 0) return null;
+		const total = dockerCategories.reduce((s, c) => s + c.total, 0);
+		const passed = dockerCategories.reduce((s, c) => s + c.passed, 0);
+		return total > 0 ? Math.round((passed / total) * 100) : null;
 	});
 </script>
 
@@ -383,26 +436,32 @@ const scanProfilePages = {
 					</div>
 					<div>
 						<div class="text-sm font-semibold" style="color: var(--color-text);">CIS Docker</div>
-						<div class="text-xs" style="color: var(--color-text-muted);">Docker host security</div>
+						<div class="text-xs" style="color: var(--color-text-muted);">Docker host + container security</div>
 					</div>
 				</div>
 				<div class="text-right">
-					<div class="text-lg font-bold" style="color: #06b6d4;">{scannedCount > 0 ? profileScore : '—'}{scannedCount > 0 ? '%' : ''}</div>
+					{#if dockerScore !== null}
+						<div class="text-lg font-bold" style="color: {dockerScore >= 80 ? 'var(--color-success)' : dockerScore >= 60 ? 'var(--color-warning)' : 'var(--color-danger)'};">{dockerScore}%</div>
+					{:else}
+						<div class="text-lg font-bold" style="color: #06b6d4;">—</div>
+					{/if}
 					<div class="text-[10px]" style="color: var(--color-text-muted);">avg score</div>
 				</div>
 			</div>
 			<div class="flex items-center gap-2 text-xs mb-2" style="color: var(--color-text-muted);">
 				<span><strong style="color: var(--color-text);">{checkStats.total}</strong> checks</span>
 				<span>·</span>
-				<span><strong style="color: var(--color-success);">0</strong> pass</span>
-				<span><strong style="color: var(--color-warning);">0</strong> warn</span>
-				<span><strong style="color: var(--color-danger);">0</strong> fail</span>
+				<span><strong style="color: var(--color-success);">{dockerCategories.reduce((s, c) => s + c.passed, 0)}</strong> pass</span>
+				<span><strong style="color: var(--color-warning);">{dockerCategories.reduce((s, c) => s + c.warnings, 0)}</strong> warn</span>
+				<span><strong style="color: var(--color-danger);">{dockerCategories.reduce((s, c) => s + c.criticals, 0)}</strong> fail</span>
 			</div>
 			<div class="progress-track">
-				<div class="progress-fill" style="width: 0%; background: #06b6d4;"></div>
+				<div class="progress-fill" style="width: {dockerScore ?? 0}%; background: #06b6d4;"></div>
 			</div>
 			<div class="flex items-center justify-between mt-2">
-				<span class="text-[11px]" style="color: var(--color-text-muted);">6 categories · {scannedCount} server{scannedCount !== 1 ? 's' : ''}</span>
+				<span class="text-[11px]" style="color: var(--color-text-muted);">
+					{dockerCategories.length > 0 ? dockerCategories.length + ' scanned' : '6 categories'} · {scannedCount} server{scannedCount !== 1 ? 's' : ''}
+				</span>
 				<Icon icon="solar:alt-arrow-right-bold" class="h-3.5 w-3.5" style="color: var(--color-text-muted);" />
 			</div>
 		</div>
@@ -423,7 +482,7 @@ const scanProfilePages = {
 			{/if}
 		</div>
 
-		<!-- SERVER LIST — no container sub-rows, clean rows -->
+		<!-- SERVER LIST — expandable score cards -->
 		{#if servers.length === 0}
 			<div class="card flex flex-col items-center py-16 text-center">
 				<Icon icon="solar:shield-check-bold" class="mb-3 h-12 w-12" style="color: var(--color-text-muted);" />
@@ -431,56 +490,173 @@ const scanProfilePages = {
 				<p class="text-sm" style="color: var(--color-text-secondary);">Add servers to start monitoring compliance.</p>
 			</div>
 		{:else}
-			<div class="flex flex-col gap-2">
+			<div class="flex flex-col gap-3">
 				{#each filteredServers as srv (srv.id)}
 					{@const sc = srv.score}
 					{@const sColor = sc !== undefined && sc !== null ? scoreColor(sc) : 'var(--color-text-muted)'}
-					<div class="server-card-row"
-						style="border-left: 4px solid {sc !== undefined && sc !== null ? sColor : 'var(--color-border)'};"
-						onclick={() => goto(`/servers/${srv.id}`)}
-						role="button" tabindex="0"
-						onkeydown={(e) => e.key === 'Enter' && goto(`/servers/${srv.id}`)}>
-						<div class="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
-							style="background-color: {sc !== undefined && sc !== null ? sColor + '18' : 'var(--color-border)'};">
-							<Icon icon="solar:server-square-bold" class="h-4 w-4" style="color: {sc !== undefined && sc !== null ? sColor : 'var(--color-text-muted)'};" />
+					{@const isExpanded = expandedServers[srv.id] || false}
+					<div class="server-card" style="border-left: 4px solid {sc !== undefined && sc !== null ? sColor : 'var(--color-border)'};">
+						<!-- Main row — always visible -->
+						<div class="flex items-center gap-3 cursor-pointer" onclick={() => toggleServer(srv.id)} role="button" tabindex="0"
+							onkeydown={(e) => e.key === 'Enter' && toggleServer(srv.id)}>
+							<!-- Score badge -->
+							<div class="flex items-center justify-center rounded-xl shrink-0"
+								style="width: 48px; height: 48px; background-color: {sc !== undefined && sc !== null ? sColor + '18' : 'var(--color-border)'};">
+								{#if sc !== undefined && sc !== null}
+									<span class="text-xl font-extrabold" style="color: {sColor};">{sc}</span>
+								{:else}
+									<Icon icon="solar:server-square-bold" class="h-5 w-5" style="color: var(--color-text-muted);" />
+								{/if}
+							</div>
+							<!-- Server info -->
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-semibold truncate" style="color: var(--color-text);">{srv.name || 'Unknown'}</p>
+								<div class="flex items-center gap-2 mt-0.5">
+									{#if srv.host}<span class="text-xs font-mono" style="color: var(--color-text-muted);">{srv.host}</span>{/if}
+									<span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style="background: {sc !== undefined && sc !== null ? sColor + '20' : 'var(--color-border)'}; color: {sc !== undefined && sc !== null ? sColor : 'var(--color-text-muted)'};">
+										{scoreLabel(sc)}
+									</span>
+								</div>
+							</div>
+							<!-- Severity dots -->
+							<div class="flex items-center gap-2 text-xs shrink-0">
+								{#if srv.criticals > 0}<span class="flex items-center gap-0.5" style="color: var(--color-danger); font-weight: 600;">🔴 {srv.criticals}</span>{/if}
+								{#if srv.warnings > 0}<span class="flex items-center gap-0.5" style="color: var(--color-warning); font-weight: 600;">🟡 {srv.warnings}</span>{/if}
+							</div>
+							<!-- Expand chevron -->
+							<Icon icon="solar:alt-arrow-down-bold" class="h-4 w-4 shrink-0 transition-transform duration-200" 
+								style="color: var(--color-text-muted); transform: {isExpanded ? 'rotate(180deg)' : 'rotate(0)'};" />
 						</div>
-						<div class="min-w-0 flex-1">
-							<p class="text-sm font-medium truncate max-w-[200px]" style="color: var(--color-text);">{srv.name || 'Unknown'}</p>
-							{#if srv.host}<p class="text-xs font-mono truncate" style="color: var(--color-text-muted);">{srv.host}</p>{/if}
-						</div>
-						<div class="text-center min-w-[40px]">
-							{#if sc !== undefined && sc !== null}
-								<span class="text-lg font-bold" style="color: {sColor};">{sc}</span>
-							{:else}
-								<span class="text-xs" style="color: var(--color-text-muted);">—</span>
-							{/if}
-						</div>
-						<div class="flex items-center gap-1.5 text-xs flex-wrap min-w-[60px]">
-							{#if srv.criticals > 0}<span class="severity-dot" style="background: var(--color-danger);"></span><span style="color: var(--color-danger); font-weight: 600;">{srv.criticals}</span>{/if}
-							{#if srv.warnings > 0}<span class="severity-dot" style="background: var(--color-warning);"></span><span style="color: var(--color-warning); font-weight: 600;">{srv.warnings}</span>{/if}
-							{#if srv.passed > 0}<span class="severity-dot" style="background: var(--color-success);"></span><span style="color: var(--color-success); font-weight: 600;">{srv.passed}</span>{/if}
-							{#if !srv.criticals && !srv.warnings && !srv.passed}<span style="color: var(--color-text-muted);">—</span>{/if}
-						</div>
-						{#if srv.last_scan}
-							<div class="text-xs" style="color: var(--color-text-muted); min-width: 56px; text-align: right;">
-								{formatTime(srv.last_scan)}
+
+						<!-- Expanded section -->
+						{#if isExpanded}
+							<div class="expanded-section" style="border-top: 1px solid var(--color-border-light); margin-top: 12px; padding-top: 12px;">
+								<div class="grid gap-2" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
+									<!-- CIS L1 -->
+									<div class="flex items-center gap-2 text-xs rounded-lg px-3 py-2" style="background: rgba(16,185,129,0.06);">
+										<span style="color: var(--color-success); font-weight: 600;">CIS L1</span>
+										<span style="color: var(--color-text-muted);">{l1Categories.length} cat</span>
+									</div>
+									<!-- CIS L2 -->
+									<div class="flex items-center gap-2 text-xs rounded-lg px-3 py-2" style="background: rgba(245,158,11,0.06);">
+										<span style="color: var(--color-warning); font-weight: 600;">CIS L2</span>
+										<span style="color: var(--color-text-muted);">{l2Categories.length} cat</span>
+									</div>
+									<!-- CIS Docker -->
+									<div class="flex items-center gap-2 text-xs rounded-lg px-3 py-2" style="background: rgba(6,182,212,0.06);">
+										<span style="color: #06b6d4; font-weight: 600;">Docker</span>
+										<span style="color: var(--color-text-muted);">{dockerCategories.length} cat</span>
+									</div>
+									<!-- Last scan -->
+									<div class="flex items-center gap-2 text-xs rounded-lg px-3 py-2" style="background: var(--color-surface);">
+										<Icon icon="solar:history-bold" class="h-3 w-3" style="color: var(--color-text-muted);" />
+										<span style="color: var(--color-text-muted);">{formatTime(srv.last_scan)}</span>
+									</div>
+								</div>
+								<!-- Quick actions -->
+								<div class="flex items-center gap-2 mt-3">
+									<button onclick={(e) => { e.stopPropagation(); goto(`/servers/${srv.id}?tab=compliance`); }}
+										class="text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+										style="background: var(--color-primary); color: #fff; border: none; cursor: pointer;">
+										<Icon icon="solar:shield-check-bold" class="h-3.5 w-3.5" /> View Details
+									</button>
+								</div>
 							</div>
 						{/if}
 					</div>
 				{/each}
 			</div>
 		{/if}
+
+		<!-- SCAN HISTORY -->
+		<div class="mt-8">
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="text-base font-semibold flex items-center gap-2" style="color: var(--color-text);">
+					<Icon icon="solar:history-bold" class="h-4 w-4" style="color: var(--color-text-muted);" /> Scan History
+				</h3>
+			</div>
+			<!-- Filter chips -->
+			<div class="flex flex-wrap items-center gap-2 mb-4">
+				<button onclick={() => filterHistory('all')} class="filter-chip" class:filter-active={historyFilter === 'all'}>All</button>
+				<button onclick={() => filterHistory('CIS Level 1')} class="filter-chip" class:filter-active={historyFilter === 'CIS Level 1'}>CIS L1</button>
+				<button onclick={() => filterHistory('CIS Level 2')} class="filter-chip" class:filter-active={historyFilter === 'CIS Level 2'}>CIS L2</button>
+				<button onclick={() => filterHistory('Lynis')} class="filter-chip" class:filter-active={historyFilter === 'Lynis'}>Lynis</button>
+				<button onclick={() => filterHistory('CIS Docker')} class="filter-chip" class:filter-active={historyFilter === 'CIS Docker'}>Docker</button>
+			</div>
+			<!-- History rows -->
+			{#if historyLoading}
+				<div class="flex items-center justify-center py-8">
+					<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
+				</div>
+			{:else if globalHistory.length > 0}
+				<div class="flex flex-col gap-2">
+					{#each globalHistory as item}
+						<div class="card !p-3 flex items-center justify-between">
+							<div class="flex items-center gap-3 min-w-0">
+								<div class="w-2 h-2 rounded-full shrink-0" style="background: {scoreColor(item.score)};"></div>
+								<div class="min-w-0">
+									<div class="flex items-center gap-2 flex-wrap">
+										<span class="text-xs font-medium" style="color: var(--color-text);">{item.scan_type || item.profile || 'Scan'}</span>
+										<span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style="background: {scoreColor(item.score)}22; color: {scoreColor(item.score)};">
+											{item.score ?? '—'}%
+										</span>
+									</div>
+									<p class="text-[10px] mt-0.5" style="color: var(--color-text-muted);">
+										{item.server_name || item.server_id} · {formatTime(item.created_at || item.scanned_at)}
+									</p>
+								</div>
+							</div>
+							<div class="flex items-center gap-3 text-xs shrink-0">
+								<span>✓{item.passed_count || item.passed || 0}</span>
+								<span style="color: var(--color-warning);">⚠{item.warning_count || item.warnings || 0}</span>
+								<span style="color: var(--color-danger);">✗{item.critical_count || item.criticals || 0}</span>
+								<button onclick={() => goto(`/servers/${item.server_id}?tab=compliance&scan=${item.id}`)}
+									class="text-[10px] font-medium px-2 py-1 rounded"
+									style="background: rgba(148,163,184,0.12); color: var(--color-text-muted); border: none; cursor: pointer;">
+									View →
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
+				<!-- Pagination -->
+				{#if historyTotal > historyLimit}
+					<div class="flex items-center justify-center gap-3 mt-3">
+						<button onclick={() => loadGlobalHistory(historyFilter === 'all' ? null : historyFilter, historyPage - 1)}
+							disabled={historyPage <= 1}
+							class="text-xs font-medium px-3 py-1.5 rounded"
+							style="background: var(--color-surface); color: {historyPage <= 1 ? 'var(--color-border)' : 'var(--color-text)'}; border: 1px solid var(--color-border-light); cursor: {historyPage <= 1 ? 'default' : 'pointer'};">
+							← Prev
+						</button>
+						<span class="text-xs" style="color: var(--color-text-muted);">Page {historyPage} of {Math.ceil(historyTotal / historyLimit)}</span>
+						<button onclick={() => loadGlobalHistory(historyFilter === 'all' ? null : historyFilter, historyPage + 1)}
+							disabled={historyPage * historyLimit >= historyTotal}
+							class="text-xs font-medium px-3 py-1.5 rounded"
+							style="background: var(--color-surface); color: {historyPage * historyLimit >= historyTotal ? 'var(--color-border)' : 'var(--color-text)'}; border: 1px solid var(--color-border-light); cursor: {historyPage * historyLimit >= historyTotal ? 'default' : 'pointer'};">
+							Next →
+						</button>
+					</div>
+				{/if}
+			{:else}
+				<div class="card flex flex-col items-center py-10 text-center">
+					<Icon icon="solar:history-bold" class="h-10 w-10 mb-3" style="color: var(--color-text-muted);" />
+					<p class="text-sm" style="color: var(--color-text-muted);">No scan history yet.</p>
+					<p class="text-xs mt-1" style="color: var(--color-text-muted);">Run a scan from any server to see results here.</p>
+				</div>
+			{/if}
+		</div>
 	{/if}
 </div>
 
 <style>
-	.server-card-row {
+	.server-card {
 		border-radius: 10px;
 		background: var(--color-card);
 		border: 1px solid var(--color-border-light);
 		transition: all 0.15s;
+		padding: 14px 16px;
 	}
-	.server-card-row:hover {
+	.server-card:hover {
 		border-color: var(--color-primary);
 		box-shadow: 0 2px 8px rgba(16,185,129,0.08);
 	}

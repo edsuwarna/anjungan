@@ -1147,11 +1147,20 @@ func (r *Repository) GetLatestScanResult(ctx context.Context, serverID string) (
 
 func (r *Repository) GetLatestScanResultByType(ctx context.Context, serverID, scanType string) (*model.ScanResult, error) {
 	s := &model.ScanResult{}
-	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
-		 FROM scan_results WHERE server_id = $1 AND scan_type = $2 ORDER BY created_at DESC LIMIT 1`, serverID, scanType,
-	).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
-		&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	var err error
+	if scanType == "CIS Docker" {
+		err = r.db.Pool.QueryRow(ctx,
+			`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+			 FROM scan_results WHERE server_id = $1 AND scan_type IN ($2, $3) AND status = 'completed' ORDER BY created_at DESC LIMIT 1`, serverID, "CIS Docker", "Container Security",
+		).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+			&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	} else {
+		err = r.db.Pool.QueryRow(ctx,
+			`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+			 FROM scan_results WHERE server_id = $1 AND scan_type = $2 ORDER BY created_at DESC LIMIT 1`, serverID, scanType,
+		).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+			&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1643,8 +1652,13 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	var countQuery string
 	var countArgs []interface{}
 	if scanType != "" && scanType != "all" {
-		countQuery = `SELECT COUNT(*) FROM scan_results WHERE scan_type = $1`
-		countArgs = append(countArgs, scanType)
+		if scanType == "CIS Docker" {
+			countQuery = `SELECT COUNT(*) FROM scan_results WHERE scan_type IN ($1, $2)`
+			countArgs = append(countArgs, "CIS Docker", "Container Security")
+		} else {
+			countQuery = `SELECT COUNT(*) FROM scan_results WHERE scan_type = $1`
+			countArgs = append(countArgs, scanType)
+		}
 	} else {
 		countQuery = `SELECT COUNT(*) FROM scan_results`
 	}
@@ -1667,14 +1681,25 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	var query string
 	var args []interface{}
 	if scanType != "" && scanType != "all" {
-		query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
-		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
-		       sr.started_at, sr.completed_at, sr.created_at
-		 FROM scan_results sr
-		 LEFT JOIN servers s ON sr.server_id = s.id
-		 WHERE sr.scan_type = $1
-		 ORDER BY sr.created_at DESC LIMIT $2 OFFSET $3`
-		args = append(args, scanType, limit, offset)
+		if scanType == "CIS Docker" {
+			query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+			       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+			       sr.started_at, sr.completed_at, sr.created_at
+			 FROM scan_results sr
+			 LEFT JOIN servers s ON sr.server_id = s.id
+			 WHERE sr.scan_type IN ($1, $2)
+			 ORDER BY sr.created_at DESC LIMIT $3 OFFSET $4`
+			args = append(args, "CIS Docker", "Container Security", limit, offset)
+		} else {
+			query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+			       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+			       sr.started_at, sr.completed_at, sr.created_at
+			 FROM scan_results sr
+			 LEFT JOIN servers s ON sr.server_id = s.id
+			 WHERE sr.scan_type = $1
+			 ORDER BY sr.created_at DESC LIMIT $2 OFFSET $3`
+			args = append(args, scanType, limit, offset)
+		}
 	} else {
 		query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
 		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
