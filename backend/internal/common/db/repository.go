@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -2378,4 +2379,41 @@ func (r *Repository) ListDeploymentsByRepo(ctx context.Context, provider, owner,
 		deps = append(deps, d)
 	}
 	return deps, nil
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+func (r *Repository) GetSetting(ctx context.Context, key string) (*model.Settings, error) {
+	s := &model.Settings{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT key, value, description, created_at, updated_at FROM settings WHERE key = $1`, key).
+		Scan(&s.Key, &s.Value, &s.Description, &s.CreatedAt, &s.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (r *Repository) GetComplianceThresholds(ctx context.Context) (model.ComplianceThresholds, error) {
+	def := model.DefaultComplianceThresholds()
+	s, err := r.GetSetting(ctx, "compliance_thresholds")
+	if err != nil {
+		return def, nil
+	}
+	var t model.ComplianceThresholds
+	if err := json.Unmarshal([]byte(s.Value), &t); err != nil {
+		return def, nil
+	}
+	if t.Compliant <= 0 || t.Warning <= 0 || t.Compliant <= t.Warning {
+		return def, nil
+	}
+	return t, nil
+}
+
+func (r *Repository) UpsertSetting(ctx context.Context, key, value, description string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO settings (key, value, description) VALUES ($1, $2, $3)
+		 ON CONFLICT (key) DO UPDATE SET value = $2, description = $3, updated_at = NOW()`,
+		key, value, description)
+	return err
 }

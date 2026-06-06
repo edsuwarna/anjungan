@@ -3,6 +3,7 @@
 	import { api } from '$lib/api.svelte.js';
 	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
+import { loadThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.js';
 
 	let checks = $state([]);
 	let loading = $state(true);
@@ -60,6 +61,7 @@
 
 	onMount(async () => {
 		loading = true;
+		loadThresholds();
 		try {
 			const data = await api.compliance.checks();
 			checks = (data.checks || []).filter(c => c.cis_level === 2);
@@ -137,12 +139,6 @@
 			low: 'rgba(16,185,129,0.1)',
 		};
 		return colors[s] || 'rgba(100,116,139,0.1)';
-	}
-
-	function scoreColor(score) {
-		if (score >= 80) return 'var(--color-success)';
-		if (score >= 60) return 'var(--color-warning)';
-		return 'var(--color-danger)';
 	}
 
 	function formatTime(ts) {

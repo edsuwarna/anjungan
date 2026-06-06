@@ -4,6 +4,7 @@
 	import { api } from '$lib/api.svelte.js';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.js';
 
 	let stats = $state({ servers: 0, containers: 0, deployments: 0, users: 0, server_status: {}, deployment_status: {}, compliance: null, server_scores: {}, recent_activity: [], recent_deployments: [] });
 	let serverList = $state([]);
@@ -18,11 +19,11 @@
 	let activeDeployments = $derived(deploymentStatus['running'] || 0);
 	let serverScores = $derived(stats.server_scores || {});
 
-	// Overall health: green if all online + avg compliance >= 80
+	// Overall health: green if all online + avg compliance meets threshold
 	let healthStatus = $derived(
 		(statusCounts['offline'] || 0) > 0 ? 'warning' :
-		(compliance.average_score != null && compliance.average_score < 60) ? 'critical' :
-		(compliance.average_score != null && compliance.average_score < 80) ? 'warning' :
+		(compliance.average_score != null && compliance.average_score < getThresholds().warning) ? 'critical' :
+		(compliance.average_score != null && compliance.average_score < getThresholds().compliant) ? 'warning' :
 		'good'
 	);
 
@@ -31,7 +32,7 @@
 	let offlineCount = $derived(statusCounts['offline'] || 0);
 
 	onMount(async () => {
-		await Promise.all([loadDashboard(), loadServers()]);
+		await Promise.all([loadDashboard(), loadServers(), loadThresholds()]);
 		const interval = setInterval(() => { loadDashboard(); loadServers(); }, 30000);
 		return () => clearInterval(interval);
 	});
@@ -104,13 +105,6 @@
 			case 'failed': return 'var(--color-danger)';
 			default: return 'var(--color-text-muted)';
 		}
-	}
-
-	function scoreColor(score) {
-		if (score == null) return 'var(--color-text-muted)';
-		if (score >= 80) return 'var(--color-success)';
-		if (score >= 60) return 'var(--color-warning)';
-		return 'var(--color-danger)';
 	}
 
 	function scoreBadge(serverId) {
@@ -296,7 +290,7 @@
 				{@const total = compliance.total_servers || 1}
 				<div class="flex items-center gap-4 mb-3">
 					<div class="text-center">
-						<span class="text-3xl font-bold" style="color: {(compliance.average_score ?? 0) >= 80 ? 'var(--color-success)' : (compliance.average_score ?? 0) >= 60 ? 'var(--color-warning)' : 'var(--color-danger)'};">
+						<span class="text-3xl font-bold" style="color: {scoreColor(compliance.average_score ?? null)};">
 							{compliance.average_score}%
 						</span>
 						<p class="text-xs" style="color: var(--color-text-muted);">avg score</p>

@@ -308,4 +308,9 @@ export const api = {
 			},
 		},
 	},
+
+	settings: {
+		complianceThresholds: () => request('/settings/compliance-thresholds'),
+		updateComplianceThresholds: (data) => request('/settings/compliance-thresholds', { method: 'PUT', body: JSON.stringify(data) }),
+	},
 };

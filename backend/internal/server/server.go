@@ -24,6 +24,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/ratelimit"
 	"github.com/edsuwarna/anjungan/internal/registry"
 	repoapi "github.com/edsuwarna/anjungan/internal/repository"
+	"github.com/edsuwarna/anjungan/internal/settings"
 )
 
 type Server struct {
@@ -94,8 +95,9 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			r.Mount("/repositories", repoapi.NewHandler(repo).Routes())
 			r.Mount("/deployments", deployment.NewHandler(repo).Routes())
 			r.Mount("/compliance", compliance.NewHandler(repo).Routes())
-			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
-			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
+		r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
+		r.Mount("/settings", settings.NewHandler(repo).Routes())
+		r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
 		})
 	})
 

@@ -3,6 +3,7 @@
 	import { api } from '$lib/api.svelte.js';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+import { loadThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.js';
 	import { onMount } from 'svelte';
 	import AddServerModal from '$lib/components/ui/AddServerModal.svelte';
 	// ── Core state ──────────────────────────────────────────
@@ -92,6 +93,7 @@ let showAllHistory = $state(false);
 
 	// ── Init ────────────────────────────────────────────────
 	onMount(() => {
+		loadThresholds();
 		loadServer();
 		// Handle URL params from scan history view links
 		const tabParam = $page.url.searchParams.get('tab');
@@ -468,12 +470,6 @@ let showAllHistory = $state(false);
 		return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
 	}
 
-	function scoreColor(score) {
-		if (score >= 80) return 'var(--color-success)';
-		if (score >= 60) return 'var(--color-warning)';
-		return 'var(--color-danger)';
-	}
-
 	function severityColor(severity) {
 		const s = (severity || '').toLowerCase();
 		if (s === 'critical') return 'var(--color-danger)';
@@ -481,13 +477,6 @@ let showAllHistory = $state(false);
 		if (s === 'medium') return 'var(--color-accent)';
 		if (s === 'low' || s === 'passed' || s === 'pass') return 'var(--color-success)';
 		return 'var(--color-text-muted)';
-	}
-
-	function scoreLabel(score) {
-		if (score === undefined || score === null) return 'Unscanned';
-		if (score >= 80) return 'Passing';
-		if (score >= 60) return 'Warning';
-		return 'Critical';
 	}
 
 	// ── Compliance derived ─────────────────────────────────
@@ -1334,8 +1323,8 @@ let showAllHistory = $state(false);
 								{#each filteredHistory as item}
 									<div class="flex items-center justify-between py-2.5 border-b" style="border-color: var(--color-border-light);">
 										<div class="flex items-center gap-3">
-											<div class="w-2 h-2 rounded-full {((item.score ?? 0) >= 80) ? 'bg-green' : ((item.score ?? 0) >= 60) ? 'bg-amber' : 'bg-red'}" 
-												style="background: {scoreColor(item.score)};"></div>
+										<div class="w-2 h-2 rounded-full" 
+											style="background: {scoreColor(item.score)};"></div>
 											<div>
 												<p class="text-sm font-medium" style="color: var(--color-text);">
 													{item.scan_type || item.profile || 'Scan'} · {item.score ?? '—'}%

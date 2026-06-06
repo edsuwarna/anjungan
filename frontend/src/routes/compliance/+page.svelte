@@ -3,6 +3,8 @@
 import { api } from '$lib/api.svelte.js';
 import Icon from '@iconify/svelte';
 import { goto } from '$app/navigation';
+import thresholds from '$lib/thresholds.svelte.js';
+const { loadThresholds, getThresholds, scoreColor, scoreLabel, bandLabel } = thresholds;
 
 const scanProfilePages = {
 	cis_l1: '/compliance/cis-level-1',
@@ -45,7 +47,7 @@ const scanProfilePages = {
 
 	// ─── On mount ───
 	onMount(async () => {
-		await Promise.all([loadSummary(), loadCheckInfo()]);
+		await Promise.all([loadSummary(), loadCheckInfo(), loadThresholds()]);
 		loadGlobalHistory();
 	});
 
@@ -156,20 +158,6 @@ const scanProfilePages = {
 		return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 	}
 
-	function scoreColor(score) {
-		if (score === undefined || score === null) return 'var(--color-text-muted)';
-		if (score >= 80) return 'var(--color-success)';
-		if (score >= 60) return 'var(--color-warning)';
-		return 'var(--color-danger)';
-	}
-
-	function scoreLabel(score) {
-		if (score === undefined || score === null) return 'Unscanned';
-		if (score >= 80) return 'Passing';
-		if (score >= 60) return 'Warning';
-		return 'Critical';
-	}
-
 	function severityColor(severity) {
 		if (severity === 'critical') return 'var(--color-danger)';
 		if (severity === 'high' || severity === 'warning') return 'var(--color-warning)';
@@ -188,8 +176,8 @@ const scanProfilePages = {
 		if (filterStatus !== 'all') {
 			list = list.filter(s => {
 				const label = scoreLabel(s.score);
-				if (filterStatus === 'passing') return label === 'Passing';
-				if (filterStatus === 'warning') return label === 'Warning';
+				if (filterStatus === 'passing') return label === 'Compliant';
+				if (filterStatus === 'warning') return label === 'Needs Improvement';
 				if (filterStatus === 'critical') return label === 'Critical';
 				if (filterStatus === 'unscanned') return s.score === undefined || s.score === null;
 				return true;
@@ -259,7 +247,7 @@ const scanProfilePages = {
 	{:else}
 
 		<!-- KPI CARDS -->
-		<div class="grid gap-4 grid-cols-2 lg:grid-cols-3 mb-6">
+		<div class="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
 			<div class="stat-card" style="border-left-color: var(--color-primary);">
 				<div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">
 					<Icon icon="solar:server-square-bold" class="h-3.5 w-3.5" />
@@ -309,9 +297,43 @@ const scanProfilePages = {
 					{/if}
 				</div>
 			</div>
+			<div class="stat-card" style="border-left-color: var(--color-accent);">
+				<div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">
+					<Icon icon="solar:info-circle-bold" class="h-3.5 w-3.5" />
+					How Scores Work
+				</div>
+				<div class="flex flex-col gap-2">
+					<p class="text-[11px] leading-relaxed" style="color: var(--color-text-secondary);">
+						Scores = % of CIS Benchmark checks passed. Only <em style="color: var(--color-text-muted); font-style: italic;">scored</em> checks are counted.
+					</p>
+					<div class="flex items-center gap-2 text-[11px]">
+						<span class="w-2 h-2 rounded-full shrink-0" style="background: var(--color-success);"></span>
+						<span class="font-medium" style="color: var(--color-text);">{bandLabel('compliant')}</span>
+						<span style="color: var(--color-text-muted);">Compliant</span>
+					</div>
+					<div class="flex items-center gap-2 text-[11px]">
+						<span class="w-2 h-2 rounded-full shrink-0" style="background: var(--color-warning);"></span>
+						<span class="font-medium" style="color: var(--color-text);">{bandLabel('warning')}</span>
+						<span style="color: var(--color-text-muted);">Needs Improvement</span>
+					</div>
+					<div class="flex items-center gap-2 text-[11px]">
+						<span class="w-2 h-2 rounded-full shrink-0" style="background: var(--color-danger);"></span>
+						<span class="font-medium" style="color: var(--color-text);">{bandLabel('critical')}</span>
+						<span style="color: var(--color-text-muted);">Critical</span>
+					</div>
+					<div class="flex items-center gap-2 text-[11px]">
+						<span class="w-2 h-2 rounded-full shrink-0" style="background: var(--color-border); border: 1px solid var(--color-text-muted);"></span>
+						<span class="font-medium" style="color: var(--color-text-muted);">—</span>
+						<span style="color: var(--color-text-muted);">Unscanned</span>
+					</div>
+					<div class="mt-1 pt-1.5" style="border-top: 1px solid var(--color-border-light);">
+						<p class="text-[10px]" style="color: var(--color-text-muted);">
+							Based on CIS Benchmarks v8. Thresholds can be customized in Settings.
+						</p>
+					</div>
+				</div>
+			</div>
 		</div>
-
-<!-- BENCHMARK CARDS — sesuai mockup -->
 			<div class="flex items-center gap-2 mb-3">
 				<h3 class="text-sm font-semibold" style="color: var(--color-text);">Benchmarks</h3>
 				<span class="text-xs" style="color: var(--color-text-muted);">Aggregate scores across all scanned targets</span>
@@ -441,7 +463,7 @@ const scanProfilePages = {
 				</div>
 				<div class="text-right">
 					{#if dockerScore !== null}
-						<div class="text-lg font-bold" style="color: {dockerScore >= 80 ? 'var(--color-success)' : dockerScore >= 60 ? 'var(--color-warning)' : 'var(--color-danger)'};">{dockerScore}%</div>
+						<div class="text-lg font-bold" style="color: {scoreColor(dockerScore)};">{dockerScore}%</div>
 					{:else}
 						<div class="text-lg font-bold" style="color: #06b6d4;">—</div>
 					{/if}
@@ -471,8 +493,8 @@ const scanProfilePages = {
 		<div class="flex flex-wrap items-center gap-2 mb-4">
 			<span class="text-xs font-medium" style="color: var(--color-text-muted);">Filter:</span>
 			<button onclick={() => filterStatus = 'all'} class="filter-chip" class:filter-active={filterStatus === 'all'}>All</button>
-			<button onclick={() => filterStatus = 'passing'} class="filter-chip" class:filter-active={filterStatus === 'passing'}>🟢 Passing</button>
-			<button onclick={() => filterStatus = 'warning'} class="filter-chip" class:filter-active={filterStatus === 'warning'}>🟡 Warning</button>
+			<button onclick={() => filterStatus = 'passing'} class="filter-chip" class:filter-active={filterStatus === 'passing'}>🟢 Compliant</button>
+			<button onclick={() => filterStatus = 'warning'} class="filter-chip" class:filter-active={filterStatus === 'warning'}>🟡 Needs Improvement</button>
 			<button onclick={() => filterStatus = 'critical'} class="filter-chip" class:filter-active={filterStatus === 'critical'}>🔴 Critical</button>
 			<button onclick={() => filterStatus = 'unscanned'} class="filter-chip" class:filter-active={filterStatus === 'unscanned'}>⏳ Unscanned</button>
 			{#if filteredServers.length !== servers.length}

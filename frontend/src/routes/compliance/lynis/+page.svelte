@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api.svelte.js';
 	import { goto } from '$app/navigation';
+import { loadThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.js';
 	import Icon from '@iconify/svelte';
 
 	const profileColor = '#8b5cf6';
@@ -175,6 +176,7 @@
 	let totalPages = $derived(Math.max(1, Math.ceil(historyTotal / historyLimit)));
 
 	onMount(() => {
+		loadThresholds();
 		loadHistory();
 		loadServers();
 	});
@@ -217,12 +219,6 @@
 		} finally {
 			historyLoading = false;
 		}
-	}
-
-	function scoreColor(score) {
-		if (score >= 80) return 'var(--color-success)';
-		if (score >= 60) return 'var(--color-warning)';
-		return 'var(--color-danger)';
 	}
 
 	function formatTime(ts) {
