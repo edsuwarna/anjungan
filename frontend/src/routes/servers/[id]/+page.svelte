@@ -24,7 +24,6 @@
 	const tabs = [
 		{ id: 'overview', label: 'Overview', icon: 'solar:info-circle-bold' },
 		{ id: 'metrics', label: 'Metrics', icon: 'solar:chart-2-bold' },
-		{ id: 'containers', label: 'Containers', icon: 'solar:box-bold' },
 		{ id: 'compliance', label: 'Compliance', icon: 'solar:shield-check-bold' },
 	];
 
@@ -37,17 +36,6 @@
 	let historyLoading = $state(false);
 	let liveInterval = $state(null);
 	let liveEnabled = $state(false);
-
-	// ── Containers state ────────────────────────────────────
-	let containers = $state([]);
-	let containersLoading = $state(false);
-	let containerActions = $state({});
-	let logsModal = $state({ show: false, container: '', logs: '', loading: false });
-	let inspectModal = $state({ show: false, container: '', data: null, loading: false });
-
-	// ── Container Security state ─────────────────────────
-	let containerSecurity = $state(null);
-	let containerScanning = $state(false);
 
 	// ── Compliance state ────────────────────────────────────
 	let scan = $state(null);
@@ -129,7 +117,6 @@ let showAllHistory = $state(false);
 		try {
 			server = await api.servers.get($page.params.id);
 			loadMetrics();
-			loadContainers();
 			if (pendingTab) {
 				activeTab = pendingTab;
 				if (activeTab === 'compliance') {
@@ -169,17 +156,6 @@ let showAllHistory = $state(false);
 		}
 	}
 
-	async function loadContainers() {
-		containersLoading = true;
-		try {
-			containers = await api.servers.containers($page.params.id);
-		} catch (_) {
-			containers = [];
-		} finally {
-			containersLoading = false;
-		}
-	}
-
 	function toggleLiveRefresh() {
 		liveEnabled = !liveEnabled;
 		if (liveEnabled) {
@@ -195,91 +171,6 @@ let showAllHistory = $state(false);
 	function changeRange(range) {
 		historyRange = range;
 		api.servers.metricsHistory($page.params.id, range, 100).then(d => { metricsHistory = d; }).catch(() => {});
-	}
-
-	async function containerAction(containerId, action) {
-		const key = containerId + ':' + action;
-		containerActions = { ...containerActions, [key]: 'loading' };
-		try {
-			let result;
-			switch (action) {
-				case 'start': result = await api.servers.containerStart($page.params.id, containerId); break;
-				case 'stop': result = await api.servers.containerStop($page.params.id, containerId); break;
-				case 'restart': result = await api.servers.containerRestart($page.params.id, containerId); break;
-			}
-			containerActions = { ...containerActions, [key]: 'success' };
-			setTimeout(() => { containerActions = { ...containerActions, [key]: undefined }; }, 2000);
-			setTimeout(() => loadContainers(), 1000);
-		} catch (e) {
-			containerActions = { ...containerActions, [key]: 'error' };
-			setTimeout(() => { containerActions = { ...containerActions, [key]: undefined }; }, 3000);
-		}
-	}
-
-	// ── Container Security Scan ───────────────────────────
-	async function runContainerScan() {
-		containerScanning = true;
-		containerSecurity = null;
-		try {
-			const resp = await api.compliance.scanContainers($page.params.id);
-			// Poll until complete
-			for (let i = 0; i < 60; i++) {
-				await new Promise(r => setTimeout(r, 2000));
-				try {
-					const detail = await api.compliance.latest($page.params.id, { scan_type: 'Container Security' });
-					if (detail && detail.status === 'completed') {
-						// Parse findings per container
-						const findings = detail.findings || [];
-						const containerMap = {};
-						for (const f of findings) {
-							if (!containerMap[f.category]) containerMap[f.category] = [];
-							containerMap[f.category].push(f);
-						}
-						// Match with container list
-						containerSecurity = {
-							score: detail.score,
-							total: detail.total_checks,
-							criticals: detail.criticals,
-							warnings: detail.warnings,
-							containers: containers.map(ctr => ({
-								name: ctr.name,
-								id: ctr.id,
-								findings: containerMap[ctr.name] || [],
-							})),
-						};
-						break;
-					}
-					if (detail && detail.status === 'failed') {
-						containerSecurity = { error: detail.error_message || 'Scan failed' };
-						break;
-					}
-				} catch (_) {}
-			}
-		} catch (e) {
-			containerSecurity = { error: e.message };
-		} finally {
-			containerScanning = false;
-		}
-	}
-
-	async function viewLogs(containerId, containerName) {
-		logsModal = { show: true, container: containerName, logs: 'Loading...', loading: true };
-		try {
-			const result = await api.servers.containerLogs($page.params.id, containerId);
-			logsModal = { show: true, container: containerName, logs: result.logs || 'No logs', loading: false };
-		} catch (e) {
-			logsModal = { show: true, container: containerName, logs: 'Error: ' + e.message, loading: false };
-		}
-	}
-
-	async function viewInspect(containerId, containerName) {
-		inspectModal = { show: true, container: containerName, data: null, loading: true };
-		try {
-			const result = await api.servers.containerInspect($page.params.id, containerId);
-			inspectModal = { show: true, container: containerName, data: result, loading: false };
-		} catch (e) {
-			inspectModal = { show: true, container: containerName, data: { error: e.message }, loading: false };
-		}
 	}
 
 	async function testConnection() {
@@ -615,25 +506,6 @@ let showAllHistory = $state(false);
 		return 'Critical';
 	}
 
-	function containerBorderColor(state) {
-		if (state === 'running') return 'var(--color-success)';
-		if (state === 'exited' || state === 'stopped') return 'var(--color-danger)';
-		return 'var(--color-warning)';
-	}
-
-	function containerStatusClass(state) {
-		const s = (state || '').toLowerCase();
-		if (s === 'running') return 'running';
-		if (s === 'exited' || s === 'stopped') return 'stopped';
-		return 'pending';
-	}
-
-	function sparklineValues(data) {
-		if (!data || data.length === 0) return [];
-		const reversed = [...data].reverse();
-		return reversed.map(d => d.disk_used_pct || 0);
-	}
-
 	// ── Compliance derived ─────────────────────────────────
 	let scanStats = $derived.by(() => {
 		if (!scan) return { critical: 0, high: 0, medium: 0, low: 0, passed: 0, total: 0 };
@@ -889,9 +761,6 @@ let showAllHistory = $state(false);
 			<button onclick={copySshCmd} class="btn-secondary flex items-center gap-2">
 				<Icon icon={copyFeedback.show ? (copyFeedback.success ? 'solar:check-circle-bold' : 'solar:close-circle-bold') : 'solar:copy-bold'} class="h-4 w-4" style="color: {copyFeedback.show ? (copyFeedback.success ? 'var(--color-success)' : 'var(--color-danger)') : 'inherit'};" />
 				{copyFeedback.show ? (copyFeedback.success ? 'Copied!' : 'Failed') : 'Copy SSH Cmd'}
-			</button>
-			<button onclick={loadContainers} disabled={containersLoading} class="btn-secondary flex items-center gap-2">
-				<Icon icon="solar:refresh-bold" class="h-4 w-4 {containersLoading ? 'animate-spin' : ''}" /> Refresh
 			</button>
 		</div>
 
@@ -1214,121 +1083,6 @@ let showAllHistory = $state(false);
 					<div class="flex flex-col items-center py-6 text-center">
 						<Icon icon="solar:chart-2-bold" class="mb-1 inline-block h-6 w-6" style="color: var(--color-text-muted);" />
 						<p class="text-xs" style="color: var(--color-text-muted);">Collecting metrics data... Check back later</p>
-					</div>
-				{/if}
-			</div>
-
-		<!-- ════════════════════════ TAB: CONTAINERS ════════════════════════ -->
-		{:else if activeTab === 'containers'}
-			<div class="card mt-5">
-				<div class="flex items-center justify-between mb-3">
-					<h3 class="text-base font-semibold" style="color: var(--color-text);">Containers</h3>
-					<div class="flex items-center gap-2">
-						{#if containerSecurity && !containerScanning}
-							<span class="text-xs px-2 py-1 rounded-md font-medium" style="background: rgba(16,185,129,0.1); color: var(--color-success);">
-								Score: {containerSecurity.score}%
-							</span>
-						{/if}
-						<button onclick={runContainerScan} disabled={containerScanning} class="btn-secondary flex items-center gap-1.5 text-xs">
-							<Icon icon={containerScanning ? 'solar:spinner-bold' : 'solar:shield-check-bold'} class="h-3.5 w-3.5 {containerScanning ? 'animate-spin' : ''}" />
-							{containerScanning ? 'Scanning...' : 'Scan Security'}
-						</button>
-						<span class="text-xs" style="color: var(--color-text-muted);">{containers.length} container{containers.length !== 1 ? 's' : ''}</span>
-					</div>
-				</div>
-
-				{#if containersLoading && containers.length === 0}
-					<div class="flex items-center justify-center py-8">
-						<Icon icon="solar:spinner-bold" class="h-6 w-6 animate-spin" style="color: var(--color-text-muted);" />
-					</div>
-				{:else if containers.length === 0}
-					<div class="flex flex-col items-center py-8 text-center">
-						<Icon icon="solar:box-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
-						<p class="text-sm" style="color: var(--color-text-muted);">No containers found</p>
-						<p class="text-xs" style="color: var(--color-text-muted);">Docker may not be installed on this server</p>
-					</div>
-				{:else}
-					<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-						{#each containers as c}
-							{@const isRunning = c.state === 'running'}
-							<div
-								class="rounded-lg border text-left w-full min-w-0 transition-all shadow-sm hover:shadow-md cursor-pointer"
-								style="background-color: var(--color-surface); border-color: var(--color-border); border-left: 3px solid {containerBorderColor(c.state)};"
-								onclick={() => viewInspect(c.id, c.name)}
-							>
-								<div class="px-4 py-3 border-b" style="border-color: var(--color-border-light);">
-									<div class="flex items-center justify-between gap-2">
-										<div class="flex items-center gap-2 min-w-0">
-											<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {isRunning ? 'var(--color-success)' : 'var(--color-text-muted)'};"></span>
-											<span class="text-sm font-semibold font-mono truncate" style="color: var(--color-text);" title={c.name}>{c.name}</span>
-										</div>
-										<span class="status-badge {containerStatusClass(c.state)} text-xs shrink-0">
-											{c.state || c.status}
-										</span>
-									</div>
-								</div>
-								<div class="px-4 py-2.5 space-y-1.5">
-									<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
-										<Icon icon="solar:box-bold" class="h-3 w-3 shrink-0" />
-										<span class="truncate" title={c.image}>{c.image}</span>
-									</div>
-									{#if c.ports}
-										<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
-											<Icon icon="solar:plug-circle-bold" class="h-3 w-3 shrink-0" />
-											<span class="truncate">{c.ports}</span>
-										</div>
-									{/if}
-									{#if c.created}
-										<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
-											<Icon icon="solar:clock-circle-bold" class="h-3 w-3 shrink-0" />
-											<span class="truncate">{c.created}</span>
-										</div>
-									{/if}
-									{#if containerSecurity && !containerScanning}
-										{@const ctrSec = containerSecurity.containers?.find(cs => cs.name === c.name)}
-										{#if ctrSec && ctrSec.findings.length > 0}
-											{@const ctrlFindings = ctrSec.findings.filter(f => f.status === 'fail' || f.status === 'warn')}
-											<div class="flex flex-wrap gap-1 pt-1">
-												{#each ctrlFindings.slice(0, 4) as f}
-													<span class="badge text-[10px] px-1.5 py-0.5 rounded font-medium"
-														style="background: {f.severity === 'critical' ? 'rgba(239,68,68,0.1)' : f.severity === 'high' ? 'rgba(245,158,11,0.1)' : 'rgba(99,102,241,0.1)'}; color: {f.severity === 'critical' ? 'var(--color-danger)' : f.severity === 'high' ? 'var(--color-warning)' : 'var(--color-accent)'};">
-														{f.title.length > 25 ? f.title.slice(0, 22) + '...' : f.title}
-													</span>
-												{/each}
-												{#if ctrlFindings.length > 4}
-													<span class="text-[10px] font-medium" style="color: var(--color-text-muted);">+{ctrlFindings.length - 4} more</span>
-												{/if}
-											</div>
-										{:else if ctrSec}
-											<div class="flex items-center gap-1 pt-1">
-												<span class="text-[10px] font-medium" style="color: var(--color-success);">✅ All checks passed</span>
-											</div>
-										{/if}
-									{/if}
-								</div>
-								<div class="flex items-center gap-1 border-t px-4 py-2" style="border-color: var(--color-border-light);" onclick={(e) => e.stopPropagation()}>
-									{#if isRunning}
-										<button onclick={() => containerAction(c.id, 'stop')} class="btn-icon h-7 w-7" title="Stop" style="color: var(--color-danger);">
-											<Icon icon={containerActions[c.id + ':stop'] === 'loading' ? 'solar:spinner-bold' : 'solar:pause-bold'} class="h-3.5 w-3.5 {containerActions[c.id + ':stop'] === 'loading' ? 'animate-spin' : ''}" />
-										</button>
-										<button onclick={() => containerAction(c.id, 'restart')} class="btn-icon h-7 w-7" title="Restart" style="color: var(--color-warning);">
-											<Icon icon={containerActions[c.id + ':restart'] === 'loading' ? 'solar:spinner-bold' : 'solar:refresh-bold'} class="h-3.5 w-3.5 {containerActions[c.id + ':restart'] === 'loading' ? 'animate-spin' : ''}" />
-										</button>
-									{:else}
-										<button onclick={() => containerAction(c.id, 'start')} class="btn-icon h-7 w-7" title="Start" style="color: var(--color-success);">
-											<Icon icon={containerActions[c.id + ':start'] === 'loading' ? 'solar:spinner-bold' : 'solar:play-bold'} class="h-3.5 w-3.5 {containerActions[c.id + ':start'] === 'loading' ? 'animate-spin' : ''}" />
-										</button>
-									{/if}
-									<span class="flex-1"></span>
-									<button onclick={() => viewLogs(c.id, c.name)} class="btn-icon h-7 w-7" title="Logs">
-										<Icon icon="solar:document-text-bold" class="h-3.5 w-3.5" />
-									</button>
-									<button onclick={() => viewInspect(c.id, c.name)} class="btn-icon h-7 w-7" title="Inspect">
-										<Icon icon="solar:code-bold" class="h-3.5 w-3.5" />
-									</button>
-								</div>
-							</div>
-						{/each}
 					</div>
 				{/if}
 			</div>
