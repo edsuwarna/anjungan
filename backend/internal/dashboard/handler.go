@@ -19,17 +19,14 @@ func NewHandler(repo *db.Repository) *Handler {
 func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	serverCount, _ := h.repo.CountServers(r.Context())
 	containerSum, _ := h.repo.SumContainerCount(r.Context())
+	deploymentCount, _ := h.repo.CountDeployments(r.Context())
 	userCount, _ := h.repo.CountUsers(r.Context())
 	statusCounts, _ := h.repo.CountServersByStatus(r.Context())
-	alertsCount, _ := h.repo.CountUnacknowledgedAlerts(r.Context())
-	alertsBySeverity, _ := h.repo.CountAlertsBySeverity(r.Context())
-	activity, _ := h.repo.ListRecentActivity(r.Context(), 20)
+	compliance, _ := h.repo.GetComplianceSummary(r.Context())
+	activity, _ := h.repo.ListRecentActivity(r.Context(), 10)
 
 	if statusCounts == nil {
 		statusCounts = map[string]int{}
-	}
-	if alertsBySeverity == nil {
-		alertsBySeverity = map[string]int{}
 	}
 	if activity == nil {
 		activity = []struct {
@@ -53,14 +50,30 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Compact compliance summary (omit full server list to keep response lean)
+	type ComplianceBrief struct {
+		TotalServers   int            `json:"total_servers"`
+		ScannedServers int            `json:"scanned_servers"`
+		AverageScore   *int           `json:"average_score"`
+		ByStatus       map[string]int `json:"by_status"`
+	}
+	comp := ComplianceBrief{
+		TotalServers: serverCount,
+		ByStatus:     map[string]int{},
+	}
+	if compliance != nil {
+		comp.ScannedServers = compliance.ScannedServers
+		comp.AverageScore = compliance.AverageScore
+		comp.ByStatus = compliance.ByStatus
+	}
+
 	common.JSON(w, http.StatusOK, map[string]interface{}{
-		"servers":           serverCount,
-		"containers":        containerSum,
-		"deployments":       0,
-		"users":             userCount,
-		"alerts":            alertsCount,
-		"alerts_by_severity": alertsBySeverity,
-		"server_status":     statusCounts,
-		"recent_activity":   entries,
+		"servers":         serverCount,
+		"containers":      containerSum,
+		"deployments":     deploymentCount,
+		"users":           userCount,
+		"server_status":   statusCounts,
+		"compliance":      comp,
+		"recent_activity": entries,
 	})
 }

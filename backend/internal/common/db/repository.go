@@ -433,6 +433,12 @@ func (r *Repository) SumContainerCount(ctx context.Context) (int, error) {
 	return count, err
 }
 
+func (r *Repository) CountDeployments(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM deployments").Scan(&count)
+	return count, err
+}
+
 // ─── Server Metrics Repository ─────────────────────────────────────────────
 
 func (r *Repository) SaveMetrics(ctx context.Context, m *model.ServerMetricsPoint) error {

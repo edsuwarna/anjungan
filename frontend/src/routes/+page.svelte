@@ -5,11 +5,13 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
-	let stats = $state({ servers: 0, containers: 0, deployments: 0, users: 0, alerts: 0, alerts_by_severity: {}, server_status: {}, recent_activity: [] });
+	let stats = $state({ servers: 0, containers: 0, deployments: 0, users: 0, server_status: {}, compliance: null, recent_activity: [] });
 	let serverList = $state([]);
 	let loading = $state(true);
 	let error = $state('');
 	let serversLoading = $state(true);
+
+	let compliance = $derived(stats.compliance || { total_servers: 0, scanned_servers: 0, average_score: null, by_status: {} });
 
 	onMount(async () => {
 		await Promise.all([loadDashboard(), loadServers()]);
@@ -20,7 +22,7 @@
 	async function loadDashboard() {
 		try {
 			const data = await api.dashboard.summary();
-			stats = { servers: 0, containers: 0, deployments: 0, users: 0, alerts: 0, alerts_by_severity: {}, server_status: {}, recent_activity: [], ...data };
+			stats = { servers: 0, containers: 0, deployments: 0, users: 0, server_status: {}, compliance: null, recent_activity: [], ...data };
 		} catch (e) {
 			error = e.message;
 		} finally {
@@ -78,12 +80,6 @@
 			default: return 'solar:info-circle-bold';
 		}
 	}
-
-	const alertSeverityColor = {
-		critical: 'var(--color-danger)',
-		warning: 'var(--color-warning)',
-		info: 'var(--color-primary)'
-	};
 </script>
 
 <div class="page-container">
@@ -102,17 +98,11 @@
 		</div>
 	{:else}
 		<!-- Header -->
-		<div class="flex items-center justify-between flex-wrap gap-2">
+		<div class="flex items-center justify-between flex-wrap gap-2 mb-4">
 			<div>
 				<h1 class="page-title">Overview</h1>
 				<p class="page-subtitle">Overview of your infrastructure</p>
 			</div>
-			{#if stats.alerts > 0}
-				<div class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium" style="background-color: rgba(239,68,68,0.1); color: var(--color-danger);">
-					<Icon icon="solar:danger-triangle-bold" class="h-3.5 w-3.5" />
-					{stats.alerts} alert{stats.alerts !== 1 ? 's' : ''}
-				</div>
-			{/if}
 		</div>
 
 		<!-- Stat Cards -->
@@ -122,13 +112,13 @@
 			<StatCard title="Deployments" value={stats.deployments} icon="solar:rocket-bold" />
 			<StatCard title="Users" value={stats.users} icon="solar:users-group-rounded-bold" />
 			<StatCard
-				title="Alerts"
-				value={stats.alerts}
-				icon="solar:danger-triangle-bold"
-				style="color: {stats.alerts > 0 ? 'var(--color-danger)' : 'inherit'};"
+				title="Compliance"
+				value={compliance.average_score != null ? compliance.average_score + '%' : '—'}
+				icon="solar:shield-check-bold"
 			/>
 		</div>
 
+		<!-- Two-column: Status + Activity -->
 		<div class="grid gap-4 lg:grid-cols-2 min-w-0">
 			<!-- Server Status Distribution -->
 			<div class="card min-w-0 overflow-hidden" style="border-left: 3px solid var(--color-primary);">
@@ -218,24 +208,62 @@
 			</div>
 		</div>
 
-		<!-- Alerts Summary -->
-		{#if stats.alerts_by_severity && Object.keys(stats.alerts_by_severity).length > 0}
-			<div class="card" style="border-left: 3px solid var(--color-danger);">
-				<h3 class="mb-3 text-base font-semibold" style="color: var(--color-text);">
-					<Icon icon="solar:danger-triangle-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-danger);" /> Active Alerts
+		<!-- Compliance Summary -->
+		<div class="card" style="border-left: 3px solid var(--color-primary);">
+			<div class="flex items-center justify-between mb-3">
+				<h3 class="text-base font-semibold" style="color: var(--color-text);">
+					<Icon icon="solar:shield-check-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-primary);" /> Compliance
 				</h3>
-				<div class="flex flex-wrap gap-3">
-					{#each Object.entries(stats.alerts_by_severity) as [severity, count]}
-						{@const color = alertSeverityColor[severity] || 'var(--color-text-muted)'}
-						<div class="flex items-center gap-2 rounded-lg border px-4 py-2.5" style="border-color: {color}; background-color: {color}10;">
-							<Icon icon="solar:danger-triangle-bold" class="h-4 w-4" style="color: {color};" />
-							<span class="text-sm font-medium" style="color: {color};">{severity}</span>
-							<span class="text-lg font-bold" style="color: {color};">{count}</span>
-						</div>
-					{/each}
-				</div>
+				<button onclick={() => goto('/compliance')} class="text-xs font-medium hover:underline" style="color: var(--color-primary);">View All</button>
 			</div>
-		{/if}
+			{#if compliance.scanned_servers === 0}
+				<div class="flex flex-col items-center py-4 text-center">
+					<Icon icon="solar:shield-check-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
+					<p class="text-sm" style="color: var(--color-text-muted);">No scans yet</p>
+					<button onclick={() => goto('/compliance')} class="btn-secondary mt-2 text-xs">Run a Scan</button>
+				</div>
+			{:else}
+				{@const total = compliance.total_servers || 1}
+				<div class="flex items-center gap-4 mb-3">
+					<div class="text-center">
+						<span class="text-3xl font-bold" style="color: {(compliance.average_score ?? 0) >= 80 ? 'var(--color-success)' : (compliance.average_score ?? 0) >= 60 ? 'var(--color-warning)' : 'var(--color-danger)'};">
+							{compliance.average_score}%
+						</span>
+						<p class="text-xs" style="color: var(--color-text-muted);">avg score</p>
+					</div>
+					<div class="flex-1">
+						<div class="flex h-2 rounded-full overflow-hidden" style="background-color: var(--color-border);">
+							{#if compliance.by_status.good}
+								<div style="width: {(compliance.by_status.good / total * 100).toFixed(0)}%; background-color: var(--color-success);" class="transition-all duration-500"></div>
+							{/if}
+							{#if compliance.by_status.warning}
+								<div style="width: {(compliance.by_status.warning / total * 100).toFixed(0)}%; background-color: var(--color-warning);" class="transition-all duration-500"></div>
+							{/if}
+							{#if compliance.by_status.critical}
+								<div style="width: {(compliance.by_status.critical / total * 100).toFixed(0)}%; background-color: var(--color-danger);" class="transition-all duration-500"></div>
+							{/if}
+							{#if compliance.by_status.unscanned}
+								<div style="width: {(compliance.by_status.unscanned / total * 100).toFixed(0)}%; background-color: var(--color-border);" class="transition-all duration-500"></div>
+							{/if}
+						</div>
+						<div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-2 text-xs">
+							{#if compliance.by_status.good}
+								<span style="color: var(--color-success);">● {compliance.by_status.good} good</span>
+							{/if}
+							{#if compliance.by_status.warning}
+								<span style="color: var(--color-warning);">● {compliance.by_status.warning} warn</span>
+							{/if}
+							{#if compliance.by_status.critical}
+								<span style="color: var(--color-danger);">● {compliance.by_status.critical} crit</span>
+							{/if}
+							{#if compliance.by_status.unscanned}
+								<span style="color: var(--color-text-muted);">○ {compliance.by_status.unscanned} unscanned</span>
+							{/if}
+						</div>
+					</div>
+				</div>
+			{/if}
+		</div>
 
 		<!-- Quick Actions -->
 		<div class="card" style="border-left: 3px solid var(--color-accent);">
@@ -255,11 +283,11 @@
 			</div>
 		</div>
 
-		<!-- Server Health -->
+		<!-- Servers Grid -->
 		<div class="card min-w-0 overflow-hidden" style="border-left: 3px solid var(--color-success);">
 			<div class="flex items-center justify-between mb-3">
 				<h3 class="text-base font-semibold" style="color: var(--color-text);">
-					<Icon icon="solar:heart-pulse-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-success);" /> Server Health
+					<Icon icon="solar:server-square-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-success);" /> Servers
 				</h3>
 				<button onclick={() => goto('/servers')} class="text-xs font-medium hover:underline" style="color: var(--color-primary);">View All</button>
 			</div>
@@ -268,37 +296,38 @@
 					<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
 				</div>
 			{:else if serverList.length === 0}
-				<div class="flex flex-col items-center py-6 text-center">
-					<Icon icon="solar:server-square-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
+				<div class="flex flex-col items-center py-8 text-center">
+					<Icon icon="solar:server-square-bold" class="mb-2 inline-block h-10 w-10" style="color: var(--color-text-muted);" />
 					<p class="text-sm" style="color: var(--color-text-muted);">No servers yet</p>
+					<button onclick={() => goto('/servers')} class="btn-secondary mt-3 text-xs">Add a Server</button>
 				</div>
 			{:else}
-				<div class="divide-y overflow-hidden rounded-lg border" style="border-color: var(--color-border-light);">
-					{#each serverList.slice(0, 10) as server}
+				<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+					{#each serverList.slice(0, 8) as server}
 						<button
 							onclick={() => goto(`/servers/${server.id}`)}
-							class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-opacity-50"
-							style="background-color: var(--color-surface);"
+							class="flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-opacity-50"
+							style="border-color: var(--color-border-light); background-color: var(--color-surface);"
 						>
-							<span class="status-dot {statusClass(server.status)}"></span>
-							<div class="flex-1 min-w-0">
+							<span class="status-dot {statusClass(server.status)} mt-1.5 shrink-0"></span>
+							<div class="min-w-0 flex-1">
 								<p class="text-sm font-medium truncate" style="color: var(--color-text);">{server.name}</p>
-								<p class="text-xs truncate" style="color: var(--color-text-muted);">{server.host}:{server.port || 22}</p>
-								<p class="text-xs mt-0.5 flex flex-wrap gap-x-2" style="color: var(--color-text-muted);">
-									{#if server.server_group}<span class="inline-flex items-center gap-1"><Icon icon="solar:folder-bold" class="h-3 w-3" />{server.server_group}</span>{/if}
-									{#if server.server_type}<span class="inline-flex items-center gap-1"><Icon icon="solar:widget-bold" class="h-3 w-3" />{server.server_type}</span>{/if}
-									{#if server.region}<span class="inline-flex items-center gap-1"><Icon icon="solar:global-bold" class="h-3 w-3" />{server.region}</span>{/if}
-									{#if server.container_count != null}<span class="inline-flex items-center gap-1"><Icon icon="solar:box-bold" class="h-3 w-3" />{server.container_count} container{server.container_count !== 1 ? 's' : ''}</span>{/if}
-									{#if server.os_info}<span title={server.os_info} class="inline-flex items-center gap-1"><Icon icon="solar:monitor-bold" class="h-3 w-3" />{server.os_info.split('(')[0].trim()}</span>{/if}
-								</p>
+								<p class="text-xs truncate mt-0.5" style="color: var(--color-text-muted);">{server.host}</p>
+								<div class="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 text-xs" style="color: var(--color-text-muted);">
+									{#if server.container_count != null && server.container_count > 0}
+										<span class="inline-flex items-center gap-1"><Icon icon="solar:box-bold" class="h-3 w-3" />{server.container_count}</span>
+									{/if}
+									{#if server.os_info}
+										<span class="inline-flex items-center gap-1"><Icon icon="solar:monitor-bold" class="h-3 w-3" />{server.os_info.split('(')[0].trim()}</span>
+									{/if}
+								</div>
 							</div>
-							<span class="status-badge {statusClass(server.status)} text-xs">{server.status || 'unknown'}</span>
-							<Icon icon="solar:alt-arrow-right-bold" class="h-4 w-4 shrink-0" style="color: var(--color-text-muted);" />
+							<span class="status-badge {statusClass(server.status)} text-xs shrink-0">{server.status || 'unknown'}</span>
 						</button>
 					{/each}
 				</div>
-				{#if serverList.length > 10}
-					<p class="mt-2 text-center text-xs" style="color: var(--color-text-muted);">Showing 10 of {serverList.length} servers</p>
+				{#if serverList.length > 8}
+					<p class="mt-2 text-center text-xs" style="color: var(--color-text-muted);">Showing 8 of {serverList.length} servers</p>
 				{/if}
 			{/if}
 		</div>
