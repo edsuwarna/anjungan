@@ -33,7 +33,7 @@ docker compose up -d
 
 ```bash
 # Just need Docker & a compose file (see docs/deployment.md)
-docker login reg.edsuwarna.xyz -u deploy
+docker login registry.edsuwarna.xyz -u deploy
 docker compose up -d
 ```
 

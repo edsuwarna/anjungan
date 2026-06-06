@@ -52,7 +52,7 @@ services:
       retries: 5
 
   backend:
-    image: reg.edsuwarna.xyz/anjungan-backend:main-latest
+    image: registry.edsuwarna.xyz/anjungan-backend:main-latest
     container_name: anjungan-backend
     environment:
       SERVER_HOST: 0.0.0.0
@@ -85,7 +85,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:rw
 
   frontend:
-    image: reg.edsuwarna.xyz/anjungan-frontend:main-latest
+    image: registry.edsuwarna.xyz/anjungan-frontend:main-latest
     container_name: anjungan-frontend
     ports:
       - "80:80"
@@ -164,7 +164,7 @@ docker compose up -d
 
 > **Login to the registry first** to pull private images:
 > ```bash
-> docker login reg.edsuwarna.xyz -u deploy
+> docker login registry.edsuwarna.xyz -u deploy
 > ```
 > You'll need registry credentials configured. Contact your admin for access.
 
@@ -253,4 +253,4 @@ The project uses GitHub Actions for Docker builds:
 - **Push to `main`** → builds & pushes images with `main-latest` + `main-{sha}` tags
 - **Tag push `v*`** → builds & pushes with `release-latest` + version tags
 
-Images are pushed to the Zot registry at `reg.edsuwarna.xyz`.
+Images are pushed to the Zot registry at `registry.edsuwarna.xyz`.
