@@ -660,62 +660,12 @@ let showAllHistory = $state(false);
 						<button onclick={() => confirmModal.onConfirm?.()} class="btn-danger text-sm">Delete</button>
 					</div>
 				</div>
-			</div>
-		{/if}
+\t\t\t</div>
+\t\t{/if}
 
-		<!-- ── Logs Modal ── -->
-		{#if logsModal.show}
-			<div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(0,0,0,0.5);"
-				onclick={() => logsModal = { show: false, container: '', logs: '', loading: false }}>
-				<div class="w-full max-w-2xl rounded-xl border shadow-xl max-h-[80vh] flex flex-col" style="background-color: var(--color-card); border-color: var(--color-border);"
-					onclick={(e) => e.stopPropagation()}>
-					<div class="flex items-center justify-between border-b px-5 py-3" style="border-color: var(--color-border);">
-						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Logs: {logsModal.container}</h3>
-						<button onclick={() => logsModal = { show: false, container: '', logs: '', loading: false }} class="btn-icon">
-							<Icon icon="solar:close-circle-bold" class="h-5 w-5" />
-						</button>
-					</div>
-					<div class="flex-1 overflow-auto p-4">
-						{#if logsModal.loading}
-							<div class="flex items-center justify-center py-8">
-								<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
-							</div>
-						{:else}
-							<pre class="font-mono text-xs leading-relaxed whitespace-pre-wrap" style="color: var(--color-text-secondary);">{logsModal.logs}</pre>
-						{/if}
-					</div>
-				</div>
-			</div>
-		{/if}
-
-		<!-- ── Inspect Modal ── -->
-		{#if inspectModal.show}
-			<div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(0,0,0,0.5);"
-				onclick={() => inspectModal = { show: false, container: '', data: null, loading: false }}>
-				<div class="w-full max-w-2xl rounded-xl border shadow-xl max-h-[80vh] flex flex-col" style="background-color: var(--color-card); border-color: var(--color-border);"
-					onclick={(e) => e.stopPropagation()}>
-					<div class="flex items-center justify-between border-b px-5 py-3" style="border-color: var(--color-border);">
-						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Inspect: {inspectModal.container}</h3>
-						<button onclick={() => inspectModal = { show: false, container: '', data: null, loading: false }} class="btn-icon">
-							<Icon icon="solar:close-circle-bold" class="h-5 w-5" />
-						</button>
-					</div>
-					<div class="flex-1 overflow-auto p-4">
-						{#if inspectModal.loading}
-							<div class="flex items-center justify-center py-8">
-								<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
-							</div>
-						{:else}
-							<pre class="font-mono text-xs leading-relaxed whitespace-pre-wrap" style="color: var(--color-text-secondary);">{JSON.stringify(inspectModal.data, null, 2)}</pre>
-						{/if}
-					</div>
-				</div>
-			</div>
-		{/if}
-
-		<!-- ── Breadcrumb ── -->
-		<div class="flex items-center gap-2 text-sm mb-2" style="color: var(--color-text-muted);">
-			<a href="/servers" class="hover:underline" style="color: var(--color-text-muted);">Servers</a>
+\t\t<!-- ── Breadcrumb ── -->
+\t\t<div class="flex items-center gap-2 text-sm mb-2" style="color: var(--color-text-muted);">
+\t\t\t<a href="/servers" class="hover:underline" style="color: var(--color-text-muted);">Servers</a>
 			<span>/</span>
 			<span style="color: var(--color-text);">{server.name}</span>
 		</div>
@@ -937,7 +887,7 @@ let showAllHistory = $state(false);
 						<div class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">
 							<Icon icon="solar:box-bold" class="h-3 w-3" /> Containers
 						</div>
-						<p class="text-sm" style="color: var(--color-text);">{containers.length || server.container_count || '\u2014'}</p>
+						<p class="text-sm" style="color: var(--color-text);">{server.container_count || '—'}</p>
 					</div>
 				</div>
 			</div>
