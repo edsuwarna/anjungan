@@ -3,10 +3,9 @@
 	import { api } from '$lib/api.svelte.js';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+import { loadThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.js';
 	import { onMount } from 'svelte';
 	import AddServerModal from '$lib/components/ui/AddServerModal.svelte';
-	import MetricsChart from '$lib/components/charts/MetricsChart.svelte';
-
 	// ── Core state ──────────────────────────────────────────
 	let server = $state(null);
 	let loading = $state(true);
@@ -24,7 +23,6 @@
 	const tabs = [
 		{ id: 'overview', label: 'Overview', icon: 'solar:info-circle-bold' },
 		{ id: 'metrics', label: 'Metrics', icon: 'solar:chart-2-bold' },
-		{ id: 'containers', label: 'Containers', icon: 'solar:box-bold' },
 		{ id: 'compliance', label: 'Compliance', icon: 'solar:shield-check-bold' },
 	];
 
@@ -32,22 +30,8 @@
 	let metrics = $state(null);
 	let metricsLoading = $state(false);
 	let metricsError = $state('');
-	let metricsHistory = $state([]);
-	let historyRange = $state('1h');
-	let historyLoading = $state(false);
 	let liveInterval = $state(null);
 	let liveEnabled = $state(false);
-
-	// ── Containers state ────────────────────────────────────
-	let containers = $state([]);
-	let containersLoading = $state(false);
-	let containerActions = $state({});
-	let logsModal = $state({ show: false, container: '', logs: '', loading: false });
-	let inspectModal = $state({ show: false, container: '', data: null, loading: false });
-
-	// ── Container Security state ─────────────────────────
-	let containerSecurity = $state(null);
-	let containerScanning = $state(false);
 
 	// ── Compliance state ────────────────────────────────────
 	let scan = $state(null);
@@ -78,6 +62,7 @@
 	let availableChecks = $state([]);
 	let l1Categories = $state([]);
 	let l2Categories = $state([]);
+	let dockerCategories = $state([]);
 	let catLoading = $state(false);
 	let history = $state([]);
 	let compHistoryLoading = $state(false);
@@ -108,6 +93,7 @@ let showAllHistory = $state(false);
 
 	// ── Init ────────────────────────────────────────────────
 	onMount(() => {
+		loadThresholds();
 		loadServer();
 		// Handle URL params from scan history view links
 		const tabParam = $page.url.searchParams.get('tab');
@@ -129,7 +115,6 @@ let showAllHistory = $state(false);
 		try {
 			server = await api.servers.get($page.params.id);
 			loadMetrics();
-			loadContainers();
 			if (pendingTab) {
 				activeTab = pendingTab;
 				if (activeTab === 'compliance') {
@@ -149,34 +134,11 @@ let showAllHistory = $state(false);
 		metricsError = '';
 		try {
 			metrics = await api.servers.metrics($page.params.id);
-			loadHistory();
 		} catch (e) {
 			metricsError = e.message;
 			metrics = null;
 		} finally {
 			metricsLoading = false;
-		}
-	}
-
-	async function loadHistory() {
-		historyLoading = true;
-		try {
-			metricsHistory = await api.servers.metricsHistory($page.params.id, historyRange, 100);
-		} catch (_) {
-			metricsHistory = [];
-		} finally {
-			historyLoading = false;
-		}
-	}
-
-	async function loadContainers() {
-		containersLoading = true;
-		try {
-			containers = await api.servers.containers($page.params.id);
-		} catch (_) {
-			containers = [];
-		} finally {
-			containersLoading = false;
 		}
 	}
 
@@ -189,96 +151,6 @@ let showAllHistory = $state(false);
 		} else {
 			if (liveInterval) clearInterval(liveInterval);
 			liveInterval = null;
-		}
-	}
-
-	function changeRange(range) {
-		historyRange = range;
-		api.servers.metricsHistory($page.params.id, range, 100).then(d => { metricsHistory = d; }).catch(() => {});
-	}
-
-	async function containerAction(containerId, action) {
-		const key = containerId + ':' + action;
-		containerActions = { ...containerActions, [key]: 'loading' };
-		try {
-			let result;
-			switch (action) {
-				case 'start': result = await api.servers.containerStart($page.params.id, containerId); break;
-				case 'stop': result = await api.servers.containerStop($page.params.id, containerId); break;
-				case 'restart': result = await api.servers.containerRestart($page.params.id, containerId); break;
-			}
-			containerActions = { ...containerActions, [key]: 'success' };
-			setTimeout(() => { containerActions = { ...containerActions, [key]: undefined }; }, 2000);
-			setTimeout(() => loadContainers(), 1000);
-		} catch (e) {
-			containerActions = { ...containerActions, [key]: 'error' };
-			setTimeout(() => { containerActions = { ...containerActions, [key]: undefined }; }, 3000);
-		}
-	}
-
-	// ── Container Security Scan ───────────────────────────
-	async function runContainerScan() {
-		containerScanning = true;
-		containerSecurity = null;
-		try {
-			const resp = await api.compliance.scanContainers($page.params.id);
-			// Poll until complete
-			for (let i = 0; i < 60; i++) {
-				await new Promise(r => setTimeout(r, 2000));
-				try {
-					const detail = await api.compliance.latest($page.params.id, { scan_type: 'Container Security' });
-					if (detail && detail.status === 'completed') {
-						// Parse findings per container
-						const findings = detail.findings || [];
-						const containerMap = {};
-						for (const f of findings) {
-							if (!containerMap[f.category]) containerMap[f.category] = [];
-							containerMap[f.category].push(f);
-						}
-						// Match with container list
-						containerSecurity = {
-							score: detail.score,
-							total: detail.total_checks,
-							criticals: detail.criticals,
-							warnings: detail.warnings,
-							containers: containers.map(ctr => ({
-								name: ctr.name,
-								id: ctr.id,
-								findings: containerMap[ctr.name] || [],
-							})),
-						};
-						break;
-					}
-					if (detail && detail.status === 'failed') {
-						containerSecurity = { error: detail.error_message || 'Scan failed' };
-						break;
-					}
-				} catch (_) {}
-			}
-		} catch (e) {
-			containerSecurity = { error: e.message };
-		} finally {
-			containerScanning = false;
-		}
-	}
-
-	async function viewLogs(containerId, containerName) {
-		logsModal = { show: true, container: containerName, logs: 'Loading...', loading: true };
-		try {
-			const result = await api.servers.containerLogs($page.params.id, containerId);
-			logsModal = { show: true, container: containerName, logs: result.logs || 'No logs', loading: false };
-		} catch (e) {
-			logsModal = { show: true, container: containerName, logs: 'Error: ' + e.message, loading: false };
-		}
-	}
-
-	async function viewInspect(containerId, containerName) {
-		inspectModal = { show: true, container: containerName, data: null, loading: true };
-		try {
-			const result = await api.servers.containerInspect($page.params.id, containerId);
-			inspectModal = { show: true, container: containerName, data: result, loading: false };
-		} catch (e) {
-			inspectModal = { show: true, container: containerName, data: { error: e.message }, loading: false };
 		}
 	}
 
@@ -404,6 +276,10 @@ let showAllHistory = $state(false);
 			const l2 = await api.compliance.latestCategories($page.params.id, { scan_type: 'CIS Level 2' });
 			if (l2.categories) l2Categories = l2.categories.filter(c => c.total > 0);
 		} catch (_) {}
+		try {
+			const docker = await api.compliance.latestCategories($page.params.id, { scan_type: 'CIS Docker' });
+			if (docker.categories) dockerCategories = docker.categories.filter(c => c.total > 0);
+		} catch (_) {}
 		catLoading = false;
 	}
 
@@ -480,6 +356,7 @@ let showAllHistory = $state(false);
 	function profileToScanType(p) {
 		if (p === 'lynis') return 'Lynis';
 		if (p === 'cis_level_2') return 'CIS Level 2';
+		if (p === 'cis_docker') return 'CIS Docker';
 		return 'CIS Level 1';
 	}
 
@@ -593,12 +470,6 @@ let showAllHistory = $state(false);
 		return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
 	}
 
-	function scoreColor(score) {
-		if (score >= 80) return 'var(--color-success)';
-		if (score >= 60) return 'var(--color-warning)';
-		return 'var(--color-danger)';
-	}
-
 	function severityColor(severity) {
 		const s = (severity || '').toLowerCase();
 		if (s === 'critical') return 'var(--color-danger)';
@@ -606,32 +477,6 @@ let showAllHistory = $state(false);
 		if (s === 'medium') return 'var(--color-accent)';
 		if (s === 'low' || s === 'passed' || s === 'pass') return 'var(--color-success)';
 		return 'var(--color-text-muted)';
-	}
-
-	function scoreLabel(score) {
-		if (score === undefined || score === null) return 'Unscanned';
-		if (score >= 80) return 'Passing';
-		if (score >= 60) return 'Warning';
-		return 'Critical';
-	}
-
-	function containerBorderColor(state) {
-		if (state === 'running') return 'var(--color-success)';
-		if (state === 'exited' || state === 'stopped') return 'var(--color-danger)';
-		return 'var(--color-warning)';
-	}
-
-	function containerStatusClass(state) {
-		const s = (state || '').toLowerCase();
-		if (s === 'running') return 'running';
-		if (s === 'exited' || s === 'stopped') return 'stopped';
-		return 'pending';
-	}
-
-	function sparklineValues(data) {
-		if (!data || data.length === 0) return [];
-		const reversed = [...data].reverse();
-		return reversed.map(d => d.disk_used_pct || 0);
 	}
 
 	// ── Compliance derived ─────────────────────────────────
@@ -653,7 +498,10 @@ let showAllHistory = $state(false);
 	let score = $derived(scan?.score ?? null);
 
 	const profileCategories = $derived.by(() => {
-		const cats = profile === 'cis_level_2' ? l2Categories : l1Categories;
+		let cats;
+		if (profile === 'cis_level_2') cats = l2Categories;
+		else if (profile === 'cis_docker') cats = dockerCategories;
+		else cats = l1Categories;
 		const meta = {
 			ssh: { label: 'SSH', icon: '🔒', color: '#3b82f6' },
 			kernel: { label: 'Kernel', icon: '⚙️', color: '#8b5cf6' },
@@ -719,11 +567,27 @@ let showAllHistory = $state(false);
 				{ icon: '📦', label: 'Docker', checks: 'DOCK-9310', desc: 'Container security, daemon config' },
 			],
 		},
+		cis_docker: {
+			title: 'CIS Docker',
+			desc: 'CIS Docker scans <strong>22 checks</strong> across <strong>6 categories</strong> covering Docker daemon config, container runtime security, and host-level hardening.',
+			color: '#06b6d4',
+			bg: '#ecfeff',
+			border: '#a5f3fc',
+			items: [
+				{ icon: '🐳', label: 'Host Config', checks: '6 checks', desc: 'Docker daemon config, socket security' },
+				{ icon: '📦', label: 'Daemon', checks: '5 checks', desc: 'Docker daemon files & directories' },
+				{ icon: '🔒', label: 'Container', checks: '4 checks', desc: 'Container runtime & policies' },
+				{ icon: '📁', label: 'Files', checks: '3 checks', desc: 'Docker config files & permissions' },
+				{ icon: '⚙️', label: 'Swarm', checks: '2 checks', desc: 'Swarm config & manager security' },
+				{ icon: '🛡️', label: 'Registry', checks: '2 checks', desc: 'Image registry & content trust' },
+			],
+		},
 	};
 
 	const currentInfo = $derived(whatsScannedInfo[profile] || whatsScannedInfo.cis_level_1);
 
 	const isLynisProfile = $derived(profile === 'lynis');
+	const isDockerProfile = $derived(profile === 'cis_docker');
 
 	const filteredScanCount = $derived.by(() => {
 		if (!history || history.length === 0) return 0;
@@ -734,6 +598,8 @@ let showAllHistory = $state(false);
 			items = items.filter(h => h.scan_type === 'CIS Level 1' || h.scan_type === 'All Checks');
 		} else if (profile === 'cis_level_2') {
 			items = items.filter(h => h.scan_type === 'CIS Level 2');
+		} else if (profile === 'cis_docker') {
+			items = items.filter(h => h.scan_type === 'CIS Docker' || h.scan_type?.toLowerCase().includes('docker'));
 		}
 		return items.length;
 	});
@@ -747,6 +613,8 @@ let showAllHistory = $state(false);
 			items = items.filter(h => h.scan_type === 'CIS Level 1' || h.scan_type === 'All Checks');
 		} else if (profile === 'cis_level_2') {
 			items = items.filter(h => h.scan_type === 'CIS Level 2');
+		} else if (profile === 'cis_docker') {
+			items = items.filter(h => h.scan_type === 'CIS Docker' || h.scan_type?.toLowerCase().includes('docker'));
 		}
 		return showAllHistory ? items : items.slice(0, 5);
 	});
@@ -787,57 +655,7 @@ let showAllHistory = $state(false);
 						<button onclick={() => confirmModal = { show: false, title: '', message: '', onConfirm: null, danger: false }} class="btn-secondary text-sm">Cancel</button>
 						<button onclick={() => confirmModal.onConfirm?.()} class="btn-danger text-sm">Delete</button>
 					</div>
-				</div>
-			</div>
-		{/if}
-
-		<!-- ── Logs Modal ── -->
-		{#if logsModal.show}
-			<div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(0,0,0,0.5);"
-				onclick={() => logsModal = { show: false, container: '', logs: '', loading: false }}>
-				<div class="w-full max-w-2xl rounded-xl border shadow-xl max-h-[80vh] flex flex-col" style="background-color: var(--color-card); border-color: var(--color-border);"
-					onclick={(e) => e.stopPropagation()}>
-					<div class="flex items-center justify-between border-b px-5 py-3" style="border-color: var(--color-border);">
-						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Logs: {logsModal.container}</h3>
-						<button onclick={() => logsModal = { show: false, container: '', logs: '', loading: false }} class="btn-icon">
-							<Icon icon="solar:close-circle-bold" class="h-5 w-5" />
-						</button>
-					</div>
-					<div class="flex-1 overflow-auto p-4">
-						{#if logsModal.loading}
-							<div class="flex items-center justify-center py-8">
-								<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
-							</div>
-						{:else}
-							<pre class="font-mono text-xs leading-relaxed whitespace-pre-wrap" style="color: var(--color-text-secondary);">{logsModal.logs}</pre>
-						{/if}
-					</div>
-				</div>
-			</div>
-		{/if}
-
-		<!-- ── Inspect Modal ── -->
-		{#if inspectModal.show}
-			<div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(0,0,0,0.5);"
-				onclick={() => inspectModal = { show: false, container: '', data: null, loading: false }}>
-				<div class="w-full max-w-2xl rounded-xl border shadow-xl max-h-[80vh] flex flex-col" style="background-color: var(--color-card); border-color: var(--color-border);"
-					onclick={(e) => e.stopPropagation()}>
-					<div class="flex items-center justify-between border-b px-5 py-3" style="border-color: var(--color-border);">
-						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Inspect: {inspectModal.container}</h3>
-						<button onclick={() => inspectModal = { show: false, container: '', data: null, loading: false }} class="btn-icon">
-							<Icon icon="solar:close-circle-bold" class="h-5 w-5" />
-						</button>
-					</div>
-					<div class="flex-1 overflow-auto p-4">
-						{#if inspectModal.loading}
-							<div class="flex items-center justify-center py-8">
-								<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
-							</div>
-						{:else}
-							<pre class="font-mono text-xs leading-relaxed whitespace-pre-wrap" style="color: var(--color-text-secondary);">{JSON.stringify(inspectModal.data, null, 2)}</pre>
-						{/if}
-					</div>
-				</div>
+		</div>
 			</div>
 		{/if}
 
@@ -889,9 +707,6 @@ let showAllHistory = $state(false);
 			<button onclick={copySshCmd} class="btn-secondary flex items-center gap-2">
 				<Icon icon={copyFeedback.show ? (copyFeedback.success ? 'solar:check-circle-bold' : 'solar:close-circle-bold') : 'solar:copy-bold'} class="h-4 w-4" style="color: {copyFeedback.show ? (copyFeedback.success ? 'var(--color-success)' : 'var(--color-danger)') : 'inherit'};" />
 				{copyFeedback.show ? (copyFeedback.success ? 'Copied!' : 'Failed') : 'Copy SSH Cmd'}
-			</button>
-			<button onclick={loadContainers} disabled={containersLoading} class="btn-secondary flex items-center gap-2">
-				<Icon icon="solar:refresh-bold" class="h-4 w-4 {containersLoading ? 'animate-spin' : ''}" /> Refresh
 			</button>
 		</div>
 
@@ -1068,7 +883,7 @@ let showAllHistory = $state(false);
 						<div class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">
 							<Icon icon="solar:box-bold" class="h-3 w-3" /> Containers
 						</div>
-						<p class="text-sm" style="color: var(--color-text);">{containers.length || server.container_count || '\u2014'}</p>
+						<p class="text-sm" style="color: var(--color-text);">{server.container_count || '—'}</p>
 					</div>
 				</div>
 			</div>
@@ -1160,179 +975,6 @@ let showAllHistory = $state(false);
 				{/if}
 			</div>
 
-			<!-- Metrics History -->
-			<div class="card mt-4">
-				<div class="flex items-center justify-between mb-3">
-					<h3 class="text-base font-semibold" style="color: var(--color-text);">Metrics History</h3>
-					<div class="flex gap-1">
-						<button onclick={() => changeRange('1h')} class="btn-icon text-xs" style="color: {historyRange === '1h' ? 'var(--color-primary)' : 'var(--color-text-muted)'};">1h</button>
-						<button onclick={() => changeRange('6h')} class="btn-icon text-xs" style="color: {historyRange === '6h' ? 'var(--color-primary)' : 'var(--color-text-muted)'};">6h</button>
-						<button onclick={() => changeRange('24h')} class="btn-icon text-xs" style="color: {historyRange === '24h' ? 'var(--color-primary)' : 'var(--color-text-muted)'};">24h</button>
-						<button onclick={() => changeRange('7d')} class="btn-icon text-xs" style="color: {historyRange === '7d' ? 'var(--color-primary)' : 'var(--color-text-muted)'};">7d</button>
-					</div>
-				</div>
-
-				{#if historyLoading}
-					<div class="flex items-center justify-center py-6">
-						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
-					</div>
-				{:else if metricsHistory && metricsHistory.timestamps && metricsHistory.timestamps.length > 0}
-					{@const ts = metricsHistory.timestamps}
-					{@const cpu = metricsHistory.cpu}
-					{@const mem = metricsHistory.mem}
-					{@const disk = metricsHistory.disk}
-					{@const netrx = metricsHistory.net_rx}
-					{@const nettx = metricsHistory.net_tx}
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="CPU Load (1 min)" timestamps={ts}
-								series={[{ label: 'CPU Load', data: cpu, color: '#10b981', scale: 'load' }]}
-								height={180} yLabel="Load" formatY={(v) => v?.toFixed(2) ?? '\u2014'} />
-						</div>
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="Memory Usage" timestamps={ts}
-								series={[{ label: 'Memory %', data: mem, color: '#3b82f6', scale: '%' }]}
-								height={180} yLabel="%" formatY={(v) => v != null ? v.toFixed(1) + '%' : '\u2014'} />
-						</div>
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="Disk Usage" timestamps={ts}
-								series={[{ label: 'Disk %', data: disk, color: '#f59e0b', scale: '%' }]}
-								height={180} yLabel="%" formatY={(v) => v != null ? v.toFixed(1) + '%' : '\u2014'} />
-						</div>
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="Network RX" timestamps={ts}
-								series={[{ label: 'RX', data: netrx, color: '#8b5cf6', scale: 'bytes' }]}
-								height={180} yLabel="Bytes" formatY={(v) => { if (v == null) return '\u2014'; if (v >= 1e12) return (v / 1e12).toFixed(1) + ' TB'; if (v >= 1e9) return (v / 1e9).toFixed(1) + ' GB'; if (v >= 1e6) return (v / 1e6).toFixed(1) + ' MB'; if (v >= 1e3) return (v / 1e3).toFixed(1) + ' KB'; return v + ' B'; }} />
-						</div>
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="Network TX" timestamps={ts}
-								series={[{ label: 'TX', data: nettx, color: '#ec4899', scale: 'bytes' }]}
-								height={180} yLabel="Bytes" formatY={(v) => { if (v == null) return '\u2014'; if (v >= 1e12) return (v / 1e12).toFixed(1) + ' TB'; if (v >= 1e9) return (v / 1e9).toFixed(1) + ' GB'; if (v >= 1e6) return (v / 1e6).toFixed(1) + ' MB'; if (v >= 1e3) return (v / 1e3).toFixed(1) + ' KB'; return v + ' B'; }} />
-						</div>
-					</div>
-				{:else}
-					<div class="flex flex-col items-center py-6 text-center">
-						<Icon icon="solar:chart-2-bold" class="mb-1 inline-block h-6 w-6" style="color: var(--color-text-muted);" />
-						<p class="text-xs" style="color: var(--color-text-muted);">Collecting metrics data... Check back later</p>
-					</div>
-				{/if}
-			</div>
-
-		<!-- ════════════════════════ TAB: CONTAINERS ════════════════════════ -->
-		{:else if activeTab === 'containers'}
-			<div class="card mt-5">
-				<div class="flex items-center justify-between mb-3">
-					<h3 class="text-base font-semibold" style="color: var(--color-text);">Containers</h3>
-					<div class="flex items-center gap-2">
-						{#if containerSecurity && !containerScanning}
-							<span class="text-xs px-2 py-1 rounded-md font-medium" style="background: rgba(16,185,129,0.1); color: var(--color-success);">
-								Score: {containerSecurity.score}%
-							</span>
-						{/if}
-						<button onclick={runContainerScan} disabled={containerScanning} class="btn-secondary flex items-center gap-1.5 text-xs">
-							<Icon icon={containerScanning ? 'solar:spinner-bold' : 'solar:shield-check-bold'} class="h-3.5 w-3.5 {containerScanning ? 'animate-spin' : ''}" />
-							{containerScanning ? 'Scanning...' : 'Scan Security'}
-						</button>
-						<span class="text-xs" style="color: var(--color-text-muted);">{containers.length} container{containers.length !== 1 ? 's' : ''}</span>
-					</div>
-				</div>
-
-				{#if containersLoading && containers.length === 0}
-					<div class="flex items-center justify-center py-8">
-						<Icon icon="solar:spinner-bold" class="h-6 w-6 animate-spin" style="color: var(--color-text-muted);" />
-					</div>
-				{:else if containers.length === 0}
-					<div class="flex flex-col items-center py-8 text-center">
-						<Icon icon="solar:box-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
-						<p class="text-sm" style="color: var(--color-text-muted);">No containers found</p>
-						<p class="text-xs" style="color: var(--color-text-muted);">Docker may not be installed on this server</p>
-					</div>
-				{:else}
-					<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-						{#each containers as c}
-							{@const isRunning = c.state === 'running'}
-							<div
-								class="rounded-lg border text-left w-full min-w-0 transition-all shadow-sm hover:shadow-md cursor-pointer"
-								style="background-color: var(--color-surface); border-color: var(--color-border); border-left: 3px solid {containerBorderColor(c.state)};"
-								onclick={() => viewInspect(c.id, c.name)}
-							>
-								<div class="px-4 py-3 border-b" style="border-color: var(--color-border-light);">
-									<div class="flex items-center justify-between gap-2">
-										<div class="flex items-center gap-2 min-w-0">
-											<span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {isRunning ? 'var(--color-success)' : 'var(--color-text-muted)'};"></span>
-											<span class="text-sm font-semibold font-mono truncate" style="color: var(--color-text);" title={c.name}>{c.name}</span>
-										</div>
-										<span class="status-badge {containerStatusClass(c.state)} text-xs shrink-0">
-											{c.state || c.status}
-										</span>
-									</div>
-								</div>
-								<div class="px-4 py-2.5 space-y-1.5">
-									<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
-										<Icon icon="solar:box-bold" class="h-3 w-3 shrink-0" />
-										<span class="truncate" title={c.image}>{c.image}</span>
-									</div>
-									{#if c.ports}
-										<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
-											<Icon icon="solar:plug-circle-bold" class="h-3 w-3 shrink-0" />
-											<span class="truncate">{c.ports}</span>
-										</div>
-									{/if}
-									{#if c.created}
-										<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
-											<Icon icon="solar:clock-circle-bold" class="h-3 w-3 shrink-0" />
-											<span class="truncate">{c.created}</span>
-										</div>
-									{/if}
-									{#if containerSecurity && !containerScanning}
-										{@const ctrSec = containerSecurity.containers?.find(cs => cs.name === c.name)}
-										{#if ctrSec && ctrSec.findings.length > 0}
-											{@const ctrlFindings = ctrSec.findings.filter(f => f.status === 'fail' || f.status === 'warn')}
-											<div class="flex flex-wrap gap-1 pt-1">
-												{#each ctrlFindings.slice(0, 4) as f}
-													<span class="badge text-[10px] px-1.5 py-0.5 rounded font-medium"
-														style="background: {f.severity === 'critical' ? 'rgba(239,68,68,0.1)' : f.severity === 'high' ? 'rgba(245,158,11,0.1)' : 'rgba(99,102,241,0.1)'}; color: {f.severity === 'critical' ? 'var(--color-danger)' : f.severity === 'high' ? 'var(--color-warning)' : 'var(--color-accent)'};">
-														{f.title.length > 25 ? f.title.slice(0, 22) + '...' : f.title}
-													</span>
-												{/each}
-												{#if ctrlFindings.length > 4}
-													<span class="text-[10px] font-medium" style="color: var(--color-text-muted);">+{ctrlFindings.length - 4} more</span>
-												{/if}
-											</div>
-										{:else if ctrSec}
-											<div class="flex items-center gap-1 pt-1">
-												<span class="text-[10px] font-medium" style="color: var(--color-success);">✅ All checks passed</span>
-											</div>
-										{/if}
-									{/if}
-								</div>
-								<div class="flex items-center gap-1 border-t px-4 py-2" style="border-color: var(--color-border-light);" onclick={(e) => e.stopPropagation()}>
-									{#if isRunning}
-										<button onclick={() => containerAction(c.id, 'stop')} class="btn-icon h-7 w-7" title="Stop" style="color: var(--color-danger);">
-											<Icon icon={containerActions[c.id + ':stop'] === 'loading' ? 'solar:spinner-bold' : 'solar:pause-bold'} class="h-3.5 w-3.5 {containerActions[c.id + ':stop'] === 'loading' ? 'animate-spin' : ''}" />
-										</button>
-										<button onclick={() => containerAction(c.id, 'restart')} class="btn-icon h-7 w-7" title="Restart" style="color: var(--color-warning);">
-											<Icon icon={containerActions[c.id + ':restart'] === 'loading' ? 'solar:spinner-bold' : 'solar:refresh-bold'} class="h-3.5 w-3.5 {containerActions[c.id + ':restart'] === 'loading' ? 'animate-spin' : ''}" />
-										</button>
-									{:else}
-										<button onclick={() => containerAction(c.id, 'start')} class="btn-icon h-7 w-7" title="Start" style="color: var(--color-success);">
-											<Icon icon={containerActions[c.id + ':start'] === 'loading' ? 'solar:spinner-bold' : 'solar:play-bold'} class="h-3.5 w-3.5 {containerActions[c.id + ':start'] === 'loading' ? 'animate-spin' : ''}" />
-										</button>
-									{/if}
-									<span class="flex-1"></span>
-									<button onclick={() => viewLogs(c.id, c.name)} class="btn-icon h-7 w-7" title="Logs">
-										<Icon icon="solar:document-text-bold" class="h-3.5 w-3.5" />
-									</button>
-									<button onclick={() => viewInspect(c.id, c.name)} class="btn-icon h-7 w-7" title="Inspect">
-										<Icon icon="solar:code-bold" class="h-3.5 w-3.5" />
-									</button>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
-
 		<!-- ════════════════════════ TAB: COMPLIANCE ════════════════════════ -->
 		{:else if activeTab === 'compliance'}
 			<div class="mt-5">
@@ -1359,6 +1001,10 @@ let showAllHistory = $state(false);
 								style={profile === 'lynis' ? 'background: var(--color-accent); color: #fff;' : 'color: var(--color-text-secondary); background: transparent;'}>
 								Lynis
 							</button>
+							<button onclick={() => switchProfile('cis_docker')} class="px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+								style={profile === 'cis_docker' ? 'background: #06b6d4; color: #fff;' : 'color: var(--color-text-secondary); background: transparent;'}>
+								Docker
+							</button>
 						</div>
 						<div class="flex items-center gap-2">
 							{#if isLynisProfile}
@@ -1368,6 +1014,14 @@ let showAllHistory = $state(false);
 									<Icon icon={scanning ? 'solar:spinner-bold' : 'solar:bug-bold'}
 										class="h-4 w-4 {scanning ? 'animate-spin' : ''}" />
 									{scanning ? 'Scanning...' : 'Run Lynis'}
+								</button>
+							{:else if isDockerProfile}
+								<button onclick={runScan} disabled={scanning}
+									class="btn-secondary flex items-center gap-2 text-sm"
+									style="border-color: #06b6d4; color: #06b6d4;">
+									<Icon icon={scanning ? 'solar:spinner-bold' : 'solar:box-bold'}
+										class="h-4 w-4 {scanning ? 'animate-spin' : ''}" />
+									{scanning ? 'Scanning...' : 'Run Docker Scan'}
 								</button>
 							{:else}
 								<button onclick={runScan} disabled={scanning}
@@ -1383,8 +1037,8 @@ let showAllHistory = $state(false);
 
 				<!-- Reference link -->
 				<div class="flex items-center justify-end mb-4">
-					<a href={profile === 'lynis' ? '/compliance/lynis' : profile === 'cis_level_2' ? '/compliance/cis-level-2' : '/compliance/cis-level-1'} class="text-xs flex items-center gap-1.5 font-medium" style="color: var(--color-text-muted);">
-						View complete {profile === 'lynis' ? 'Lynis' : profile === 'cis_level_2' ? 'CIS L2' : 'CIS L1'} scan details →
+					<a href={profile === 'lynis' ? '/compliance/lynis' : profile === 'cis_level_2' ? '/compliance/cis-level-2' : profile === 'cis_docker' ? '/compliance/cis-docker' : '/compliance/cis-level-1'} class="text-xs flex items-center gap-1.5 font-medium" style="color: var(--color-text-muted);">
+						View complete {profile === 'lynis' ? 'Lynis' : profile === 'cis_level_2' ? 'CIS L2' : profile === 'cis_docker' ? 'CIS Docker' : 'CIS L1'} scan details →
 					</a>
 				</div>
 
@@ -1630,7 +1284,7 @@ let showAllHistory = $state(false);
 							<div class="card mb-4 py-6 text-center" style="border-left: 4px solid var(--color-text-muted);">
 								<Icon icon="solar:shield-warning-bold" class="h-6 w-6 mb-2" style="color: var(--color-text-muted);" />
 								<p class="text-sm" style="color: var(--color-text-muted);">
-									No <strong>{profile === 'cis_level_2' ? 'CIS Level 2' : 'CIS Level 1'}</strong> scan data yet.
+									No <strong>{profile === 'cis_level_2' ? 'CIS Level 2' : profile === 'cis_docker' ? 'CIS Docker' : 'CIS Level 1'}</strong> scan data yet.
 									Click <strong>Run Scan</strong> above to start.
 								</p>
 							</div>
@@ -1669,8 +1323,8 @@ let showAllHistory = $state(false);
 								{#each filteredHistory as item}
 									<div class="flex items-center justify-between py-2.5 border-b" style="border-color: var(--color-border-light);">
 										<div class="flex items-center gap-3">
-											<div class="w-2 h-2 rounded-full {((item.score ?? 0) >= 80) ? 'bg-green' : ((item.score ?? 0) >= 60) ? 'bg-amber' : 'bg-red'}" 
-												style="background: {scoreColor(item.score)};"></div>
+										<div class="w-2 h-2 rounded-full" 
+											style="background: {scoreColor(item.score)};"></div>
 											<div>
 												<p class="text-sm font-medium" style="color: var(--color-text);">
 													{item.scan_type || item.profile || 'Scan'} · {item.score ?? '—'}%

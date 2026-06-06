@@ -701,3 +701,23 @@ const (
     RoleDeveloper = "developer"
     RoleViewer    = "viewer"
 )
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+type Settings struct {
+    Key         string    `json:"key"`
+    Value       string    `json:"value"`
+    Description string    `json:"description"`
+    CreatedAt   time.Time `json:"created_at"`
+    UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ComplianceThresholds struct {
+    Compliant int `json:"compliant"` // Minimum score for green/compliant band
+    Warning   int `json:"warning"`   // Minimum score for yellow/warning band (below this = red/critical)
+}
+
+// DefaultComplianceThresholds returns the hardcoded defaults used when no DB settings exist.
+func DefaultComplianceThresholds() ComplianceThresholds {
+    return ComplianceThresholds{Compliant: 90, Warning: 70}
+}

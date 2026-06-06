@@ -13,7 +13,6 @@ type Config struct {
 	Redis          RedisConfig
 	JWT            JWTConfig
 	SSH            SSHConfig
-	VM             VMConfig
 	GitHub         GitHubConfig
 	Registry       RegistryConfig
 	Log            LogConfig
@@ -56,10 +55,6 @@ type SSHConfig struct {
 	DefaultPort     int
 	ConnectionTTL   time.Duration
 	MaxConnections  int
-}
-
-type VMConfig struct {
-	URL string
 }
 
 type GitHubConfig struct {
@@ -129,9 +124,6 @@ func Load() *Config {
 			HostKeyPath:    getEnv("SSH_HOST_KEY_PATH", "/data/ssh/id_ed25519"),
 			DefaultPort:    getEnvInt("SSH_DEFAULT_PORT", 22),
 			ConnectionTTL:  getDurationEnv("SSH_CONNECTION_TTL", 30*time.Minute),
-		},
-		VM: VMConfig{
-			URL: getEnv("VM_URL", "http://victoria-metrics:8428"),
 		},
 		GitHub: GitHubConfig{
 			Token: getEnv("GITHUB_TOKEN", ""),

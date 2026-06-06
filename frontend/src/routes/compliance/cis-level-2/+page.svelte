@@ -3,10 +3,17 @@
 	import { api } from '$lib/api.svelte.js';
 	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
+import { loadThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.js';
 
 	let checks = $state([]);
 	let loading = $state(true);
 	let error = $state('');
+
+	// ── Scan ──
+	let servers = $state([]);
+	let selectedServerId = $state('');
+	let scanning = $state(false);
+	let scanMessage = $state('');
 
 	// ── Scan History ──
 	let history = $state([]);
@@ -54,6 +61,7 @@
 
 	onMount(async () => {
 		loading = true;
+		loadThresholds();
 		try {
 			const data = await api.compliance.checks();
 			checks = (data.checks || []).filter(c => c.cis_level === 2);
@@ -63,7 +71,32 @@
 			loading = false;
 		}
 		loadHistory();
+		loadServers();
 	});
+
+	async function loadServers() {
+		try {
+			const data = await api.servers.list();
+			const list = data.servers || data || [];
+			servers = list.filter(s => s.status === 'online');
+			if (servers.length > 0 && !selectedServerId) selectedServerId = servers[0].id;
+		} catch { /* ignore */ }
+	}
+
+	async function runScan() {
+		if (!selectedServerId) return;
+		scanning = true;
+		scanMessage = 'Scan triggered...';
+		try {
+			await api.compliance.scan(selectedServerId);
+			scanMessage = 'Scan started! Check history below.';
+			setTimeout(() => { scanMessage = ''; loadHistory(); }, 3000);
+		} catch (e) {
+			scanMessage = 'Failed: ' + (e.message || 'unknown');
+		} finally {
+			scanning = false;
+		}
+	}
 
 	async function loadHistory(pg) {
 		if (pg !== undefined) historyPage = pg;
@@ -106,12 +139,6 @@
 			low: 'rgba(16,185,129,0.1)',
 		};
 		return colors[s] || 'rgba(100,116,139,0.1)';
-	}
-
-	function scoreColor(score) {
-		if (score >= 80) return 'var(--color-success)';
-		if (score >= 60) return 'var(--color-warning)';
-		return 'var(--color-danger)';
 	}
 
 	function formatTime(ts) {
@@ -157,6 +184,23 @@
 						<span class="text-xs px-2.5 py-1 rounded-full font-medium" style="background: rgba(239,68,68,0.1); color: var(--color-danger);">
 							{severeCount} critical/high severity
 						</span>
+					{/if}
+				</div>
+				<!-- Scan controls -->
+				<div class="flex items-center gap-2 mt-3">
+					{#if servers.length > 0}
+						<select bind:value={selectedServerId} class="text-xs rounded-lg px-2.5 py-1.5" style="background: var(--color-surface); border: 1px solid var(--color-border-light); color: var(--color-text);">
+							{#each servers as srv}
+								<option value={srv.id}>{srv.name}</option>
+							{/each}
+						</select>
+					{/if}
+					<button onclick={runScan} disabled={scanning || !selectedServerId} class="btn-primary flex items-center gap-1.5 text-xs py-1.5">
+						<Icon icon={scanning ? 'solar:spinner-bold' : 'solar:play-bold'} class="h-3.5 w-3.5 {scanning ? 'animate-spin' : ''}" />
+						{scanning ? 'Scanning...' : 'Run CIS L2 Scan'}
+					</button>
+					{#if scanMessage}
+						<span class="text-xs" style="color: {scanMessage.startsWith('Failed') ? 'var(--color-danger)' : 'var(--color-success)'};">{scanMessage}</span>
 					{/if}
 				</div>
 			</div>

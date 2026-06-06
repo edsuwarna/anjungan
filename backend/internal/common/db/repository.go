@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -431,6 +432,58 @@ func (r *Repository) SumContainerCount(ctx context.Context) (int, error) {
 	var count int
 	err := r.db.Pool.QueryRow(ctx, "SELECT COALESCE(SUM(container_count), 0) FROM servers").Scan(&count)
 	return count, err
+}
+
+func (r *Repository) CountDeployments(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM deployments").Scan(&count)
+	return count, err
+}
+
+func (r *Repository) CountDeploymentsByStatus(ctx context.Context) (map[string]int, error) {
+	rows, err := r.db.Pool.Query(ctx, `SELECT status, COUNT(*) FROM deployments GROUP BY status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := map[string]int{}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		result[status] = count
+	}
+	return result, nil
+}
+
+func (r *Repository) ListRecentDeployments(ctx context.Context, limit int) ([]*model.Deployment, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
+			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
+			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
+			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
+			FROM deployments d
+			LEFT JOIN environments e ON e.id = d.environment_id
+			LEFT JOIN servers s ON s.id = d.server_id
+			ORDER BY d.deployed_at DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var deps []*model.Deployment
+	for rows.Next() {
+		d := &model.Deployment{}
+		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
+			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
+			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
+			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
+			return nil, err
+		}
+		deps = append(deps, d)
+	}
+	return deps, nil
 }
 
 // ─── Server Metrics Repository ─────────────────────────────────────────────
@@ -1095,11 +1148,20 @@ func (r *Repository) GetLatestScanResult(ctx context.Context, serverID string) (
 
 func (r *Repository) GetLatestScanResultByType(ctx context.Context, serverID, scanType string) (*model.ScanResult, error) {
 	s := &model.ScanResult{}
-	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
-		 FROM scan_results WHERE server_id = $1 AND scan_type = $2 ORDER BY created_at DESC LIMIT 1`, serverID, scanType,
-	).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
-		&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	var err error
+	if scanType == "CIS Docker" {
+		err = r.db.Pool.QueryRow(ctx,
+			`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+			 FROM scan_results WHERE server_id = $1 AND scan_type IN ($2, $3) AND status = 'completed' ORDER BY created_at DESC LIMIT 1`, serverID, "CIS Docker", "Container Security",
+		).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+			&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	} else {
+		err = r.db.Pool.QueryRow(ctx,
+			`SELECT id, server_id, scan_type, status, score, total_checks, passed, warnings, criticals, error_message, started_at, completed_at, created_at
+			 FROM scan_results WHERE server_id = $1 AND scan_type = $2 ORDER BY created_at DESC LIMIT 1`, serverID, scanType,
+		).Scan(&s.ID, &s.ServerID, &s.ScanType, &s.Status, &s.Score, &s.TotalChecks,
+			&s.Passed, &s.Warnings, &s.Criticals, &s.ErrorMessage, &s.StartedAt, &s.CompletedAt, &s.CreatedAt)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1591,8 +1653,13 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	var countQuery string
 	var countArgs []interface{}
 	if scanType != "" && scanType != "all" {
-		countQuery = `SELECT COUNT(*) FROM scan_results WHERE scan_type = $1`
-		countArgs = append(countArgs, scanType)
+		if scanType == "CIS Docker" {
+			countQuery = `SELECT COUNT(*) FROM scan_results WHERE scan_type IN ($1, $2)`
+			countArgs = append(countArgs, "CIS Docker", "Container Security")
+		} else {
+			countQuery = `SELECT COUNT(*) FROM scan_results WHERE scan_type = $1`
+			countArgs = append(countArgs, scanType)
+		}
 	} else {
 		countQuery = `SELECT COUNT(*) FROM scan_results`
 	}
@@ -1615,14 +1682,25 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	var query string
 	var args []interface{}
 	if scanType != "" && scanType != "all" {
-		query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
-		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
-		       sr.started_at, sr.completed_at, sr.created_at
-		 FROM scan_results sr
-		 LEFT JOIN servers s ON sr.server_id = s.id
-		 WHERE sr.scan_type = $1
-		 ORDER BY sr.created_at DESC LIMIT $2 OFFSET $3`
-		args = append(args, scanType, limit, offset)
+		if scanType == "CIS Docker" {
+			query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+			       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+			       sr.started_at, sr.completed_at, sr.created_at
+			 FROM scan_results sr
+			 LEFT JOIN servers s ON sr.server_id = s.id
+			 WHERE sr.scan_type IN ($1, $2)
+			 ORDER BY sr.created_at DESC LIMIT $3 OFFSET $4`
+			args = append(args, "CIS Docker", "Container Security", limit, offset)
+		} else {
+			query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+			       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+			       sr.started_at, sr.completed_at, sr.created_at
+			 FROM scan_results sr
+			 LEFT JOIN servers s ON sr.server_id = s.id
+			 WHERE sr.scan_type = $1
+			 ORDER BY sr.created_at DESC LIMIT $2 OFFSET $3`
+			args = append(args, scanType, limit, offset)
+		}
 	} else {
 		query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
 		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
@@ -2301,4 +2379,41 @@ func (r *Repository) ListDeploymentsByRepo(ctx context.Context, provider, owner,
 		deps = append(deps, d)
 	}
 	return deps, nil
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+func (r *Repository) GetSetting(ctx context.Context, key string) (*model.Settings, error) {
+	s := &model.Settings{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT key, value, description, created_at, updated_at FROM settings WHERE key = $1`, key).
+		Scan(&s.Key, &s.Value, &s.Description, &s.CreatedAt, &s.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (r *Repository) GetComplianceThresholds(ctx context.Context) (model.ComplianceThresholds, error) {
+	def := model.DefaultComplianceThresholds()
+	s, err := r.GetSetting(ctx, "compliance_thresholds")
+	if err != nil {
+		return def, nil
+	}
+	var t model.ComplianceThresholds
+	if err := json.Unmarshal([]byte(s.Value), &t); err != nil {
+		return def, nil
+	}
+	if t.Compliant <= 0 || t.Warning <= 0 || t.Compliant <= t.Warning {
+		return def, nil
+	}
+	return t, nil
+}
+
+func (r *Repository) UpsertSetting(ctx context.Context, key, value, description string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO settings (key, value, description) VALUES ($1, $2, $3)
+		 ON CONFLICT (key) DO UPDATE SET value = $2, description = $3, updated_at = NOW()`,
+		key, value, description)
+	return err
 }

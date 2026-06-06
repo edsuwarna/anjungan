@@ -97,7 +97,6 @@ export const api = {
 		testConnection: (data) => request('/servers/test', { method: 'POST', body: JSON.stringify(data) }),
 		testExisting: (id) => request(`/servers/${id}/test`, { method: 'POST' }),
 		metrics: (id) => request(`/servers/${id}/metrics`),
-		metricsHistory: (id, range = '1h', limit = 200) => request(`/servers/${id}/metrics/history?range=${range}&limit=${limit}`),
 		detect: (id) => request(`/servers/${id}/detect`, { method: 'POST' }),
 		containers: (id) => request(`/servers/${id}/containers`),
 		containerStart: (id, container) => request(`/servers/${id}/containers/${container}/start`, { method: 'POST' }),
@@ -235,7 +234,7 @@ export const api = {
 		scanLynis: (serverId) =>
 			request(`/compliance/${serverId}/scan/lynis`, { method: 'POST' }),
 		scanDocker: (serverId) =>
-			request(`/compliance/${serverId}/scan/docker`, { method: 'POST' }),
+			request(`/compliance/${serverId}/scan?profile=cis_docker`, { method: 'POST' }),
 		scanContainers: (serverId) =>
 			request(`/compliance/${serverId}/scan/containers`, { method: 'POST' }),
 		scanContainer: (serverId, containerId) =>
@@ -308,5 +307,10 @@ export const api = {
 				URL.revokeObjectURL(a.href);
 			},
 		},
+	},
+
+	settings: {
+		complianceThresholds: () => request('/settings/compliance-thresholds'),
+		updateComplianceThresholds: (data) => request('/settings/compliance-thresholds', { method: 'PUT', body: JSON.stringify(data) }),
 	},
 };
