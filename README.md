@@ -1,75 +1,52 @@
 # Anjungan — Internal Developer Platform
 
-> **Anjungan** (Indonesian: *platform*) — A modular internal developer platform for managing servers, containers, deployments, and infrastructure through a unified dashboard.
+> **Anjungan** (Indonesian: *platform*) — A modular internal developer platform (IDP) for managing servers, containers, deployments, container registries, and infrastructure compliance through a unified dashboard.
 
-## Architecture
+## Documentation
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Frontend                          │
-│               SvelteKit + Tailwind                   │
-│          Emerald theme · Dark/Light mode             │
-└──────────────┬──────────────────────────────────────┘
-               │ HTTP
-┌──────────────▼──────────────────────────────────────┐
-│                  Backend API                         │
-│         Go · Chi · PostgreSQL · Redis                │
-│     Modular Monolith (domain packages)               │
-│                                                      │
-│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐               │
-│  │ Auth │ │Infra │ │Cont. │ │Deploy│               │
-│  └──────┘ └──────┘ └──────┘ └──────┘               │
-│  ┌──────┐ ┌──────┐ ┌──────┐                         │
-│  │ Reg. │ │ Repo │ │Admin │                         │
-│  └──────┘ └──────┘ └──────┘                         │
-└──────────────┬──────────────────────────────────────┘
-               │
-┌──────────────┴──────────────────────────────────────┐
-│              Infrastructure Layer                    │
-│  Docker · SSH · Zot · VictoriaMetrics              │
-└─────────────────────────────────────────────────────┘
-```
+📚 **[docs/](docs/)** — Full documentation:
+
+| File | Contents |
+|------|----------|
+| [README.md](docs/README.md) | Overview, tech stack, project structure |
+| [setup.md](docs/setup.md) | Development setup, prerequisites, make commands |
+| [deployment.md](docs/deployment.md) | Docker Compose (with & without clone), production guide |
+| [architecture.md](docs/architecture.md) | System architecture, router, frontend, Zot |
+| [api.md](docs/api.md) | Full API reference (all endpoints) |
+| [docker.md](docs/docker.md) | Build, tagging convention, CI/CD pipeline |
+| [compliance.md](docs/compliance.md) | CIS scanning, Lynis, scoring system, thresholds |
+| [registry.md](docs/registry.md) | Zot self-service credentials, roles, usage |
 
 ## Quick Start
 
+### Option A: From Source (clone)
+
 ```bash
-# Clone the repo
 git clone git@github.com:edsuwarna/anjungan.git
 cd anjungan
-
-# Start all services
-make dev
-
-# Apply database migrations
-make migrate-up
-
-# Access the dashboard
-open http://localhost
+cp .env.example .env
+docker compose up -d
+# Access: http://localhost
 ```
 
-## Development
+### Option B: Deploy without Clone (pre-built images)
 
 ```bash
-# Start databases only (PostgreSQL + Redis)
-make dev-db
-
-# Backend with hot-reload (requires air)
-make dev-backend
-
-# Frontend dev server
-make dev-frontend
+# Just need Docker & a compose file (see docs/deployment.md)
+docker login reg.edsuwarna.xyz -u deploy
+docker compose up -d
 ```
 
 ## Stack
 
 | Layer | Tech |
 |-------|------|
-| Frontend | SvelteKit, Tailwind CSS, Iconify |
-| Backend | Go 1.25, Chi router, pgx |
+| Frontend | SvelteKit 5, Svelte 5 (runes), Tailwind CSS 3, Iconify |
+| Backend | Go 1.25, Chi router, pgx (PostgreSQL driver) |
 | Database | PostgreSQL 17, Redis 7 |
-| Container Registry | Zot (optional) |
-| Monitoring | VictoriaMetrics (optional, custom viz coming) |
-| Deployment | Docker Compose, Dockerfiles |
+| Container Registry | Zot (OCI-distribution compliant) |
+| Auth | JWT (access + refresh tokens), TOTP 2FA |
+| Deployment | Docker Compose, multi-stage Dockerfiles, GitHub Actions |
 
 ## Project Structure
 
@@ -85,18 +62,23 @@ anjungan/
 │   │   ├── infra/         # Server/infrastructure management
 │   │   ├── container/     # Docker container management
 │   │   ├── registry/      # Container registry integration
-│   │   ├── repository/    # GitHub repository integration
+│   │   ├── repository/    # Git repository integration
 │   │   ├── deployment/    # Deployment pipeline
 │   │   ├── dashboard/     # Dashboard aggregation
-│   │   └── admin/         # User & permission management
+│   │   ├── compliance/    # Security compliance checks
+│   │   ├── settings/      # Application settings
+│   │   ├── admin/         # User & permission management
+│   │   └── audit/         # Audit logging
 │   └── migrations/        # PostgreSQL migrations
 ├── frontend/              # SvelteKit SPA
 │   └── src/
-│       ├── lib/           # Components, stores, API
+│       ├── lib/           # Components, stores, API client
 │       └── routes/        # Pages
+├── docs/                  # Documentation
+├── zot/                   # Zot registry config
 ├── docker-compose.yml     # All services
 ├── Dockerfile.backend     # Multi-stage Go build
-├── Dockerfile.frontend    # Nginx static SPA
+├── Dockerfile.frontend    # Nginx static SPA (npm build)
 ├── Makefile               # Developer commands
 └── .env.example           # Environment variables
 ```
