@@ -21,7 +21,6 @@ import (
 	"github.com/edsuwarna/anjungan/internal/dashboard"
 	"github.com/edsuwarna/anjungan/internal/deployment"
 	"github.com/edsuwarna/anjungan/internal/infra"
-	"github.com/edsuwarna/anjungan/internal/metrics"
 	"github.com/edsuwarna/anjungan/internal/ratelimit"
 	"github.com/edsuwarna/anjungan/internal/registry"
 	repoapi "github.com/edsuwarna/anjungan/internal/repository"
@@ -58,27 +57,19 @@ func New(cfg *config.Config) (*Server, error) {
 	rdb := db.NewRedis(cfg.Redis)
 	repo := db.NewRepository(database)
 
-	// ─── VictoriaMetrics client ──────────────────────────────────────────
-	vmClient := metrics.NewVMClient(cfg.VM.URL)
-
-	// ─── Background metrics collector ────────────────────────────────────
-	collector := metrics.NewCollector(repo, vmClient, 5*time.Minute)
-	ctx := context.Background()
-	go collector.Start(ctx)
-
 	// ─── Build handlers ────────────────────────────────────────────────────
 	rl := ratelimit.New(rdb, cfg.Security.RateLimitMaxAttempts, cfg.Security.RateLimitWindow, cfg.Security.RateLimitLockout)
 	authSvc := auth.NewService(repo, cfg.JWT, rdb, rl, cfg.Security)
 	authH := auth.NewHandler(authSvc, repo)
 
 	srv := &Server{cfg: cfg, db: database}
-	srv.setupRouter(authH, authSvc, repo, rl, vmClient)
+	srv.setupRouter(authH, authSvc, repo, rl)
 	return srv, nil
 }
 
 func (s *Server) Handler() http.Handler { return s.mux }
 
-func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, rl *ratelimit.RateLimiter, vmClient *metrics.VMClient) {
+func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, rl *ratelimit.RateLimiter) {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -96,7 +87,7 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 		r.Mount("/auth", authRoutes(authH))
 		r.Route("/", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
-			r.Mount("/servers", infra.NewHandler(repo, vmClient).Routes())
+			r.Mount("/servers", infra.NewHandler(repo).Routes())
 			r.Mount("/ssh-keys", infra.NewSSHKeyHandler(repo).Routes())
 			r.Mount("/containers", container.NewHandler(repo).Routes())
 			r.Mount("/registry", registry.NewHandler(s.cfg.Registry, repo).Routes())

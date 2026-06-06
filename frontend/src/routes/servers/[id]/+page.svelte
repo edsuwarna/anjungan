@@ -5,8 +5,6 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import AddServerModal from '$lib/components/ui/AddServerModal.svelte';
-	import MetricsChart from '$lib/components/charts/MetricsChart.svelte';
-
 	// ── Core state ──────────────────────────────────────────
 	let server = $state(null);
 	let loading = $state(true);
@@ -31,9 +29,6 @@
 	let metrics = $state(null);
 	let metricsLoading = $state(false);
 	let metricsError = $state('');
-	let metricsHistory = $state([]);
-	let historyRange = $state('1h');
-	let historyLoading = $state(false);
 	let liveInterval = $state(null);
 	let liveEnabled = $state(false);
 
@@ -136,23 +131,11 @@ let showAllHistory = $state(false);
 		metricsError = '';
 		try {
 			metrics = await api.servers.metrics($page.params.id);
-			loadHistory();
 		} catch (e) {
 			metricsError = e.message;
 			metrics = null;
 		} finally {
 			metricsLoading = false;
-		}
-	}
-
-	async function loadHistory() {
-		historyLoading = true;
-		try {
-			metricsHistory = await api.servers.metricsHistory($page.params.id, historyRange, 100);
-		} catch (_) {
-			metricsHistory = [];
-		} finally {
-			historyLoading = false;
 		}
 	}
 
@@ -166,11 +149,6 @@ let showAllHistory = $state(false);
 			if (liveInterval) clearInterval(liveInterval);
 			liveInterval = null;
 		}
-	}
-
-	function changeRange(range) {
-		historyRange = range;
-		api.servers.metricsHistory($page.params.id, range, 100).then(d => { metricsHistory = d; }).catch(() => {});
 	}
 
 	async function testConnection() {
@@ -975,64 +953,6 @@ let showAllHistory = $state(false);
 						<Icon icon="solar:chart-2-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
 						<p class="text-sm" style="color: var(--color-text-muted);">Metrics not available</p>
 						<p class="text-xs" style="color: var(--color-text-muted);">Server may be offline</p>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Metrics History -->
-			<div class="card mt-4">
-				<div class="flex items-center justify-between mb-3">
-					<h3 class="text-base font-semibold" style="color: var(--color-text);">Metrics History</h3>
-					<div class="flex gap-1">
-						<button onclick={() => changeRange('1h')} class="btn-icon text-xs" style="color: {historyRange === '1h' ? 'var(--color-primary)' : 'var(--color-text-muted)'};">1h</button>
-						<button onclick={() => changeRange('6h')} class="btn-icon text-xs" style="color: {historyRange === '6h' ? 'var(--color-primary)' : 'var(--color-text-muted)'};">6h</button>
-						<button onclick={() => changeRange('24h')} class="btn-icon text-xs" style="color: {historyRange === '24h' ? 'var(--color-primary)' : 'var(--color-text-muted)'};">24h</button>
-						<button onclick={() => changeRange('7d')} class="btn-icon text-xs" style="color: {historyRange === '7d' ? 'var(--color-primary)' : 'var(--color-text-muted)'};">7d</button>
-					</div>
-				</div>
-
-				{#if historyLoading}
-					<div class="flex items-center justify-center py-6">
-						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
-					</div>
-				{:else if metricsHistory && metricsHistory.timestamps && metricsHistory.timestamps.length > 0}
-					{@const ts = metricsHistory.timestamps}
-					{@const cpu = metricsHistory.cpu}
-					{@const mem = metricsHistory.mem}
-					{@const disk = metricsHistory.disk}
-					{@const netrx = metricsHistory.net_rx}
-					{@const nettx = metricsHistory.net_tx}
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="CPU Load (1 min)" timestamps={ts}
-								series={[{ label: 'CPU Load', data: cpu, color: '#10b981', scale: 'load' }]}
-								height={180} yLabel="Load" formatY={(v) => v?.toFixed(2) ?? '\u2014'} />
-						</div>
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="Memory Usage" timestamps={ts}
-								series={[{ label: 'Memory %', data: mem, color: '#3b82f6', scale: '%' }]}
-								height={180} yLabel="%" formatY={(v) => v != null ? v.toFixed(1) + '%' : '\u2014'} />
-						</div>
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="Disk Usage" timestamps={ts}
-								series={[{ label: 'Disk %', data: disk, color: '#f59e0b', scale: '%' }]}
-								height={180} yLabel="%" formatY={(v) => v != null ? v.toFixed(1) + '%' : '\u2014'} />
-						</div>
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="Network RX" timestamps={ts}
-								series={[{ label: 'RX', data: netrx, color: '#8b5cf6', scale: 'bytes' }]}
-								height={180} yLabel="Bytes" formatY={(v) => { if (v == null) return '\u2014'; if (v >= 1e12) return (v / 1e12).toFixed(1) + ' TB'; if (v >= 1e9) return (v / 1e9).toFixed(1) + ' GB'; if (v >= 1e6) return (v / 1e6).toFixed(1) + ' MB'; if (v >= 1e3) return (v / 1e3).toFixed(1) + ' KB'; return v + ' B'; }} />
-						</div>
-						<div class="rounded-lg border p-3" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-							<MetricsChart title="Network TX" timestamps={ts}
-								series={[{ label: 'TX', data: nettx, color: '#ec4899', scale: 'bytes' }]}
-								height={180} yLabel="Bytes" formatY={(v) => { if (v == null) return '\u2014'; if (v >= 1e12) return (v / 1e12).toFixed(1) + ' TB'; if (v >= 1e9) return (v / 1e9).toFixed(1) + ' GB'; if (v >= 1e6) return (v / 1e6).toFixed(1) + ' MB'; if (v >= 1e3) return (v / 1e3).toFixed(1) + ' KB'; return v + ' B'; }} />
-						</div>
-					</div>
-				{:else}
-					<div class="flex flex-col items-center py-6 text-center">
-						<Icon icon="solar:chart-2-bold" class="mb-1 inline-block h-6 w-6" style="color: var(--color-text-muted);" />
-						<p class="text-xs" style="color: var(--color-text-muted);">Collecting metrics data... Check back later</p>
 					</div>
 				{/if}
 			</div>

@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -23,40 +21,14 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
 	sshtool "github.com/edsuwarna/anjungan/internal/infra/ssh"
-	vmmetrics "github.com/edsuwarna/anjungan/internal/metrics"
 )
 
 type Handler struct {
 	repo     *db.Repository
-	vmClient *vmmetrics.VMClient
 }
 
-func NewHandler(repo *db.Repository, vmClient *vmmetrics.VMClient) *Handler {
-	return &Handler{repo: repo, vmClient: vmClient}
-}
-
-// NullableFloat is a float64 that marshals to JSON null when NaN.
-// uPlot uses null to skip data points instead of drawing a zero line.
-type NullableFloat float64
-
-func (f NullableFloat) MarshalJSON() ([]byte, error) {
-	if math.IsNaN(float64(f)) {
-		return []byte("null"), nil
-	}
-	return json.Marshal(float64(f))
-}
-
-func (f *NullableFloat) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*f = NullableFloat(math.NaN())
-		return nil
-	}
-	var v float64
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	*f = NullableFloat(v)
-	return nil
+func NewHandler(repo *db.Repository) *Handler {
+	return &Handler{repo: repo}
 }
 
 // resolveSSHKey ensures a server's SSHKey is populated.
@@ -160,7 +132,6 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/test", h.TestConnectionGlobal)
 	r.Post("/{id}/test", h.TestConnection)
 	r.Get("/{id}/metrics", h.Metrics)
-	r.Get("/{id}/metrics/history", h.MetricsHistory)
 	r.Post("/{id}/detect", h.DetectInfo)
 	r.Get("/{id}/containers", h.Containers)
 	r.Post("/{id}/containers/{container}/start", h.ContainerStart)
@@ -850,245 +821,11 @@ func (h *Handler) Metrics(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = h.repo.SaveMetrics(ctx, point)
 
-		// Also push to VictoriaMetrics for history
-		go func() {
-			vmCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			_ = h.vmClient.InsertMetrics(vmCtx, id, &vmmetrics.MetricsSnapshot{
-				CPULoad1:       metrics.CPU.Load1,
-				CPULoad5:       metrics.CPU.Load5,
-				CPULoad15:      metrics.CPU.Load15,
-				MemUsedBytes:   int64(metrics.Memory.Used),
-				MemTotalBytes:  int64(metrics.Memory.Total),
-				DiskUsedBytes:  int64(metrics.Disk.Used),
-				DiskTotalBytes: int64(metrics.Disk.Total),
-				DiskUsedPct:    metrics.Disk.UsedPct,
-				NetRXBytes:     int64(metrics.Network.RXBytes),
-				NetTXBytes:     int64(metrics.Network.TXBytes),
-			})
-		}()
-
 		// Check thresholds and create alerts
 		h.checkThresholds(ctx, id, point)
 	}
 
 	common.JSON(w, http.StatusOK, metrics)
-}
-
-// ─── Historical metrics ────────────────────────────────────────────────────
-
-func (h *Handler) MetricsHistory(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	if _, err := h.authorizeView(r.Context(), id); err != nil {
-		common.Error(w, http.StatusNotFound, "server not found")
-		return
-	}
-
-	// Parse time range: 1h, 6h, 24h, 7d, 30d
-	rangeParam := r.URL.Query().Get("range")
-	var since time.Time
-	switch rangeParam {
-	case "6h":
-		since = time.Now().Add(-6 * time.Hour)
-	case "24h":
-		since = time.Now().Add(-24 * time.Hour)
-	case "7d":
-		since = time.Now().Add(-7 * 24 * time.Hour)
-	case "30d":
-		since = time.Now().Add(-30 * 24 * time.Hour)
-	default: // 1h
-		since = time.Now().Add(-1 * time.Hour)
-	}
-
-	// Map range to query step for uPlot
-	step := 5 * time.Minute
-	switch rangeParam {
-	case "1h":
-		step = 1 * time.Minute
-	case "6h":
-		step = 5 * time.Minute
-	case "24h":
-		step = 10 * time.Minute
-	case "7d":
-		step = 1 * time.Hour
-	case "30d":
-		step = 4 * time.Hour
-	}
-
-	now := time.Now()
-
-	// Query VM for each metric
-	type series struct {
-		values [][2]interface{} // [[timestamp, value], ...]
-	}
-
-	metrics := map[string]string{
-		"cpu":   `anjungan_cpu_load{server_id="` + id + `",load="1m"}`,
-		"mem":   `anjungan_mem_used_pct{server_id="` + id + `"}`,
-		"disk":  `anjungan_disk_used_pct{server_id="` + id + `"}`,
-		"netrx": `anjungan_net_rx_bytes{server_id="` + id + `"}`,
-		"netty": `anjungan_net_tx_bytes{server_id="` + id + `"}`,
-	}
-
-	result := make(map[string][][2]interface{})
-
-	for key, query := range metrics {
-		vals, err := h.vmClient.QueryRange(r.Context(), query, since, now, step)
-		if err != nil {
-			log.Printf("[metrics-history] query %s error: %v", key, err)
-			result[key] = [][2]interface{}{}
-			continue
-		}
-		if len(vals) > 0 {
-			result[key] = vals[0].Values
-		} else {
-			result[key] = [][2]interface{}{}
-		}
-	}
-
-	// Also fetch from PG as fallback for any empty series
-	pgPoints, _ := h.repo.GetHistoricalMetrics(r.Context(), id, since, 200)
-
-	// Build uPlot-friendly format: {timestamps: [...], cpu: [...], mem: [...], ...}
-	// Use unified timestamps from all VM series, else fallback to PG
-	// NullableFloat marshals NaN→null so uPlot skips missing data points
-	type uPlotData struct {
-		Timestamps []int64        `json:"timestamps"`
-		CPU        []NullableFloat `json:"cpu"`
-		Mem        []NullableFloat `json:"mem"`
-		Disk       []NullableFloat `json:"disk"`
-		NetRX      []NullableFloat `json:"net_rx"`
-		NetTX      []NullableFloat `json:"net_tx"`
-	}
-
-	resp := uPlotData{
-		Timestamps: make([]int64, 0),
-		CPU:        make([]NullableFloat, 0),
-		Mem:        make([]NullableFloat, 0),
-		Disk:       make([]NullableFloat, 0),
-		NetRX:      make([]NullableFloat, 0),
-		NetTX:      make([]NullableFloat, 0),
-	}
-
-	// Check if any VM data exists
-	hasVMData := false
-	for _, vals := range result {
-		if len(vals) > 0 {
-			hasVMData = true
-			break
-		}
-	}
-
-	log.Printf("[metrics-history] server=%s range=%s hasVMData=%v pgPoints=%d", id, rangeParam, hasVMData, len(pgPoints))
-	if hasVMData {
-		// Build unified timestamp set from all VM series
-		tsSet := make(map[int64]bool)
-		for _, vals := range result {
-			for _, p := range vals {
-				ts, _ := p[0].(float64)
-				tsSet[int64(ts)] = true
-			}
-		}
-		// Sort timestamps
-		resp.Timestamps = make([]int64, 0, len(tsSet))
-		for ts := range tsSet {
-			resp.Timestamps = append(resp.Timestamps, ts)
-		}
-		sort.Slice(resp.Timestamps, func(i, j int) bool {
-			return resp.Timestamps[i] < resp.Timestamps[j]
-		})
-
-		// Build lookup maps for each series
-		type seriesMap map[int64]float64
-		buildLookup := func(vals [][2]interface{}) seriesMap {
-			m := make(seriesMap, len(vals))
-			for _, p := range vals {
-				ts, _ := p[0].(float64)
-				val, _ := strconv.ParseFloat(fmt.Sprintf("%v", p[1]), 64)
-				m[int64(ts)] = val
-			}
-			return m
-		}
-
-		cpuMap := buildLookup(result["cpu"])
-		memMap := buildLookup(result["mem"])
-		diskMap := buildLookup(result["disk"])
-		netrxMap := buildLookup(result["netrx"])
-		nettyMap := buildLookup(result["netty"])
-
-		resp.CPU = make([]NullableFloat, len(resp.Timestamps))
-		resp.Mem = make([]NullableFloat, len(resp.Timestamps))
-		resp.Disk = make([]NullableFloat, len(resp.Timestamps))
-		resp.NetRX = make([]NullableFloat, len(resp.Timestamps))
-		resp.NetTX = make([]NullableFloat, len(resp.Timestamps))
-
-		for i, ts := range resp.Timestamps {
-			if v, ok := cpuMap[ts]; ok {
-				resp.CPU[i] = NullableFloat(v)
-			} else {
-				resp.CPU[i] = NullableFloat(math.NaN())
-			}
-			if v, ok := memMap[ts]; ok {
-				resp.Mem[i] = NullableFloat(v)
-			} else {
-				resp.Mem[i] = NullableFloat(math.NaN())
-			}
-			if v, ok := diskMap[ts]; ok {
-				resp.Disk[i] = NullableFloat(v)
-			} else {
-				resp.Disk[i] = NullableFloat(math.NaN())
-			}
-			if v, ok := netrxMap[ts]; ok {
-				resp.NetRX[i] = NullableFloat(v)
-			} else {
-				resp.NetRX[i] = NullableFloat(math.NaN())
-			}
-			if v, ok := nettyMap[ts]; ok {
-				resp.NetTX[i] = NullableFloat(v)
-			} else {
-				resp.NetTX[i] = NullableFloat(math.NaN())
-			}
-		}
-	} else if len(pgPoints) > 0 {
-		// Fallback to PG data — filter out 0 values from failed collections
-		for i := len(pgPoints) - 1; i >= 0; i-- {
-			p := pgPoints[i]
-			resp.Timestamps = append(resp.Timestamps, p.CollectedAt.Unix())
-			memPct := float64(0)
-			if p.MemTotalBytes > 0 {
-				memPct = float64(p.MemUsedBytes) / float64(p.MemTotalBytes) * 100
-			}
-			resp.CPU = append(resp.CPU, NullableFloat(p.CPULoad1))
-			resp.Mem = append(resp.Mem, NullableFloat(memPct))
-			// Null for failed disk collection (disk_used_pct == 0 but disk_total > 0 is valid,
-			// disk_used_pct == 0 AND disk_total == 0 means collection failure)
-			if p.DiskUsedPct == 0 && p.DiskTotalBytes == 0 {
-				resp.Disk = append(resp.Disk, NullableFloat(math.NaN()))
-			} else {
-				resp.Disk = append(resp.Disk, NullableFloat(p.DiskUsedPct))
-			}
-			resp.NetRX = append(resp.NetRX, NullableFloat(p.NetRXBytes))
-			resp.NetTX = append(resp.NetTX, NullableFloat(p.NetTXBytes))
-		}
-	}
-
-	common.JSON(w, http.StatusOK, resp)
-}
-
-// fillSeries copies values from VM results into the target slice, using NaN for missing
-func fillSeries(vmVals [][2]interface{}, target *[]float64, expectedLen int) {
-	*target = make([]float64, expectedLen)
-	for i := range *target {
-		(*target)[i] = 0
-	}
-	for i, p := range vmVals {
-		if i >= expectedLen {
-			break
-		}
-		val, _ := strconv.ParseFloat(fmt.Sprintf("%v", p[1]), 64)
-		(*target)[i] = val
-	}
 }
 
 // ─── Threshold alerts ──────────────────────────────────────────────────────

@@ -97,7 +97,6 @@ export const api = {
 		testConnection: (data) => request('/servers/test', { method: 'POST', body: JSON.stringify(data) }),
 		testExisting: (id) => request(`/servers/${id}/test`, { method: 'POST' }),
 		metrics: (id) => request(`/servers/${id}/metrics`),
-		metricsHistory: (id, range = '1h', limit = 200) => request(`/servers/${id}/metrics/history?range=${range}&limit=${limit}`),
 		detect: (id) => request(`/servers/${id}/detect`, { method: 'POST' }),
 		containers: (id) => request(`/servers/${id}/containers`),
 		containerStart: (id, container) => request(`/servers/${id}/containers/${container}/start`, { method: 'POST' }),

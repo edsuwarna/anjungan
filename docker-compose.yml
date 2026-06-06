@@ -97,23 +97,8 @@ services:
       - /etc/zot/config.json
     restart: unless-stopped
 
-  # ─── Metrics Storage: VictoriaMetrics ───────────────────────────────────
-  victoria-metrics:
-    image: victoriametrics/victoria-metrics:latest
-    container_name: anjungan-vm
-    restart: unless-stopped
-    ports:
-      - "8428:8428"
-    volumes:
-      - vmdata:/victoria-metrics-data
-    command:
-      - "-storageDataPath=/victoria-metrics-data"
-      - "-httpListenAddr=:8428"
-      - "-retentionPeriod=90d"
-
 volumes:
   pgdata:
   redisdata:
-  vmdata:
   sshkeys:
   zotdata:
