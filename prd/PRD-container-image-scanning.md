@@ -1,9 +1,9 @@
 # Anjungan — PRD: Container Image Vulnerability Scanning (Trivy)
 
 > **Version:** 1.0
-> **Status:** Draft — 🔴 Planned
-> **Author:** Endang Suwarna
-> **Last Updated:** June 5, 2026
+|> **Status:** 🔴 Not Implemented — Proposed for Phase 3
+|> **Author:** Endang Suwarna
+|> **Last Updated:** June 5, 2026
 
 ---
 
@@ -11,44 +11,44 @@
 
 ### Problem Statement
 
-Anjungan udah punya **CIS hardening** (server OS + Docker daemon config) dan **Container Security** (runtime checks — privileged, capabilities, root). Tapi dua itu semua **preventive** — ngecek konfigurasi container *sebelum* atau *saat* jalan.
+Anjungan already has **CIS hardening** (server OS + Docker daemon config) and **Container Security** (runtime checks — privileged, capabilities, root). But both of those are **preventive** — checking container configuration *before* or *during* runtime.
 
-Yang belum: **vulnerability scanning untuk image itu sendiri** — OS packages dan language dependencies di dalam image yang udah jalan di server. Misal:
+What's missing: **vulnerability scanning for the image itself** — OS packages and language dependencies inside images already running on servers. For example:
 
-- `nginx:1.25` jalan di server A — tau ga kalo `libssl3` di dalamnya punya CVE-2024 critical?
-- `node:20-alpine` di server B — package `lodash` versi lama ada RCE?
-- Image di-push seminggu lalu — base image-nya udah ada CVE baru yang belum di-patch
+- `nginx:1.25` running on server A — do you know if `libssl3` inside it has a CVE-2024 critical?
+- `node:20-alpine` on server B — does an old `lodash` package have an RCE?
+- Image pushed a week ago — the base image now has new CVEs that haven't been patched
 
-Tanpa vulnerability scanning:
-- **Blind spot** — tau container jalan, tapi ga tau isinya rentan atau aman
-- **No prioritization** — 10 server, 30 image — yang mana paling kritis?
-- **Reactive** — baru tau ada CVE pas udah kena exploit / lewat newsletter
+Without vulnerability scanning:
+- **Blind spot** — know containers are running, but don't know if they're vulnerable or safe
+- **No prioritization** — 10 servers, 30 images — which one is most critical?
+- **Reactive** — only find out about CVEs after being exploited / via newsletter
 
 ### What This Solves
 
-| Masalah | Solusi |
+| Problem | Solution |
 |---------|--------|
-| CVE di image yang jalan | **Trivy scan** — OS packages + language deps |
-| Image yang belum pernah di-scan | **Image Discovery** — agent auto-detect `docker images` |
-| Ribet scan 1 per 1 | **Batch scan per server** — agent parallel scan semua image |
-| No trend / history | **Scan history** — tau fix rate, CVE baru, trending severity |
-| Image dari registry vs via CI/CD | **Source tracking** — CI/CD webhook + agent live scan |
+| CVE in running images | **Trivy scan** — OS packages + language deps |
+| Images never scanned | **Image Discovery** — agent auto-detect `docker images` |
+| Tedious one-by-one scanning | **Batch scan per server** — agent parallel scans all images |
+| No trend / history | **Scan history** — know fix rate, new CVEs, trending severity |
+| Images from registry vs via CI/CD | **Source tracking** — CI/CD webhook + agent live scan |
 
 ### Current Status
 
-| Aspek | Status |
+| Aspect | Status |
 |-------|--------|
-| CIS Docker Benchmark (22 checks) | ✅ Ada di Compliance |
-| Container Security (10 runtime checks) | ✅ Ada di Compliance |
-| **Trivy Vulnerability Scanner (Agent-based)** | ❌ **Not implemented** — PRD ini |
-| Trivy CI/CD Integration | ❌ **Not implemented** — PRD ini |
+| CIS Docker Benchmark (22 checks) | ✅ Available in Compliance |
+| Container Security (10 runtime checks) | ✅ Available in Compliance |
+| **Trivy Vulnerability Scanner (Agent-based)** | ❌ **Not implemented** — This PRD |
+| Trivy CI/CD Integration | ❌ **Not implemented** — This PRD |
 | Cross-image CVE correlation | ❌ Not implemented |
 
 ### Target Audience
 
 - **Endang** (platform engineer) — maintain container security posture across servers
-- **DevOps** — tau mana image yang perlu direbuild / di-patch
-- **Security-conscious teams** — compliance requirement buat vulnerability management
+- **DevOps** — know which images need to be rebuilt / patched
+- **Security-conscious teams** — compliance requirement for vulnerability management
 
 ### Goals
 
@@ -59,7 +59,7 @@ Tanpa vulnerability scanning:
 | Severity-based prioritization | ✅ Critical/High/Medium/Low |
 | Fix rate tracking | ✅ % fixable vulns with version available |
 | Scan history & trend | ✅ Per-image timeline |
-| Cross-server CVE visibility | ✅ CVE yang ngaruh ke multiple images |
+| Cross-server CVE visibility | ✅ CVEs affecting multiple images |
 
 ---
 
@@ -144,13 +144,13 @@ Tanpa vulnerability scanning:
 
 ### Integration Points
 
-| Integrasi | Deskripsi |
+| Integration | Description |
 |-----------|-----------|
-| **Anj-Agent** | Agent jalanin Trivy di server, push hasil via HTTP API |
-| **Zot Registry** | Webhook post-push trigger scan image yang baru di-push |
-| **Existing Compliance** | Container Security (runtime) + CIS Docker — komplementer |
-| **Existing Containers page** | Tambah column "Vulnerabilities" with severity badge |
-| **Deployments** | Trigger scan ulang pas redeploy |
+| **Anj-Agent** | Agent runs Trivy on server, pushes results via HTTP API |
+| **Zot Registry** | Post-push webhook triggers scan of newly pushed images |
+| **Existing Compliance** | Container Security (runtime) + CIS Docker — complementary |
+| **Existing Containers page** | Add "Vulnerabilities" column with severity badge |
+| **Deployments** | Trigger re-scan on redeploy |
 
 ---
 
@@ -164,9 +164,9 @@ Tanpa vulnerability scanning:
 |---|---|
 | **Priority** | P1 |
 | **Status** | 🔴 **Planned** |
-| **Backend** | Agent `docker images --format json` → `POST /api/v1/images/discover`. Simpan ke tabel `image_assets`: server_id, repo, tag, image_id (sha256), size, created_at, last_scan_at, status (pending/scanned/error). Endpoint: `GET /api/v1/images` (?server_id=&status=&search=), `GET /api/v1/images/{id}`, `POST /api/v1/images/discover` (agent push). Image deduplication by image_id across servers. |
-| **Agent** | On connect dan periodic (every 6h), agent jalanin `docker images --format '{{json .}}' --no-trunc` → kirim daftar ke Anjungan. Delta detection: image baru vs yang udah pernah di-scan. |
-| **Data** | `image_assets` table. Satu image bisa muncul di multiple server (image_id sama, tapi server_id beda). |
+| **Backend** | Agent `docker images --format json` → `POST /api/v1/images/discover`. Store in `image_assets` table: server_id, repo, tag, image_id (sha256), size, created_at, last_scan_at, status (pending/scanned/error). Endpoints: `GET /api/v1/images` (?server_id=&status=&search=), `GET /api/v1/images/{id}`, `POST /api/v1/images/discover` (agent push). Image deduplication by image_id across servers. |
+| **Agent** | On connect and periodic (every 6h), agent runs `docker images --format '{{json .}}' --no-trunc` → sends list to Anjungan. Delta detection: new images vs previously scanned ones. |
+| **Data** | `image_assets` table. One image can appear on multiple servers (same image_id, different server_id). |
 
 ### F2 — Trivy Vulnerability Scanner
 
@@ -175,10 +175,10 @@ Tanpa vulnerability scanning:
 | **Priority** | P0 |
 | **Status** | 🔴 **Planned** |
 | **Scope** | **Vulnerabilities (OS + language deps) + Misconfigurations (Dockerfile lint) only.** Secrets scanning delegated to TruffleHog (PRD-secret-scanning.md). |
-| **Backend — Agent Push** | Agent jalanin `trivy image --severity CRITICAL,HIGH,MEDIUM --format json IMAGE:TAG`. Parse Trivy JSON → extract `Results[]` per package type (alpine, debian, npm, gomod, pip, etc.). Extract per-CVE: VulnerabilityID, Severity, PkgName, InstalledVersion, FixedVersion, CVSS, Title, PrimaryURL, Status (affected/fixed/will_not_fix), Layer.Digest. Simpan summary + findings ke `image_scans` + `cve_findings`. |
-| **Backend — CI/CD Webhook** | `POST /api/v1/trivy/webhook` — terima Trivy JSON dari GitHub Action. Source = `ci`. Simpan dengan commit_sha, branch, workflow_url. Tampil unified dengan agent scans. |
-| **Backend — Post-Push (Zot)** | Zot registry webhook → Anjungan trigger scan image yang baru di-push. Agent yang handle? Atau Anjungan panggil Trivy di registry side? |
-| **Agent** | Trivy execution modes: (1) **Full scan** — `trivy image` dengan severity filter. (2) **Quick scan** — `trivy image --scanners vuln` tanpa misconfig. Waktu scan dibatasi 5 menit per image. Cache result di agent supaya ga re-scan kalo image_id sama. |
+| **Backend — Agent Push** | Agent runs `trivy image --severity CRITICAL,HIGH,MEDIUM --format json IMAGE:TAG`. Parse Trivy JSON → extract `Results[]` per package type (alpine, debian, npm, gomod, pip, etc.). Extract per-CVE: VulnerabilityID, Severity, PkgName, InstalledVersion, FixedVersion, CVSS, Title, PrimaryURL, Status (affected/fixed/will_not_fix), Layer.Digest. Store summary + findings into `image_scans` + `cve_findings`. |
+| **Backend — CI/CD Webhook** | `POST /api/v1/trivy/webhook` — receives Trivy JSON from GitHub Action. Source = `ci`. Save with commit_sha, branch, workflow_url. Display unified with agent scans. |
+| **Backend — Post-Push (Zot)** | Zot registry webhook → Anjungan triggers scan of newly pushed image. Agent handles it? Or does Anjungan call Trivy on the registry side? |
+| **Agent** | Trivy execution modes: (1) **Full scan** — `trivy image` with severity filter. (2) **Quick scan** — `trivy image --scanners vuln` without misconfig. Scan time limited to 5 minutes per image. Cache result on agent to avoid re-scanning if image_id is the same. |
 | **Data Model** | `image_scans`: image_name, image_tag, image_id, server_id, source (agent/ci/webhook), scanner_version, summary (JSONB: {critical, high, medium, low}), total_vulns, fixable_count, misconfigs (JSONB), raw_results (JSONB — optional). `cve_findings`: scan_id FK, cve_id, severity, pkg_name, pkg_path, installed_version, fixed_version, cvss_score, cvss_vector, status, title, description, reference_url, layer_digest. |
 
 ### F3 — Scan Dashboard & History
@@ -188,7 +188,7 @@ Tanpa vulnerability scanning:
 | **Priority** | P0 |
 | **Status** | 🔴 **Planned** |
 | **Backend** | `GET /api/v1/scans/images/summary` — aggregate: total images, total scans, critical count, high count, fix rate, scan coverage. `GET /api/v1/scans/images` — list scans (?server_id=&image=&severity=&status=). `GET /api/v1/scans/images/{id}` — scan detail with CVE findings. `GET /api/v1/scans/images/latest/{image_name}` — latest scan per image. `GET /api/v1/scans/images/trends` — time series: count per severity per day. |
-| **Frontend** | Route `/images`. **Hardening**: sama kayak route `/compliance` — biar konsisten. Tapi isinya dashboard image vulnerability. **Dashboard**: KPI cards — images scanned, total CVEs, critical count, fix rate. **Per-server image list**: expandable card, server name, image count, worst severity badge. **Image card**: image:tag, last scan time, severity badges, scan button. **Trend chart**: 30-day severity distribution bar chart. |
+| **Frontend** | Route `/images`. **Design**: same as `/compliance` route — for consistency. Content is the image vulnerability dashboard. **Dashboard**: KPI cards — images scanned, total CVEs, critical count, fix rate. **Per-server image list**: expandable card, server name, image count, worst severity badge. **Image card**: image:tag, last scan time, severity badges, scan button. **Trend chart**: 30-day severity distribution bar chart. |
 | **UX** | **Empty state**: "No images discovered yet — install agent on target server." **Severity badge**: 🔴 critical, 🟠 high, 🟡 medium, 🟢 low. **Scan in progress**: spinner + "Scanning..." with elapsed time. **Delta badge**: 🔺 Critical +2 vs previous scan. |
 
 ### F4 — Image Detail & CVE Drill-Down
@@ -199,7 +199,7 @@ Tanpa vulnerability scanning:
 | **Status** | 🔴 **Planned** |
 | **Backend** | `GET /api/v1/images/{id}` — image detail + latest scan. `GET /api/v1/images/{id}/history` — scan timeline. `GET /api/v1/images/{id}/cves` — filterable CVE list (?severity=&fixable=&pkg=). |
 | **Frontend** | Route `/images/[id]`. **Image header**: name:tag, image_id (sha256 truncated), size, created, server name, last scan time. **Scan timeline bar**: horizontal scrollable pills — select scan. **Summary cards**: CRITICAL N, HIGH N, MEDIUM N, LOW N, Misconfig N. **Vulnerabilities tab**: expandable CVE cards — CVE ID, severity badge, package name + version, fixed version (if available), CVSS score, title, description, reference link. Filter by severity, fixable/unfixable, package type. **Misconfigurations tab**: Dockerfile lint findings with severity. **Scan source badge**: 🔵 Agent / 🟢 CI/CD / 🟣 Registry. |
-| **UX** | CVE card expand → CWE category, CVSS vector, published date, reference links dengan external icon. Remediation suggestion: "Upgrade libssl3 from 3.0.9 to 3.0.10". Copy CVE ID button. **Fixed version column** — kalo kosong berarti belum ada fix (will_not_fix). |
+| **UX** | CVE card expand → CWE category, CVSS vector, published date, reference links with external icon. Remediation suggestion: "Upgrade libssl3 from 3.0.9 to 3.0.10". Copy CVE ID button. **Fixed version column** — if empty, it means no fix available yet (will_not_fix). |
 
 ### F5 — Cross-Image CVE Correlation
 
@@ -207,9 +207,9 @@ Tanpa vulnerability scanning:
 |---|---|
 | **Priority** | P2 |
 | **Status** | 🔴 **Planned** |
-| **Backend** | `GET /api/v1/scans/images/cross-severity` — CVE yang muncul di multiple images/servers. Group by CVE ID → count server affected → count images affected. `GET /api/v1/scans/images/cross-severity/{cve_id}` — detail mana aja server + image yang kena CVE tertentu. |
-| **Frontend** | **Tab/Routes: "Cross-Image CVEs"**. Ranked CVE list: CVE ID, severity, affected images count, affected servers count, total count of occurrences. Klik → detail: which servers, which images, installed version, fix available. |
-| **UX** | Prioritize by most widespread: CVE yang muncul di 5 server > 1 server. Sort by severity + count. Action: "Schedule scan all affected images" button. |
+| **Backend** | `GET /api/v1/scans/images/cross-severity` — CVEs appearing on multiple images/servers. Group by CVE ID → count servers affected → count images affected. `GET /api/v1/scans/images/cross-severity/{cve_id}` — detail of which servers + images are affected by a specific CVE. |
+| **Frontend** | **Tab/Route: "Cross-Image CVEs"**. Ranked CVE list: CVE ID, severity, affected images count, affected servers count, total count of occurrences. Click → detail: which servers, which images, installed version, fix available. |
+| **UX** | Prioritize by most widespread: CVE appearing on 5 servers > 1 server. Sort by severity + count. Action: "Schedule scan all affected images" button. |
 
 ### F6 — Scheduled Scan & Auto-Scan
 
@@ -217,9 +217,9 @@ Tanpa vulnerability scanning:
 |---|---|
 | **Priority** | P2 |
 | **Status** | 🔴 **Planned** |
-| **Backend** | `image_scan_schedules` table: server_id (or ALL), cron expression, severity_filter (scan all vs CRITICAL+HIGH only). Background scheduler trigger agent scan. `POST /api/v1/images/schedule` — create schedule. Notifikasi ke admin kalo ada critical CVE baru. |
+| **Backend** | `image_scan_schedules` table: server_id (or ALL), cron expression, severity_filter (scan all vs CRITICAL+HIGH only). Background scheduler trigger agent scan. `POST /api/v1/images/schedule` — create schedule. Notify admin when there are new critical CVEs. |
 | **Frontend** | Schedule editor: select server / all servers, cron pattern, severity threshold. Schedule list: target, cron, last run, next run, enable toggle. |
-| **UX** | Daily scan recommended. After scan complete, kalo ada critical CVE baru → badge di sidebar + notif (future: Telegram). |
+| **UX** | Daily scan recommended. After scan complete, if there are new critical CVEs → badge on sidebar + notification (future: Telegram). |
 
 ---
 
@@ -484,16 +484,16 @@ CREATE TABLE image_scan_schedules (
 ## 8. Non-Functional Requirements
 
 | Requirement | Target |
-|-------------|--------|
-| Scan per image (standard) | < 30 detik per image |
-| Batch scan (12 images) | < 6 menit (parallel) |
-| Dashboard load (28 images) | < 2 detik |
-| CVE detail page | < 500ms |
-| CVE database entries | < 100K rows per scan (JSONB aggregation) |
-| DB retention | Auto-delete > 90 hari raw_results (keep summary) |
-| Trivy version | Latest stable — pin in agent config |
-| Agent resource | CPU < 5%, RAM < 100MB during scan |
-| Network | ~200KB per scan result (compressed JSON) |
+||-------------|--------|
+|| Scan per image (standard) | < 30 seconds per image |
+|| Batch scan (12 images) | < 6 minutes (parallel) |
+|| Dashboard load (28 images) | < 2 seconds |
+|| CVE detail page | < 500ms |
+|| CVE database entries | < 100K rows per scan (JSONB aggregation) |
+|| DB retention | Auto-delete raw_results after > 90 days (keep summary) |
+|| Trivy version | Latest stable — pin in agent config |
+|| Agent resource | CPU < 5%, RAM < 100MB during scan |
+|| Network | ~200KB per scan result (compressed JSON) |
 
 ---
 

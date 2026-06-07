@@ -1,7 +1,7 @@
 # Anjungan — PRD: Domain Management & Multi-Server Routing
 
 > **Version:** 1.0
-> **Status:** Draft
+> **Status:** 🔴 Not Implemented — Proposed for Phase 2
 > **Author:** Endang Suwarna
 > **Last Updated:** June 5, 2026
 
@@ -11,49 +11,49 @@
 
 ### Problem Statement
 
-Anjungan jalan di **peladen-central** — satu server yang punya public IP (203.0.113.1). Tapi Endang punya **4-5 server** lain (peladen-ml, peladen-cache, peladen-backup) yang **ga punya public IP**. Mereka cuma bisa diakses lewat internal network (10.0.0.0/24).
+Anjungan runs on **peladen-central** — one server that has a public IP (203.0.113.1). But Endang has **4-5 other servers** (peladen-ml, peladen-cache, peladen-backup) that **don't have public IPs**. They can only be accessed via internal network (10.0.0.0/24).
 
-Sekarang, aplikasi yang pengen dibuka dari internet harus:
-1. Di-forward manual lewat internal IP (`10.0.0.2:8080`)
-2. SSL cert diurus manual
-3. Ga ada single pane of glass buat liat *siapa punya domain apa, di server mana, status sehat apa enggak*
-4. Setiap nambah domain harus edit compose manual + nambah Traefik labels
+Currently, applications that need to be accessed from the internet must:
+1. Be forwarded manually via internal IP (`10.0.0.2:8080`)
+2. SSL cert managed manually
+3. No single pane of glass to view *who owns which domain, on which server, and its health status*
+4. Every time a domain is added, compose must be edited manually + Traefik labels added
 
-**Domain Management solving this:**
-- Anjungan jadi **central ingress manager** — semua domain diatur dari satu dashboard
-- Traefik di peladen-central jadi gateway → forward ke server internal mana pun
+**Domain Management solves this:**
+- Anjungan becomes the **central ingress manager** — all domains managed from one dashboard
+- Traefik on peladen-central becomes the gateway → forward to any internal server
 - SSL auto via Let's Encrypt
-- Health check monitoring dari Anjungan
-- Ga perlu SSH-SSH lagi buat urusan domain
+- Health check monitoring from Anjungan
+- No more SSH-ing for domain matters
 
 ### Target Audience
 
 - **Endang** (platform engineer) — stop manual Traefik config
-- **Developer** — self-service nambah domain buat service mereka
-- **Future infra team** — audit trail siapa nambah domain apa
+- **Developer** — self-service adding domains for their services
+- **Future infra team** — audit trail of who added which domain
 
 ### Goals
 
 | Goal | Metric |
 |------|--------|
-| Tambah domain dari UI → apply ke Traefik | < 30 detik dari klik → live |
-| Daftarin semua server dalam satu tempat | 5 server registered |
-| Lihat status semua domain di semua server | Health green/red per domain |
-| SSL auto-renew tanpa intervensi manual | 100% cert auto-renewed |
-| Health check remote server dari Traefik | Detection < 30s |
+| Add domain from UI → apply to Traefik | < 30 seconds from click → live |
+| Register all servers in one place | 5 servers registered |
+| View status of all domains on all servers | Health green/red per domain |
+| SSL auto-renew without manual intervention | 100% cert auto-renewed |
+| Health check remote server from Traefik | Detection < 30s |
 
 ### Non-Goals
 
-- ❌ Bukan DNS registrar — gantiin Cloudflare DNS. Domain tetap di-manage di Cloudflare.
-- ❌ Bukan load balancer replacement — pake Traefik yang udah jalan.
-- ❌ Bukan WireGuard manager built-in — setup tunnel tetep manual.
-- ❌ Bukan cert manager alternatif — pake Traefik + Let's Encrypt yang udah ada.
+- ❌ Not a DNS registrar — replacing Cloudflare DNS. Domains still managed in Cloudflare.
+- ❌ Not a load balancer replacement — uses existing Traefik.
+- ❌ Not a WireGuard manager built-in — tunnel setup remains manual.
+- ❌ Not an alternative cert manager — uses existing Traefik + Let's Encrypt.
 
 ---
 
 ## 2. Product Overview
 
-### Fitur Ini Dalam Konteks Anjungan
+### This Feature in the Context of Anjungan
 
 ```
 Internet ──▶ peladen-central (203.0.113.1)
@@ -87,7 +87,7 @@ User input                    Anjungan                      Traefik
 
 ### Existing Architecture Prerequisite
 
-Ini bukan fitur yang berdiri sendiri — dia **nempel di Traefik** yang udah jalan di peladen-central. Anjungan ga perlu install Traefik baru. Cuma perlu **Frontend: UI** + **Backend: File Provider generator** + **DB schema baru**.
+This is not a standalone feature — it **attaches to the existing Traefik** already running on peladen-central. Anjungan doesn't need to install a new Traefik. It only needs **Frontend: UI** + **Backend: File Provider generator** + **New DB schema**.
 
 ---
 
@@ -102,8 +102,8 @@ Ini bukan fitur yang berdiri sendiri — dia **nempel di Traefik** yang udah jal
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Backend** | `servers_cluster` table baru (bukan `servers` yang existing — ini buat cluster nodes, bukan target SSH). Kolom: id, name, public_ip, internal_ip, status (online/maintenance/offline), labels (text[]), specs (jsonb: cpu, ram, disk), uptime_seconds, created_at, updated_at. CRUD: `GET/POST/PUT/DELETE /api/v1/cluster/servers`. Health check endpoint: `POST /api/v1/cluster/servers/{id}/health` (ping via internal IP) |
-| **Frontend** | Route `/infra/servers`. Grid card layout — tiap server: status dot 🟢/🟡/🔴, name, public/internal IP, spec, uptime, label badges. "Register New Server" card (dashed border, plus icon). Edit/Delete modal. |
+| **Backend** | New `servers_cluster` table (not the existing `servers` — this is for cluster nodes, not SSH targets). Columns: id, name, public_ip, internal_ip, status (online/maintenance/offline), labels (text[]), specs (jsonb: cpu, ram, disk), uptime_seconds, created_at, updated_at. CRUD: `GET/POST/PUT/DELETE /api/v1/cluster/servers`. Health check endpoint: `POST /api/v1/cluster/servers/{id}/health` (ping via internal IP) |
+| **Frontend** | Route `/infra/servers`. Grid card layout — each server: status dot 🟢/🟡/🔴, name, public/internal IP, spec, uptime, label badges. "Register New Server" card (dashed border, plus icon). Edit/Delete modal. |
 | **UX** | Status dot live-update (15s polling). Click card → expand detail (services running, CPU/RAM mini). Register form: name, internal IP, public IP (optional), spec, labels/tags. Delete confirmation modal. |
 
 **DB Schema:**
@@ -132,9 +132,9 @@ CREATE TABLE cluster_servers (
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Backend** | `domains` table baru. Kolom: id, domain (unique), cluster_server_id (FK), target_url (VARCHAR), target_port (INT), service_name (VARCHAR — optional display), ssl_enabled, cert_expires_at, basic_auth_enabled, basic_auth_hash, health_check_path, health_check_interval, redirect_www, labels_override (JSONB — extra Traefik labels), status (active/pending_ssl/error/expired), created_at, updated_at. CRUD: `GET/POST/PUT/DELETE /api/v1/domains`. Filter: `?server_id=`, `?status=active`, `?search=domain`. |
-| **Frontend** | Route `/infra/domains`. List semua domain: domain name, server badge (local/remote → internal IP), SSL status, health status 🟢/🟡/🔴, cert expiry, Edit/Delete. **Gateway diagram card** di atas — flow visual Internet → Traefik → server. **Add Domain** expandable form: domain, service name, server dropdown (dari cluster_servers), conditional — kalo local: port doang; kalo remote: URL + health check. Options: auto SSL, basic auth, www redirect, health check path+interval. Traefik config preview panel (live YAML preview). |
-| **UX** | Form validation inline. Domain format check. Server dropdown pake status indicator. Basic auth password hash auto-generated pake htpasswd. Preview YAML update live pas ganti field. Deployment confirmation — "Config akan ditulis ke /etc/traefik/dynamic/domains.yml dan Traefik akan auto-reload." |
+| **Backend** | New `domains` table. Columns: id, domain (unique), cluster_server_id (FK), target_url (VARCHAR), target_port (INT), service_name (VARCHAR — optional display), ssl_enabled, cert_expires_at, basic_auth_enabled, basic_auth_hash, health_check_path, health_check_interval, redirect_www, labels_override (JSONB — extra Traefik labels), status (active/pending_ssl/error/expired), created_at, updated_at. CRUD: `GET/POST/PUT/DELETE /api/v1/domains`. Filter: `?server_id=`, `?status=active`, `?search=domain`. |
+| **Frontend** | Route `/infra/domains`. List all domains: domain name, server badge (local/remote → internal IP), SSL status, health status 🟢/🟡/🔴, cert expiry, Edit/Delete. **Gateway diagram card** at the top — visual flow Internet → Traefik → server. **Add Domain** expandable form: domain, service name, server dropdown (from cluster_servers), conditional — if local: port only; if remote: URL + health check. Options: auto SSL, basic auth, www redirect, health check path+interval. Traefik config preview panel (live YAML preview). |
+| **UX** | Inline form validation. Domain format check. Server dropdown uses status indicator. Basic auth password auto-generated using htpasswd. Preview YAML updates live when changing fields. Deployment confirmation — "Config will be written to /etc/traefik/dynamic/domains.yml and Traefik will auto-reload." |
 
 **DB Schema:**
 
@@ -167,9 +167,9 @@ CREATE TABLE domains (
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Backend** | Service core: `TraefikConfigGenerator` — baca semua domain dari DB → generate YAML sesuai format Traefik File Provider. Logic: kalo `cluster_server.is_gateway = true` → `loadBalancer.servers[0].port = target_port`, kalo `is_gateway = false` → `loadBalancer.servers[0].url = target_url`. SSL: auto set `tls.certResolver: letsencrypt`. Basic auth: generate middleware dengan htpasswd format ($$ double dollar!). Health check buat remote server: `loadBalancer.healthCheck.path + interval`. Write ke `/etc/traefik/dynamic/domains.yml`. Auto-reload Traefik config. |
-| **Frontend** | No dedicated page — backend process. Tapi preview ditampilkan di form Add/Edit Domain (read-only YAML). Validation errors ditampilkan inline. |
-| **UX** | Kalo YAML malformed, backend return error sebelum nulis ke disk. Rollback ke config sebelumnya. |
+| **Backend** | Core service: `TraefikConfigGenerator` — reads all domains from DB → generates YAML in Traefik File Provider format. Logic: if `cluster_server.is_gateway = true` → `loadBalancer.servers[0].port = target_port`, if `is_gateway = false` → `loadBalancer.servers[0].url = target_url`. SSL: auto set `tls.certResolver: letsencrypt`. Basic auth: generate middleware with htpasswd format ($$ double dollar!). Health check for remote server: `loadBalancer.healthCheck.path + interval`. Write to `/etc/traefik/dynamic/domains.yml`. Auto-reload Traefik config. |
+| **Frontend** | No dedicated page — backend process. But preview is shown in the Add/Edit Domain form (read-only YAML). Validation errors shown inline. |
+| **UX** | If YAML is malformed, backend returns error before writing to disk. Rollback to previous config. |
 
 **Generated YAML Format:**
 
@@ -221,9 +221,9 @@ http:
 | | |
 |---|---|
 | **Priority** | P1 |
-| **Backend** | Scan tiap domain → cek `cert_expires_at`. Kalo < 30 hari: update status jadi `expiring_soon`. Kalo expired: status `expired`. Cron job: daily check SSL expiry. Notification trigger kalo < 14 hari. Endpoint: `GET /api/v1/domains/ssl-summary` — count active, expiring_soon, expired. |
-| **Frontend** | Badge di domain list: 🟢 Active (68d), 🟡 Expiring (10d), 🔴 Expired. SSL summary card di dashboard: "2 certs expiring within 30 days". Click → filter domain list. |
-| **UX** | Warna badge sesuai urgency. Kalo < 30 hari munculin warning icon. Kalo expired — merah terang + tooltip "Traefik cert expired — otomatis renew via ACME" atau "Custom cert — renew manual". |
+| **Backend** | Scan each domain → check `cert_expires_at`. If < 30 days: update status to `expiring_soon`. If expired: status `expired`. Cron job: daily SSL expiry check. Notification trigger if < 14 days. Endpoint: `GET /api/v1/domains/ssl-summary` — count active, expiring_soon, expired. |
+| **Frontend** | Badge in domain list: 🟢 Active (68d), 🟡 Expiring (10d), 🔴 Expired. SSL summary card on dashboard: "2 certs expiring within 30 days". Click → filter domain list. |
+| **UX** | Badge color matches urgency. If < 30 days show warning icon. If expired — bright red + tooltip "Traefik cert expired — auto-renew via ACME" or "Custom cert — manual renew". |
 
 ---
 
@@ -232,9 +232,9 @@ http:
 | | |
 |---|---|
 | **Priority** | P1 |
-| **Backend** | Traefik health check status udah built-in di Traefik API. Anjungan baca dari Traefik API (`/api/http/services`) untuk parse health per service. Endpoint: `GET /api/v1/domains/{id}/health` — proxy call ke Traefik API atau parse dari file. Kalo Traefik API ga accessible (Dokploy ga expose), fallback: cron `docker exec traefik traefik healthcheck` parsing. |
-| **Frontend** | Tiap domain di list punya health badge: 🟢 OK, 🟡 Degraded, 🔴 Down, ⚪ Unknown. Health detail card (optional): last check, response time, status code. Filter domain list by health status. |
-| **UX** | Auto-refresh tiap 30s. Kalo remote server down → badge merah + "Server unreachable" tooltip. Kalo health check path not configured → badge abu "—". |
+| **Backend** | Traefik health check status is built-in to the Traefik API. Anjungan reads from Traefik API (`/api/http/services`) to parse health per service. Endpoint: `GET /api/v1/domains/{id}/health` — proxy call to Traefik API or parse from file. If Traefik API is not accessible (Dokploy doesn't expose it), fallback: cron `docker exec traefik traefik healthcheck` parsing. |
+| **Frontend** | Each domain in the list has a health badge: 🟢 OK, 🟡 Degraded, 🔴 Down, ⚪ Unknown. Health detail card (optional): last check, response time, status code. Filter domain list by health status. |
+| **UX** | Auto-refresh every 30s. If remote server is down → red badge + "Server unreachable" tooltip. If health check path not configured → gray badge "—". |
 
 ---
 
@@ -243,9 +243,9 @@ http:
 | | |
 |---|---|
 | **Priority** | P2 |
-| **Backend** | WireGuard status checker: `wg show` parsing. Cek interface status, peer handshake, transfer. Endpoint: `GET /api/v1/cluster/servers/{id}/tunnel`. Endpoint: `POST /api/v1/cluster/servers/{id}/tunnel/test` — ping via WireGuard IP. |
-| **Frontend** | Tunnel indicator di server card: "WG 🟢" atau "WG 🔴". Tunnel detail modal: interface, peer public key, handshake age, transfer in/out, endpoint. |
-| **UX** | Kalo server pake WireGuard, tampilkan tunnel status di server card. Kalo ga pake, hidden. Test tunnel button — ping + latency. |
+| **Backend** | WireGuard status checker: `wg show` parsing. Check interface status, peer handshake, transfer. Endpoint: `GET /api/v1/cluster/servers/{id}/tunnel`. Endpoint: `POST /api/v1/cluster/servers/{id}/tunnel/test` — ping via WireGuard IP. |
+| **Frontend** | Tunnel indicator on server card: "WG 🟢" or "WG 🔴". Tunnel detail modal: interface, peer public key, handshake age, transfer in/out, endpoint. |
+| **UX** | If the server uses WireGuard, show tunnel status on server card. If not using, hidden. Test tunnel button — ping + latency. |
 
 ---
 
@@ -351,8 +351,8 @@ GET    /api/v1/traefik/status                     // Traefik API proxy: router/s
 
 | Table | Used For |
 |-------|----------|
-| `users` | Audit log — siapa nambah/ubah domain |
-| `audit_logs` | Catat tiap domain action (create, update, delete, apply) |
+| `users` | Audit log — who added/modified domain |
+| `audit_logs` | Records each domain action (create, update, delete, apply) |
 
 ### Migration
 
@@ -403,11 +403,11 @@ CREATE TABLE domains (
 |-------------|--------|
 | **Config generation** | < 100ms untuk regenerate semua domain |
 | **Traefik reload** | < 1s setelah domains.yml ditulis |
-| **SSL cert monitoring** | Daily check, notif kalo < 14 hari |
+| **SSL cert monitoring** | Daily check, notify if < 14 days |
 | **Health check polling** | 30s interval (by Traefik) |
-| **File write** | Atomic write — kalo crash, config lama aman |
-| **Rollback** | Backup config sebelum overwrite — restore kalo error |
-| **Concurrent domain operations** | Lock per-write — ga ada race condition |
+| **File write** | Atomic write — if crash, old config is safe |
+| **Rollback** | Backup config before overwrite — restore if error |
+| **Concurrent domain operations** | Lock per-write — no race condition |
 
 ---
 
@@ -416,47 +416,47 @@ CREATE TABLE domains (
 ### Flow: Add Domain (Remote Server)
 
 ```
-1. Klik "+ Add Domain"
-2. Isi form:
+1. Click "+ Add Domain"
+2. Fill form:
    [Domain]         app1.edsuwarna.id
    [Service Name]   app-1-api
-   [Target Server]  [peladen-ml (10.0.0.2) ▼]     ← dari cluster_servers
-3. Karena server != gateway, form otomatis switch ke mode REMOTE:
-   [Target URL]     http://10.0.0.2:8080           ← auto-suggest dari server IP
+   [Target Server]  [peladen-ml (10.0.0.2) ▼]     ← from cluster_servers
+3. Because server != gateway, form automatically switches to REMOTE mode:
+   [Target URL]     http://10.0.0.2:8080           ← auto-suggest from server IP
    [Health Check]   /health  |  interval: 30s
-4. Opsional:
+4. Optional:
    ☑ Auto SSL
    ☐ Basic Auth
    ☐ Redirect www
-5. Preview YAML muncul di panel bawah — real-time update
-6. Klik "Add Domain & Deploy" → loading → success/error
-7. Domain live di < 30 detik ✅
+5. Preview YAML appears in bottom panel — real-time update
+6. Click "Add Domain & Deploy" → loading → success/error
+7. Domain live in < 30 seconds ✅
 ```
 
-### Flow: Add Domain (Local Server — Satu Server A)
+### Flow: Add Domain (Local Server — Single Server A)
 
 ```
-1. Klik "+ Add Domain"
-2. Isi form:
+1. Click "+ Add Domain"
+2. Fill form:
    [Domain]         internal-tools.edsuwarna.id
    [Service Name]   internal-tools
    [Target Server]  [peladen-central (local) ▼]    ← is_gateway = true
-3. Karena server == gateway, form otomatis switch ke mode LOCAL:
+3. Because server == gateway, form automatically switches to LOCAL mode:
    [Container Port] 8080
-4. Opsional sama seperti remote
-5. Preview YAML — port: 8080 (bukan URL)
-6. Klik "Add Domain & Deploy"
-7. Traefik resolve via Docker network ✅
+4. Optional same as remote
+5. Preview YAML — port: 8080 (not URL)
+6. Click "Add Domain & Deploy"
+7. Traefik resolves via Docker network ✅
 ```
 
 ### Flow: Server Down Detection
 
 ```
-1. Traefik health check interval 30s ke http://10.0.0.2:8080/health
+1. Traefik health check interval 30s to http://10.0.0.2:8080/health
 2. 3 consecutive failures → Traefik mark service unhealthy
-3. Anjungan baca dari Traefik API:
+3. Anjungan reads from Traefik API:
    - Domain status: 🔴 Down
-   - Server status: 🔴 Offline (kalo semua domain di server itu down)
+   - Server status: 🔴 Offline (if all domains on that server are down)
 4. Dashboard show: Server B (🔴) — "All services unreachable"
 ```
 
@@ -466,42 +466,42 @@ CREATE TABLE domains (
 
 ### 🟢 Phase 6.1 — Foundation (Server Registry + Domain CRUD)
 
-**Goal:** Bisa daftarin server + nambah domain dari UI
+**Goal:** Able to register servers + add domains from UI
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 1 | `cluster_servers` table + migration | 0.5 hari | — |
-| 2 | Server CRUD backend + frontend | 1 hari | #1 |
-| 3 | `domains` table + migration | 0.5 hari | #2 |
-| 4 | Domain CRUD backend | 1 hari | #3 |
-| 5 | Domain form UI (local + remote conditional) | 1.5 hari | #4 |
-| 6 | Domain list + status badges UI | 0.5 hari | #5 |
-| **Total** | | **5 hari** | |
+| 1 | `cluster_servers` table + migration | 0.5 day | — |
+| 2 | Server CRUD backend + frontend | 1 day | #1 |
+| 3 | `domains` table + migration | 0.5 day | #2 |
+| 4 | Domain CRUD backend | 1 day | #3 |
+| 5 | Domain form UI (local + remote conditional) | 1.5 days | #4 |
+| 6 | Domain list + status badges UI | 0.5 day | #5 |
+| **Total** | | **5 days** | |
 
 ### 🟡 Phase 6.2 — Traefik Integration
 
-**Goal:** Config beneran ngefek ke Traefik
+**Goal:** Config actually affects Traefik
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 7 | TraefikConfigGenerator (YAML engine) | 1.5 hari | #4 |
-| 8 | File write + atomic backup + rollback | 0.5 hari | #7 |
-| 9 | Config preview (real-time YAML) | 0.5 hari | #7 |
-| 10 | Apply/Regenerate endpoint | 0.5 hari | #8 |
-| 11 | SSL cert tracking (expiry col + UI badge) | 0.5 hari | #7 |
-| **Total** | | **3.5 hari** | |
+| 7 | TraefikConfigGenerator (YAML engine) | 1.5 days | #4 |
+| 8 | File write + atomic backup + rollback | 0.5 day | #7 |
+| 9 | Config preview (real-time YAML) | 0.5 day | #7 |
+| 10 | Apply/Regenerate endpoint | 0.5 day | #8 |
+| 11 | SSL cert tracking (expiry col + UI badge) | 0.5 day | #7 |
+| **Total** | | **3.5 days** | |
 
 ### 🔵 Phase 6.3 — Health & Monitoring
 
-**Goal:** Tau mana server yang bermasalah
+**Goal:** Know which server is having issues
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 12 | Traefik API proxy (health check status) | 1 hari | #7 |
-| 13 | Health badge auto-refresh di domain list | 0.5 hari | #12 |
-| 14 | SSL expiry monitoring + notif | 0.5 hari | #11 |
-| 15 | Server heartbeat + uptime tracking | 0.5 hari | #2 |
-| **Total** | | **2.5 hari** | |
+| 12 | Traefik API proxy (health check status) | 1 day | #7 |
+| 13 | Health badge auto-refresh on domain list | 0.5 day | #12 |
+| 14 | SSL expiry monitoring + notif | 0.5 day | #11 |
+| 15 | Server heartbeat + uptime tracking | 0.5 day | #2 |
+| **Total** | | **2.5 days** | |
 
 ### ⚪ Phase 6.4 — Enhancement
 
@@ -509,11 +509,11 @@ CREATE TABLE domains (
 
 | Order | Feature | Effort |
 |-------|---------|--------|
-| 16 | Basic auth integration (htpasswd generator) | 0.5 hari |
-| 17 | WireGuard tunnel status (read-only) | 1 hari |
-| 18 | Audit log for domain operations | 0.5 hari |
-| 19 | Export/import domain config | 0.5 hari |
-| **Total** | | **2.5 hari** |
+| 16 | Basic auth integration (htpasswd generator) | 0.5 day |
+| 17 | WireGuard tunnel status (read-only) | 1 day |
+| 18 | Audit log for domain operations | 0.5 day |
+| 19 | Export/import domain config | 0.5 day |
+| **Total** | | **2.5 days** |
 
 ---
 
@@ -521,18 +521,18 @@ CREATE TABLE domains (
 
 | Term | Definition |
 |------|------------|
-| **Gateway Server** | Server yang punya public IP + Traefik — satu-satunya pintu masuk dari internet |
-| **Remote Server** | Server tanpa public IP — cuma bisa diakses lewat internal network |
-| **Traefik File Provider** | Dynamic config method — Traefik baca YAML file dan auto-reload tanpa restart |
-| **File Provider** | Traefik feature: baca routing config dari file `.yml` — ganti labels-based config |
-| **Health Check** | Periodic probe ke endpoint HTTP — Traefik mark service unhealthy kalo gagal N kali |
-| **Internal Network** | Private network antar server — biasanya 10.0.0.0/24 atau 192.168.x.x |
-| **ACME** | Automatic Certificate Management Environment — protocol buat auto-renew SSL via Let's Encrypt |
-| **WireGuard** | Lightweight VPN tunnel — encrypted link antar server, lebih cepet dari OpenVPN |
+| **Gateway Server** | Server that has public IP + Traefik — the only entry point from the internet |
+| **Remote Server** | Server without public IP — can only be accessed via internal network |
+| **Traefik File Provider** | Dynamic config method — Traefik reads YAML file and auto-reloads without restart |
+| **File Provider** | Traefik feature: read routing config from `.yml` file — replaces labels-based config |
+| **Health Check** | Periodic probe to HTTP endpoint — Traefik marks service unhealthy if N consecutive failures |
+| **Internal Network** | Private network between servers — usually 10.0.0.0/24 or 192.168.x.x |
+| **ACME** | Automatic Certificate Management Environment — protocol for auto-renewing SSL via Let's Encrypt |
+| **WireGuard** | Lightweight VPN tunnel — encrypted link between servers, faster than OpenVPN |
 
 ## 10. References
 
 - [PRD.md](./PRD.md) — Main Anjungan PRD
 - [PRD-repositories-deployments.md](./PRD-repositories-deployments.md) — Repos & deployments PRD
-- [DECISIONS.md](../DECISIONS.md) — Architectural decisions
+- [DECISIONS.md](../docs/DECISIONS.md) — Architectural decisions
 - `sketches/domain-management/` — UI mockup files (see `../sketches/domain-management/`)

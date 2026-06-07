@@ -1,7 +1,7 @@
 # Anjungan — PRD: Bookmarks (Tool Shortcuts)
 
 > **Version:** 1.0
-> **Status:** Draft
+> **Status:** 🔴 Not Implemented — Proposed for Phase 2
 > **Author:** Endang Suwarna
 > **Last Updated:** June 5, 2026
 
@@ -11,38 +11,38 @@
 
 ### Problem Statement
 
-Developer sehari-hari buka banyak tools — Grafana buat monitoring, Jenkins buat CI/CD, Harbor buat registry, ArgoCD buat deploy, SonarQube buat code quality, Jira buat tracking, dan masih banyak lagi. Selama ini:
+Developers open many tools daily — Grafana for monitoring, Jenkins for CI/CD, Harbor for registry, ArgoCD for deploy, SonarQube for code quality, Jira for tracking, and many more. So far:
 
-- **Browser bookmark** — campur aduk sama bookmark pribadi, susah dicari
-- **Mental map** — "grafana.internal:9090" diinget manual
-- **Spreadsheet / notes** — catat URL di mana aja, gak terpusat
-- **Onboarding** — developer baru tanya "URL tools X di mana?"
+- **Browser bookmark** — mixed with personal bookmarks, hard to find
+- **Mental map** — "grafana.internal:9090" memorized manually
+- **Spreadsheet / notes** — URLs noted anywhere, not centralized
+- **Onboarding** — new developer asks "Where is tool X's URL?"
 
-Anjungan sebagai IDP udah jadi single pane of glass buat infra management (servers, containers, compliance, deployments). Tapi belum ada tempat buat nyimpen **links ke tools eksternal** yang dipake sehari-hari.
+Anjungan as an IDP has become a single pane of glass for infra management (servers, containers, compliance, deployments). But there's no place yet to store **links to external tools** used daily.
 
-**Bookmarks feature solving this:**
-- **Dashboard widget** — 8 tools favorit langsung kelihatan pas login
-- **Dedicated page** — full management dengan kategori
-- **Sidebar quick access** — akses dari halaman mana aja
-- **Per-user** — tiap orang punya bookmark sendiri
-- **Auto-favicon** — gak perlu upload gambar, fetch otomatis dari URL
+**Bookmarks feature solves this:**
+- **Dashboard widget** — 8 favorite tools visible right after login
+- **Dedicated page** — full management with categories
+- **Sidebar quick access** — access from any page
+- **Per-user** — each person has their own bookmarks
+- **Auto-favicon** — no need to upload images, fetch automatically from URL
 
 ### Target Audience
 
 | Persona | Pain | Benefit |
 |---------|------|---------|
-| **Endang (admin)** | 15+ tools, lupa URL | Satu tempat buat semua tools |
-| **Developer** | Tanya "URL X di mana?" | Lihat di dashboard / sidebar |
-| **New hire** | Onboarding lama | Langsung lihat ekosistem tools |
+| **Endang (admin)** | 15+ tools, forgets URLs | One place for all tools |
+| **Developer** | Asks "Where is tool X's URL?" | View on dashboard / sidebar |
+| **New hire** | Slow onboarding | See tool ecosystem immediately |
 
 ### Goals
 
 | Goal | Metric |
 |------|--------|
-| Kurangi waktu cari URL tools | < 2 detik dari login |
-| Single source of truth buat tool URLs | 100% tools terdaftar di bookmark |
-| Zero onboarding friction | New hire bisa akses semua tools di hari 1 |
-| Zero gambar manual | Auto-favicon dari URL |
+| Reduce time finding tool URLs | < 2s from login |
+| Single source of truth for tool URLs | 100% tools registered in bookmarks |
+| Zero onboarding friction | New hire can access all tools on day 1 |
+| Zero manual images | Auto-favicon from URL |
 
 ### Current Status (June 2026)
 
@@ -52,7 +52,7 @@ Anjungan sebagai IDP udah jadi single pane of glass buat infra management (serve
 
 ## 2. Product Overview
 
-### Arsitektur
+### Architecture
 
 ```mermaid
 flowchart LR
@@ -103,7 +103,7 @@ User login → JWT → Backend verify →
 
 ### Design Mockups
 
-> 3 varian desain telah dibuat. Hybrid approach yang dipilih: **Variant C (Dashboard Widget) + Variant A (Category Grid)** — lihat detail di Design References (Section 10).
+> 3 design variants have been created. The chosen hybrid approach: **Variant C (Dashboard Widget) + Variant A (Category Grid)** — see detail in Design References (Section 10).
 
 ![Category Grid — Bookmarks Page](../sketches/bookmarks/001-variant-a-category-grid.png)
 
@@ -232,11 +232,11 @@ CREATE INDEX idx_bookmarks_sort ON bookmarks(user_id, sort_order);
 
 | Field | Notes |
 |-------|-------|
-| `user_id` | FK ke `users(id)` — per-user bookmarks. Cascade delete: kalo user dihapus, bookmarknya ilang. |
-| `icon_type` | `auto` = favicon dari URL, `iconify` = Iconify SVG icon, `emoji` = emoji fallback |
-| `icon_value` | Untuk `auto`: favicon URL. Untuk `iconify`: icon name (e.g. `solar:chart-2-bold`). Untuk `emoji`: emoji character. |
+| `user_id` | FK to `users(id)` — per-user bookmarks. Cascade delete: if user is deleted, their bookmarks are removed. |
+| `icon_type` | `auto` = favicon from URL, `iconify` = Iconify SVG icon, `emoji` = emoji fallback |
+| `icon_value` | For `auto`: favicon URL. For `iconify`: icon name (e.g. `solar:chart-2-bold`). For `emoji`: emoji character. |
 | `sort_order` | 0-based. Drag reorder updates this field. GET returns sorted ascending. |
-| `category` | Enum constraint — kalo mau nambah kategori, perlu migration baru. |
+| `category` | Enum constraint — if adding a new category, a new migration is needed. |
 
 ---
 
@@ -417,13 +417,13 @@ All responses follow existing Anjungan convention:
 
 ### What This PRD Does NOT Cover
 
-| Aspek | Kenapa Tidak |
+| Aspect | Why Not |
 |-------|-------------|
-| **Monitoring tool health** | Beda concern — bookmark cuma nyimpen URL, gak ngecek apakah toolnya online |
-| **SSO / proxy** | Bookmark langsung ke URL tools, gak lewat proxy Anjungan |
-| **Bookmark from browser import** | Phase 3 — fitur tambahan, gak kritikal buat v1 |
-| **Shared/team bookmarks** | Phase 3 — perlu model data beda (shared_bookmarks table) |
-| **Built-in browser** | Gak ada rencana bikin browser di Anjungan — bookmark open in new tab |
+| **Monitoring tool health** | Different concern — bookmark only stores URLs, doesn't check if the tool is online |
+| **SSO / proxy** | Bookmark goes directly to tool URL, not through Anjungan proxy |
+| **Bookmark from browser import** | Phase 3 — additional feature, not critical for v1 |
+| **Shared/team bookmarks** | Phase 3 — needs different data model (shared_bookmarks table) |
+| **Built-in browser** | No plans to build a browser in Anjungan — bookmarks open in new tab |
 
 ---
 
@@ -441,28 +441,28 @@ All responses follow existing Anjungan convention:
 
 ### Design Decision: Hybrid A+C (Selected)
 
-> **Keputusan:** Implementasi menggabungkan **Variant C (Dashboard Widget)** sebagai primary access + **Variant A (Category Grid)** sebagai dedicated management page.
+> **Decision:** Implementation combines **Variant C (Dashboard Widget)** as primary access + **Variant A (Category Grid)** as dedicated management page.
 
 | Layer | Variant Source | Description |
 |-------|---------------|-------------|
-| **Layer 1 — Dashboard** | C | "Your Tools" widget — 8 bookmarks, visible pas login |
-| **Layer 2 — Sidebar** | A (compact) | Collapsible "Quick Access" — 5 bookmarks, visible dari mana aja |
+| **Layer 1 — Dashboard** | C | "Your Tools" widget — 8 bookmarks, visible at login |
+| **Layer 2 — Sidebar** | A (compact) | Collapsible "Quick Access" — 5 bookmarks, visible from anywhere |
 | **Layer 3 — Dedicated Page** | A | `/bookmarks` — full management, categories, search, CRUD |
 
-Variant B (Sidebar-First) di-reject karena sidebar Anjungan udah crowded dengan nav items. Bookmark kategori di sidebar bakal jadi noise.
+Variant B (Sidebar-First) was rejected because Anjungan's sidebar is already crowded with nav items. Bookmark categories in the sidebar would become noise.
 
 ---
 
 ## 11. Glossary
 
-| Term | Definition |
-|------|------------|
-| **Favicon** | Website icon (16×16 or 32×32) — auto-fetched from URL's `/favicon.ico` or Google favicon API |
-| **Category** | Grouping label untuk bookmark — Monitoring, CI/CD, Logging, Code & Registry, Internal Tools, Other |
-| **Quick Access** | Collapsible sidebar section yang nampilin 5 bookmark teratas |
-| **Your Tools widget** | Dashboard component yang nampilin 8 bookmark teratas di halaman utama |
-| **Auto-favicon** | Fetch favicon otomatis dari URL bukuan upload gambar manual |
-| **Iconify** | Icon library (Solar set) yang udah dipake di sidebar Anjungan |
+|| Term | Definition |
+||------|------------|
+|| **Favicon** | Website icon (16×16 or 32×32) — auto-fetched from URL's `/favicon.ico` or Google favicon API |
+|| **Category** | Group label for bookmarks — Monitoring, CI/CD, Logging, Code & Registry, Internal Tools, Other |
+|| **Quick Access** | Collapsible sidebar section that displays the top 5 bookmarks |
+|| **Your Tools widget** | Dashboard component that displays the top 8 bookmarks on the main page |
+|| **Auto-favicon** | Automatically fetch favicon from URL instead of manual image upload |
+|| **Iconify** | Icon library (Solar set) already used in Anjungan sidebar |
 
 ---
 
@@ -470,8 +470,8 @@ Variant B (Sidebar-First) di-reject karena sidebar Anjungan udah crowded dengan 
 
 - [PRD.md](./PRD.md) — Main Anjungan PRD
 - [PRD-compliance.md](./PRD-compliance.md) — Compliance & Security Scanning (existing card-based UI pattern reference)
-- [Main Anjungan ROADMAP.md](../ROADMAP.md) — Phase planning & status
-- [DECISIONS.md](../DECISIONS.md) — Architecture decision records
+- [Main Anjungan ROADMAP.md](../docs/ROADMAP.md) — Phase planning & status
+- [DECISIONS.md](../docs/DECISIONS.md) — Architecture decision records
 - [Bookmarks Sketches](../sketches/bookmarks/index.html) — Interactive mockup (3 variants, dark/light mode, modal demo)
 
 ---

@@ -1,7 +1,7 @@
 # Anjungan — PRD: Service Templates & Scaffolding
 
 > **Version:** 1.0
-> **Status:** Draft
+> **Status:** 🔴 Not Implemented — Proposed for Phase 2
 > **Author:** Endang Suwarna
 > **Last Updated:** June 5, 2026
 
@@ -11,47 +11,47 @@
 
 ### Problem Statement
 
-Bikin service baru dari nol sekarang tiap kali manual:
+Creating a new service from scratch is currently manual every time:
 1. `mkdir project` + init code
-2. Tulis `Dockerfile` dari template yang udah ada (atau copy paste dari project lama)
-3. Tulis `docker-compose.yml` — isi service name, port, env, labels Traefik, volume
-4. Push ke GitHub
-5. Buka Dokploy → deploy stack baru
-6. Cek log — debug kalo gagal
+2. Write `Dockerfile` from an existing template (or copy-paste from an old project)
+3. Write `docker-compose.yml` — fill in service name, port, env, Traefik labels, volume
+4. Push to GitHub
+5. Open Dokploy → deploy new stack
+6. Check logs — debug if it fails
 
-Ribet, repetitive, dan gampang lupa step (kayak lupa nambah Traefik labels atau health check endpoint).
+Tedious, repetitive, and easy to miss steps (like forgetting to add Traefik labels or health check endpoints).
 
 **Templates solving this:**
-- **Satu klik → service siap deploy** — pilih template, isi nama, domain, deploy
-- **Consistency** — semua service pake struktur folder + compose + Dockerfile yang sama
-- **No copy-paste errors** — variable injection otomatis (ga ada hardcode IP atau port tersisa)
-- **Custom template** — kalo ada project yang udah jalan, bisa disimpen jadi template buat project berikutnya
+- **One click → service ready to deploy** — pick template, fill name, domain, deploy
+- **Consistency** — all services use the same folder structure + compose + Dockerfile
+- **No copy-paste errors** — automatic variable injection (no hardcoded IPs or ports left behind)
+- **Custom template** — if there's an existing project, it can be saved as a template for the next project
 
 ### Target Audience
 
-- **Endang sendiri** — bikin service baru tiap 2-3 minggu (whatilearned, opsterm, stem-lab, dll)
-- **Developer (future)** — self-service scaffold tanpa tanya infra engineer
+- **Endang himself** — creates new services every 2-3 weeks (whatilearned, opsterm, stem-lab, etc.)
+- **Developer (future)** — self-service scaffold without asking the infra engineer
 
 ### Goals
 
 | Goal | Metric |
 |------|--------|
-| New service dari klik → deploy | < 30 detik (exclude build time) |
-| Consistent project structure | 100% service pake template yang sama |
-| Custom template dari existing project | < 1 menit simpen jadi template |
-| Built-in templates siap pakai | Minimal 4 template: Go, SvelteKit, FastAPI, Static |
+| New service from click → deploy | < 30 seconds (exclude build time) |
+| Consistent project structure | 100% of services use the same template |
+| Custom template from existing project | < 1 minute to save as template |
+| Built-in templates ready to use | Minimum 4 templates: Go, SvelteKit, FastAPI, Static |
 
 ### Non-Goals
 
-- ❌ Bukan code generator lengkap — cuma scaffold project skeleton + infra config
-- ❌ Bukan CI/CD pipeline builder — compose + Dockerfile doang, workflow GitHub Action belakangan
-- ❌ Bukan no-code app builder — tetep perlu nulis logic sendiri
+- ❌ Not a full code generator — just scaffold project skeleton + infra config
+- ❌ Not a CI/CD pipeline builder — just compose + Dockerfile, GitHub Action workflow later
+- ❌ Not a no-code app builder — still need to write your own logic
 
 ---
 
 ## 2. Product Overview
 
-### Fitur Ini Dalam Konteks Anjungan
+### This Feature in the Context of Anjungan
 
 ```
 ┌─ Pilih Template ─┐    ┌─ Isi Vars ──────┐    ┌─ Scaffold ──────────────┐
@@ -64,25 +64,25 @@ Ribet, repetitive, dan gampang lupa step (kayak lupa nambah Traefik labels atau 
 └───────────────────┘    └──────────────────┘    └─────────────────────────┘
 ```
 
-### Konsep: Template = Project Blueprint
+### Concept: Template = Project Blueprint
 
-Template bukan cuma compose file — dia **seluruh struktur project**:
+A template is not just a compose file — it's the **entire project structure**:
 
 ```
-my-api/                          ← nama project
-├── docker-compose.yml            ← Main compose (dengan placeholder)
-├── deploy/                       ← Opsional: deployment config
+my-api/                          ← project name
+├── docker-compose.yml            ← Main compose (with placeholders)
+├── deploy/                       ← Optional: deployment config
 │   └── nginx.conf
-├── Dockerfile                    ← Opsional: bisa dari image registry
+├── Dockerfile                    ← Optional: can be from an image registry
 ├── .env.example                  ← Example env vars
-└── src/                          ← Opsional: source code skeleton
+└── src/                          ← Optional: source code skeleton
     ├── main.go
     ├── go.mod
     ├── handlers/
     └── migrations/
 ```
 
-Setiap placeholder (`{{service_name}}`, `{{domain}}`, `{{db_password}}`) di-replace pas scaffold.
+Each placeholder (`{{service_name}}`, `{{domain}}`, `{{db_password}}`) is replaced during scaffold.
 
 ---
 
@@ -95,11 +95,11 @@ Setiap placeholder (`{{service_name}}`, `{{domain}}`, `{{db_password}}`) di-repl
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Backend** | `service_templates` table baru. Kolom: id, name (unique), label, description, icon (emoji), category (backend/frontend/fullstack/static), engine (go/sveltekit/fastapi/static/custom), definition JSONB (template.yaml content — tapi disimpen parsed + di-reconstruct jadi JSON), tags (text[]), is_builtin (boolean — false buat custom template), created_by (FK users), created_at, updated_at. CRUD: `GET/POST/PUT/DELETE /api/v1/templates`. Filter: `?category=`, `?search=`. |
-| **Frontend** | Route `/infra/templates`. Grid card — tiap template: icon big, name, description, tags chips. Highlight effect on hover. "+ New Template" button. Klik card → detail + scaffold flow. Tab: "Built-in" (4 default) + "Custom" (user-created). |
-| **UX** | Cards pake icon consistent per engine: ⚡ Go, 🟦 SvelteKit, 🐍 FastAPI, 📄 Static, ＋ Custom. Tags sebagai chips (Go, Postgres, Docker). Hover → border emerald + nama berubah warna. |
+| **Backend** | New `service_templates` table. Columns: id, name (unique), label, description, icon (emoji), category (backend/frontend/fullstack/static), engine (go/sveltekit/fastapi/static/custom), definition JSONB (template.yaml content — but stored parsed + reconstructed as JSON), tags (text[]), is_builtin (boolean — false for custom templates), created_by (FK users), created_at, updated_at. CRUD: `GET/POST/PUT/DELETE /api/v1/templates`. Filter: `?category=`, `?search=`. |
+| **Frontend** | Route `/infra/templates`. Grid card — each template: big icon, name, description, tags chips. Highlight effect on hover. "+ New Template" button. Click card → detail + scaffold flow. Tab: "Built-in" (4 default) + "Custom" (user-created). |
+| **UX** | Cards use consistent icons per engine: ⚡ Go, 🟦 SvelteKit, 🐍 FastAPI, 📄 Static, ＋ Custom. Tags as chips (Go, Postgres, Docker). Hover → emerald border + name changes color. |
 
-**Built-in Templates (wajib di v1):**
+**Built-in Templates (required in v1):**
 
 | Template | Engine | Image | Stack Tags |
 |----------|--------|-------|-----------|
@@ -115,51 +115,51 @@ Setiap placeholder (`{{service_name}}`, `{{domain}}`, `{{db_password}}`) di-repl
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Backend** | Scaffold engine: `POST /api/v1/templates/{id}/scaffold`. Input: `{ service_name, domain, env_vars: {...}, deploy_now: bool }`. Process: (1) Baca template definition + files dari storage. (2) Replace placeholders (`{{service_name}}`, `{{domain}}`, dll). (3) Generate random secrets (db_password, jwt_secret). (4) Tulis file ke `~/projects/{{service_name}}/`. (5) Generate `docker-compose.yml` with proper service name, domain, port, Traefik labels. (6) Kalo `deploy_now=true` → post ke Dokploy API atau compose up. (7) Return output path + deploy status. |
-| **Frontend** | Wizard 3-step: (1) Pilih template → (2) Isi vars → (3) Konfirmasi + deploy. Step 2: form dinamis sesuai template definition (service_name, domain, db_user, dll). Step 3: summary — project path, compose preview, deploy status (pending/done). |
-| **UX** | Progress stepper: "Template → Configure → Deploy". Form validation inline. Service name: lowercase, no spaces. Domain: validasi format domain. Password auto-generate dengan reveal toggle. Live compose preview di step 3. Loading state pas scaffold + deploy. |
+| **Backend** | Scaffold engine: `POST /api/v1/templates/{id}/scaffold`. Input: `{ service_name, domain, env_vars: {...}, deploy_now: bool }`. Process: (1) Read template definition + files from storage. (2) Replace placeholders (`{{service_name}}`, `{{domain}}`, etc.). (3) Generate random secrets (db_password, jwt_secret). (4) Write files to `~/projects/{{service_name}}/`. (5) Generate `docker-compose.yml` with proper service name, domain, port, Traefik labels. (6) If `deploy_now=true` → post to Dokploy API or compose up. (7) Return output path + deploy status. |
+| **Frontend** | Wizard 3-step: (1) Select template → (2) Fill vars → (3) Confirm + deploy. Step 2: dynamic form based on template definition (service_name, domain, db_user, etc.). Step 3: summary — project path, compose preview, deploy status (pending/done). |
+| **UX** | Progress stepper: "Template → Configure → Deploy". Form validation inline. Service name: lowercase, no spaces. Domain: domain format validation. Password auto-generate with reveal toggle. Live compose preview in step 3. Loading state during scaffold + deploy. |
 
 ### F3 — Variable & Secrets Injection
 
 | | |
 |---|---|
 | **Priority** | P1 |
-| **Backend** | Template definition punya `variables` array — tiap variable punya: name, label, type (string/secret/select), required, default, pattern (regex). Auto-generate buat type=secret. Inject ke Secrets backend (F3.1 vault) kalo type=secret. Template engine: Go `text/template` parsing + replace. Escaping: URL encode untuk connection strings. |
-| **Frontend** | Dynamic form — render dari `definition.variables`. Tiap type beda input: string → text input, secret → password + generate button + strength indicator, select → dropdown. Required fields marked with *. |
-| **UX** | Secret fields: auto-generate 32-char random string + copy button. DB password auto-generated kecuali user override. Validation sebelum submit. |
+| **Backend** | Template definition has a `variables` array — each variable has: name, label, type (string/secret/select), required, default, pattern (regex). Auto-generate for type=secret. Inject into Secrets backend (F3.1 vault) if type=secret. Template engine: Go `text/template` parsing + replace. Escaping: URL encode for connection strings. |
+| **Frontend** | Dynamic form — render from `definition.variables`. Each type has different input: string → text input, secret → password + generate button + strength indicator, select → dropdown. Required fields marked with *. |
+| **UX** | Secret fields: auto-generate 32-char random string + copy button. DB password auto-generated unless user overrides. Validation before submit. |
 
 ### F4 — Deploy Integration
 
 | | |
 |---|---|
 | **Priority** | P1 |
-| **Backend** | Dua mode deploy: (1) **Dokploy API** — post compose ke Dokploy via API. (2) **Direct SSH** — copy file ke server target via SCP + `docker compose up -d`. Endpoint: `POST /api/v1/templates/{id}/scaffold-and-deploy`. Option: `deploy_method` (dokploy/ssh). Return: deploy_log, service_url, status. |
-| **Frontend** | Toggle: "Deploy now" checkbox (default: checked). Kalo deploy: tampilkan progress log (real-time via WebSocket atau polling). Done → link ke service. Ga deploy → "Scaffold only — deploy later from /deployments". |
-| **UX** | Deploy progress: ⏳ Pulling image → ⏳ Creating containers → ✅ Service live at notes.edsuwarna.id. Kalo gagal: error message + link ke logs. Quick retry button. |
+| **Backend** | Two deploy modes: (1) **Dokploy API** — post compose to Dokploy via API. (2) **Direct SSH** — copy files to target server via SCP + `docker compose up -d`. Endpoint: `POST /api/v1/templates/{id}/scaffold-and-deploy`. Option: `deploy_method` (dokploy/ssh). Return: deploy_log, service_url, status. |
+| **Frontend** | Toggle: "Deploy now" checkbox (default: checked). If deploy: show progress log (real-time via WebSocket or polling). Done → link to service. No deploy → "Scaffold only — deploy later from /deployments". |
+| **UX** | Deploy progress: ⏳ Pulling image → ⏳ Creating containers → ✅ Service live at notes.edsuwarna.id. If failed: error message + link to logs. Quick retry button. |
 
 ### F5 — Custom Template (Save Existing Service)
 
 | | |
 |---|---|
 | **Priority** | P1 |
-| **Backend** | `POST /api/v1/services/{id}/save-as-template`. Baca service's compose + env → extract jadi template definition. Ganti value konkret jadi placeholder: service name → `{{service_name}}`, domain → `{{domain}}`, dll. Simpan sebagai template baru dengan `is_builtin=false`. |
-| **Frontend** | Button "Save as Template" di service detail page. Modal: template name, description, icon picker, tags. Preview: daftar file yang bakal jadi template. Konfirmasi → template tersimpan. |
-| **UX** | Auto-detect placeholder dari value umum: domain names, port numbers, service names. User bisa override variable name. Success toast + link ke template. |
+| **Backend** | `POST /api/v1/services/{id}/save-as-template`. Read service's compose + env → extract as template definition. Replace concrete values with placeholders: service name → `{{service_name}}`, domain → `{{domain}}`, etc. Save as new template with `is_builtin=false`. |
+| **Frontend** | Button "Save as Template" on service detail page. Modal: template name, description, icon picker, tags. Preview: list of files that will become the template. Confirm → template saved. |
+| **UX** | Auto-detect placeholders from common values: domain names, port numbers, service names. User can override variable name. Success toast + link to template. |
 
 ### F6 — Template Versioning (Optional)
 
 | | |
 |---|---|
 | **Priority** | P2 |
-| **Backend** | Template version table: `template_versions` — id, template_id, version (semver), definition JSONB, changelog, created_at. `GET /api/v1/templates/{id}/versions`. `POST /api/v1/templates/{id}/versions`. Scaffold pake version tertentu: `?version=1.2.0`. Default: latest. |
-| **Frontend** | Version history di template detail: timeline, version number, changelog. "Use v1.1" button — scaffold pake versi lama. |
-| **UX** | Latest marked. Kalo ada breaking change — kasih warning pas pake versi lama. |
+| **Backend** | Template version table: `template_versions` — id, template_id, version (semver), definition JSONB, changelog, created_at. `GET /api/v1/templates/{id}/versions`. `POST /api/v1/templates/{id}/versions`. Scaffold with specific version: `?version=1.2.0`. Default: latest. |
+| **Frontend** | Version history on template detail: timeline, version number, changelog. "Use v1.1" button — scaffold with old version. |
+| **UX** | Latest marked. If there's a breaking change — show warning when using old version. |
 
 ---
 
 ## 4. Template Definition Format (`template.yaml`)
 
-Setiap template punya definisi YAML yang describe apa yang bakal di-scaffold:
+Each template has a YAML definition that describes what will be scaffolded:
 
 ```yaml
 name: go-api-postgres
@@ -239,7 +239,7 @@ files:
 
 ### Placeholder Convention
 
-Placeholder di file template pake `{{variable_name}}` — persis kayak Go template:
+Placeholders in template files use `{{variable_name}}` — just like Go templates:
 
 ```
 # docker-compose.yml (template)
@@ -331,7 +331,7 @@ CREATE TABLE scaffold_logs (
   service_name VARCHAR(255) NOT NULL,
   vars_used JSONB,                          -- snapshot — variable values used
   deploy_status VARCHAR(50),                -- pending, scaffolding, deploying, success, failed
-  deploy_url TEXT,                          -- link ke service kalo sukses
+  deploy_url TEXT,                          -- link to service if successful
   project_path TEXT,                        -- ~/projects/my-api/
   error_message TEXT,
   created_by UUID REFERENCES users(id),
@@ -343,7 +343,7 @@ CREATE TABLE scaffold_logs (
 
 ## 7. Storage (Where Files Live)
 
-Template files disimpen di filesystem Anjungan:
+Template files are stored on Anjungan's filesystem:
 
 ```
 ~/.anjungan/
@@ -385,9 +385,9 @@ Scaffold output:
 ### Flow: Scaffold + Deploy New Service
 
 ```
-1. Buka /infra/templates
-2. Lihat grid — 4 template card + 1 custom (dashed border)
-3. Klik "⚡ Go API + Postgres"
+1. Open /infra/templates
+2. View grid — 4 template cards + 1 custom (dashed border)
+3. Click "⚡ Go API + Postgres"
 4. Step 1 — Configure:
    [Service Name]   my-api
    [Domain]         my-api.edsuwarna.id     (optional)
@@ -399,7 +399,7 @@ Scaffold output:
    ☑ Create repository (GitHub)
    ☑ Deploy immediately
    ☐ CI/CD pipeline (coming soon)
-6. Klik "Scaffold & Deploy"
+6. Click "Scaffold & Deploy"
 7. Progress:
    ✅ Creating project structure → ~/projects/my-api/
    ✅ Generating docker-compose.yml
@@ -407,33 +407,33 @@ Scaffold output:
    ✅ Pushing to GitHub: edsuwarna/my-api
    ✅ Deploying via Dokploy...
    ✅ Service live at my-api.edsuwarna.id
-8. Done → link ke service detail + link ke project folder
+8. Done → link to service detail + link to project folder
 ```
 
 ### Flow: Save Existing Service as Template
 
 ```
-1. Buka service detail (misal: whatilearned)
-2. Klik ⋮ → "Save as Template"
+1. Open service detail (e.g., whatilearned)
+2. Click ⋮ → "Save as Template"
 3. Modal:
    Template Name: whatilearned
    Description: Go API + Postgres with Redis caching
    Icon: [⚡ ▼]
    Tags: Go, Postgres, Redis, Chi
-4. Preview: daftar file yang bakal di-template-kan
-5. Klik "Save"
-6. Template muncul di /infra/templates tab "Custom"
-7. Pas dipake: variable {{service_name}}, {{domain}}, {{db_password}} diganti otomatis
+4. Preview: list of files that will be templatized
+5. Click "Save"
+6. Template appears in /infra/templates tab "Custom"
+7. When used: variables {{service_name}}, {{domain}}, {{db_password}} are replaced automatically
 ```
 
 ### Flow: Scaffold Only (No Deploy)
 
 ```
-1. Pilih template → configure → uncheck "Deploy immediately"
-2. Klik "Scaffold"
-3. Hasil: ~/projects/my-api/ dengan semua file
-4. Notif: "Service scaffolded — deploy later from /deployments"
-5. Bisa edit file dulu, baru deploy manual
+1. Select template → configure → uncheck "Deploy immediately"
+2. Click "Scaffold"
+3. Result: ~/projects/my-api/ with all files
+4. Notification: "Service scaffolded — deploy later from /deployments"
+5. Can edit files first, then deploy manually
 ```
 
 ---
@@ -442,12 +442,12 @@ Scaffold output:
 
 | Requirement | Target |
 |-------------|--------|
-| **Scaffold time** | < 3 detik (file write + variable injection) |
-| **Deploy time** | Tergantung image pull + build — target < 2 menit |
-| **Built-in templates** | Minimal 4 (Go, SvelteKit, FastAPI, Static) |
+| **Scaffold time** | < 3 seconds (file write + variable injection) |
+| **Deploy time** | Depends on image pull + build — target < 2 minutes |
+| **Built-in templates** | Minimum 4 (Go, SvelteKit, FastAPI, Static) |
 | **Template size limit** | Max 10MB per template definition (files + metadata) |
 | **Concurrent scaffold** | 3 concurrent — queue via asynq |
-| **File safety** | Kalo target path udah ada → error (ga overwrite existing project) |
+| **File safety** | If target path already exists → error (won't overwrite existing project) |
 | **Secret generation** | crypto/rand — 32+ chars, alphanumeric + special |
 
 ---
@@ -456,45 +456,45 @@ Scaffold output:
 
 ### 🟢 Phase 1 — Core Scaffold
 
-**Goal:** Bisa scaffold + deploy service baru dari template
+**Goal:** Able to scaffold + deploy new service from template
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 1 | `service_templates` table + migration | 0.5 hari | — |
-| 2 | Template CRUD backend | 1 hari | #1 |
-| 3 | Template engine (Go text/template + placeholder) | 1 hari | #2 |
-| 4 | Built-in template files (Go API + PG) | 1 hari | #3 |
-| 5 | Template grid UI | 0.5 hari | #2 |
-| 6 | Scaffold wizard (configure step) | 1.5 hari | #5 |
-| 7 | File generator + output to ~/projects/ | 0.5 hari | #3 |
-| **Total** | | **6 hari** | |
+| 1 | `service_templates` table + migration | 0.5 day | — |
+| 2 | Template CRUD backend | 1 day | #1 |
+| 3 | Template engine (Go text/template + placeholder) | 1 day | #2 |
+| 4 | Built-in template files (Go API + PG) | 1 day | #3 |
+| 5 | Template grid UI | 0.5 day | #2 |
+| 6 | Scaffold wizard (configure step) | 1.5 days | #5 |
+| 7 | File generator + output to ~/projects/ | 0.5 day | #3 |
+| **Total** | | **6 days** | |
 
 ### 🟡 Phase 2 — Multi-Template + Deploy
 
-**Goal:** Semua built-in template siap + deploy integration
+**Goal:** All built-in templates ready + deploy integration
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 8 | Built-in: SvelteKit + Node template | 1 hari | #4 |
-| 9 | Built-in: FastAPI + SQLite template | 0.5 hari | #4 |
-| 10 | Built-in: Static HTML SPA template | 0.5 hari | #4 |
-| 11 | Deploy integration (Dokploy API) | 1.5 hari | #7 |
-| 12 | Deploy progress UI (real-time log) | 1 hari | #11 |
-| 13 | Scaffold logs table + history | 0.5 hari | #7 |
-| **Total** | | **5 hari** | |
+| 8 | Built-in: SvelteKit + Node template | 1 day | #4 |
+| 9 | Built-in: FastAPI + SQLite template | 0.5 day | #4 |
+| 10 | Built-in: Static HTML SPA template | 0.5 day | #4 |
+| 11 | Deploy integration (Dokploy API) | 1.5 days | #7 |
+| 12 | Deploy progress UI (real-time log) | 1 day | #11 |
+| 13 | Scaffold logs table + history | 0.5 day | #7 |
+| **Total** | | **5 days** | |
 
 ### 🔵 Phase 3 — Custom Template + Polish
 
-**Goal:** User-defined template dari existing service
+**Goal:** User-defined template from existing service
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 14 | Save-as-template backend (placeholder auto-detect) | 1.5 hari | #7 |
-| 15 | Custom template UI + modal | 0.5 hari | #14 |
-| 16 | Template category tabs (Built-in vs Custom) | 0.5 hari | #15 |
-| 17 | Dynamic form from template definition | 1 hari | #3 |
-| 18 | Template preview (YAML render) | 0.5 hari | #7 |
-| **Total** | | **4 hari** | |
+| 14 | Save-as-template backend (placeholder auto-detect) | 1.5 days | #7 |
+| 15 | Custom template UI + modal | 0.5 day | #14 |
+| 16 | Template category tabs (Built-in vs Custom) | 0.5 day | #15 |
+| 17 | Dynamic form from template definition | 1 day | #3 |
+| 18 | Template preview (YAML render) | 0.5 day | #7 |
+| **Total** | | **4 days** | |
 
 ### ⚪ Phase 4 — Enhancement
 
@@ -502,12 +502,12 @@ Scaffold output:
 
 | Order | Feature | Effort |
 |-------|---------|--------|
-| 19 | Template versioning | 1.5 hari |
-| 20 | GitHub repo create on scaffold | 1 hari |
-| 21 | CI/CD template (GitHub Actions workflow) | 0.5 hari |
-| 22 | Variable validation (regex pattern) | 0.5 hari |
-| 23 | Export/import template | 0.5 hari |
-| **Total** | | **4 hari** |
+| 19 | Template versioning | 1.5 days |
+| 20 | GitHub repo create on scaffold | 1 day |
+| 21 | CI/CD template (GitHub Actions workflow) | 0.5 day |
+| 22 | Variable validation (regex pattern) | 0.5 day |
+| 23 | Export/import template | 0.5 day |
+| **Total** | | **4 days** |
 
 ---
 
@@ -515,18 +515,18 @@ Scaffold output:
 
 | Term | Definition |
 |------|------------|
-| **Template** | Blueprint project — compose, Dockerfile, source code skeleton dengan placeholder |
-| **Scaffold** | Proses generate file dari template → replace placeholder → output ke ~/projects/ |
-| **Placeholder** | `{{variable_name}}` — diganti dengan nilai konkret pas scaffold |
-| **Built-in Template** | Template yang dibundling sama binary Anjungan — ga bisa di-delete |
-| **Custom Template** | Template hasil save dari existing service — bisa di-edit/delete |
-| **Engine** | Tech stack template (go, sveltekit, fastapi, static) — nentuin image + Dockerfile |
-| **Variable** | Input field di form wizard — tiap template punya variable definition sendiri |
-| **Secret Variable** | Variable bertype=secret — auto-generate + disimpen di vault, bukan di compose |
+| **Template** | Project blueprint — compose, Dockerfile, source code skeleton with placeholders |
+| **Scaffold** | Process to generate files from template → replace placeholders → output to ~/projects/ |
+| **Placeholder** | `{{variable_name}}` — replaced with concrete values during scaffold |
+| **Built-in Template** | Template bundled with Anjungan binary — cannot be deleted |
+| **Custom Template** | Template saved from an existing service — can be edited/deleted |
+| **Engine** | Tech stack template (go, sveltekit, fastapi, static) — determines image + Dockerfile |
+| **Variable** | Input field in wizard form — each template has its own variable definitions |
+| **Secret Variable** | Variable with type=secret — auto-generated + stored in vault, not in compose |
 
 ## 12. References
 
 - [PRD.md](./PRD.md) — Main Anjungan PRD (Phase 2 IDP Core: F2.2 environments, F2.5 GitHub integration)
 - [PRD-domain-management.md](./PRD-domain-management.md) — Domain & multi-server routing
 - [PRD-repositories-deployments.md](./PRD-repositories-deployments.md) — Repos & deployments
-- [DECISIONS.md](../DECISIONS.md) — Architectural decisions
+- [DECISIONS.md](../docs/DECISIONS.md) — Architectural decisions

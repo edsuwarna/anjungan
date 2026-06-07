@@ -1,7 +1,7 @@
 # Anjungan — PRD: Repositories & Deployments
 
 > **Version:** 1.0
-> **Status:** Draft
+> **Status:** ✅ Fully Implemented — deployments CRUD + environments + repositories frontend + backend all done
 > **Author:** Endang Suwarna
 > **Last Updated:** June 4, 2026
 
@@ -11,40 +11,40 @@
 
 ### Problem Statement
 
-Anjungan saat ini punya sidebar menu **Repositories** dan **Deployments** yang masih placeholder — "Coming Soon." Padahal ini dua fitur inti dari Internal Developer Platform (IDP):
+Anjungan currently has sidebar menus for **Repositories** and **Deployments** that are still placeholders — "Coming Soon." Yet these are two core features of an Internal Developer Platform (IDP):
 
-- **Repositories:** Tim/dev udah pasti punya code di GitHub dan/atau self-hosted git (Gitea/Forgejo). Tapi buat liat status repo, CI, dan deployment linkage, mereka harus buka tab terpisah.
-- **Deployments:** Setiap service yang jalan di server Anjungan berasal dari suatu repo. Tapi saat ini ga ada catatan siapa deploy apa, dari branch mana, ke environment mana.
+- **Repositories:** Teams/devs definitely have code on GitHub and/or self-hosted git (Gitea/Forgejo). But to view repo status, CI, and deployment linkage, they have to open separate tabs.
+- **Deployments:** Every service running on Anjungan servers originates from a repo. But currently there's no record of who deployed what, from which branch, to which environment.
 
-Kedua fitur ini **saling terkait** — repo di-deploy ke environment tertentu sebagai suatu service. Linkage ini yang bikin IDP jadi *single pane of glass*.
+These two features are **interrelated** — a repo is deployed to a specific environment as a service. This linkage is what makes the IDP a *single pane of glass*.
 
 ### Target Audience
 
-- **Endang sendiri** (platform engineer / satu-satunya user)
-- **Future team members** (kalo nanti ada kolaborator)
+- **Endang himself** (platform engineer / only user)
+- **Future team members** (if there are collaborators later)
 - **Self-hosted infra** — Dokploy, VPS, Zot registry
 
 ### Goals
 
 | Goal | Metric |
 |------|--------|
-| Lihat semua repo dari GitHub + Forgejo dalam satu tempat | 2 provider connected |
-| Lihat status CI tanpa buka GitHub/Forgejo | Badge pass/fail/pending |
-| Lihat deployment mana yang berasal dari repo mana | 2-way linkage (repo→deploy, deploy→repo) |
-| Bikin environment sendiri (ga hardcode) | Environment CRUD |
-| Deploy service baru dari UI | 1-click deploy dari modal |
+| View all repos from GitHub + Forgejo in one place | 2 provider connected |
+| View CI status without opening GitHub/Forgejo | Badge pass/fail/pending |
+| View which deployment comes from which repo | 2-way linkage (repo→deploy, deploy→repo) |
+| Create your own environments (not hardcoded) | Environment CRUD |
+| Deploy new service from UI | 1-click deploy from modal |
 
 ### Non-Goals
 
-- ❌ Bukan git client — gantiin GitHub UI (commit, branch management, PR review)
-- ❌ Bukan CI/CD pipeline engine — trigger workflow doang, bukan ngerun sendiri
-- ❌ Bukan replacement buat ArgoCD / GitOps — manual deploy dulu, auto-deploy nanti
+- ❌ Not a git client — replacing GitHub UI (commit, branch management, PR review)
+- ❌ Not a CI/CD pipeline engine — trigger workflows only, not run them ourselves
+- ❌ Not a replacement for ArgoCD / GitOps — manual deploy first, auto-deploy later
 
 ---
 
 ## 2. Product Overview
 
-### Fitur Ini Dalam Konteks Anjungan
+### This Feature in Anjungan's Context
 
 ```
 ┌────────────────────────────────────────────────────┐
@@ -64,11 +64,11 @@ Kedua fitur ini **saling terkait** — repo di-deploy ke environment tertentu se
 
 | Layer | Technology | Reason |
 |-------|-----------|--------|
-| Backend | Go (existing Anjungan API) | Pake pola adapter `GitProvider` interface |
-| Frontend | SvelteKit (existing) | Route baru di `/repositories` dan `/deployments` |
-| Database | PostgreSQL (existing) | Tabel baru: `environments`, `deployments`, `repo_connections` |
-| Auth | JWT (existing) | Per-user token untuk provider connection |
-| Git Provider API | GitHub REST API v3, Forgejo/Gitea API | Komunikasi langsung dari backend |
+| Backend | Go (existing Anjungan API) | Uses `GitProvider` interface adapter pattern |
+| Frontend | SvelteKit (existing) | New routes at `/repositories` and `/deployments` |
+| Database | PostgreSQL (existing) | New tables: `environments`, `deployments`, `repo_connections` |
+| Auth | JWT (existing) | Per-user token for provider connection |
+| Git Provider API | GitHub REST API v3, Forgejo/Gitea API | Direct communication from backend |
 
 ---
 
@@ -78,17 +78,19 @@ Kedua fitur ini **saling terkait** — repo di-deploy ke environment tertentu se
 
 | Domain | Backend | Frontend | Status |
 |--------|---------|----------|--------|
-| Repositories — List repos | 🟡 Stub routes ada | ❌ Placeholder | 🔴 Not started |
-| Repositories — Multi-provider | ❌ Not implemented | ❌ Not implemented | 🔴 Not started |
-| Repositories — CI status | ❌ Not implemented | ❌ Not implemented | 🔴 Not started |
-| Repositories — Detail page | 🟡 Action/workflow routes | ❌ Not implemented | 🔴 Not started |
-| Deployments — List | 🟡 Stub routes ada | ❌ Placeholder | 🔴 Not started |
-| Deployments — Create | 🟡 Stub POST route | ❌ Not implemented | 🔴 Not started |
-| Deployments — Detail/Get | 🟡 Stub GET route | ❌ Not implemented | 🔴 Not started |
-| Deployments — Rollback | 🟡 Stub POST route | ❌ Not implemented | 🔴 Not started |
-| Deployments — History | 🟡 Stub GET route | ❌ Not implemented | 🔴 Not started |
-| Deployments — Environment CRUD | ❌ Not implemented | ❌ Not implemented | 🔴 Not started |
-| Repo ↔ Deployment linkage | ❌ Not implemented | ❌ Not implemented | 🔴 Not started |
+| Repositories — List repos | ✅ Done | ✅ Done | ✅ Fully implemented |
+| Repositories — Multi-provider (GitHub + Forgejo) | ✅ Done | ✅ Done | ✅ GitHub + Forgejo connections |
+| Repositories — CI status | ✅ Done | ✅ Done | ✅ Badge pass/fail/pending |
+| Repositories — Detail page | ✅ Done | ✅ Done | ✅ Full repo detail with branches, deployments |
+| Deployments — List | ✅ Done | ✅ Done | ✅ Filter by environment |
+| Deployments — Create | ✅ Done | ✅ Done | ✅ New deployment modal |
+| Deployments — Detail/Get | ✅ Done | ✅ Done | ✅ Full deployment detail view |
+| Deployments — Rollback | ✅ Done | ✅ Done | ✅ Rollback with confirmation |
+| Deployments — History | ✅ Done | ✅ Done | ✅ Timeline per deployment |
+| Deployments — Environment CRUD | ✅ Done | ✅ Done | ✅ Full CRUD + color-coded |
+| Repo ↔ Deployment linkage | ✅ Done | ✅ Done | ✅ 2-way linkage |
+| Review Apps / Ephemeral Environments | ❌ Not implemented | ❌ Not implemented | 🔴 Future (Phase 3) |
+| Workflow Trigger from UI | 🟡 Partial | 🟡 Partial | Route exists, UI integration pending |
 
 ### 3.2 Database Schema (New Tables)
 
@@ -155,71 +157,71 @@ CREATE TABLE deployment_history (
 | Aspect | Detail |
 |--------|--------|
 | **Priority** | P0 — Must have for v1 |
-| **Backend** | `GitProvider` interface: `ListRepos()`, `ListBranches()`, `GetCommitStatus()`, `ListPRs()`, `ListWorkflows()`. Implement `GitHubAdapter` (REST API v3, PAT auth) dan `ForgejoAdapter` (Gitea API, PAT + instance URL). Simpan token terenkripsi per-user di tabel `repo_connections`. |
-| **Frontend** | Halaman `/repositories` — grid card layout. Setiap card: repo name, provider badge (GitHub/Forgejo), branch, last commit, CI status badge, PR count, linked deployments. Filter by provider. Search by name. |
-| **UX** | Provider connection via Settings → Connected Accounts → GitHub (PAT) / Forgejo (PAT + instance URL). Status koneksi visible di halaman repositori. |
+| **Backend** | `GitProvider` interface: `ListRepos()`, `ListBranches()`, `GetCommitStatus()`, `ListPRs()`, `ListWorkflows()`. Implement `GitHubAdapter` (REST API v3, PAT auth) and `ForgejoAdapter` (Gitea API, PAT + instance URL). Save encrypted token per-user in `repo_connections` table. |
+| **Frontend** | Page `/repositories` — grid card layout. Each card: repo name, provider badge (GitHub/Forgejo), branch, last commit, CI status badge, PR count, linked deployments. Filter by provider. Search by name. |
+| **UX** | Provider connection via Settings → Connected Accounts → GitHub (PAT) / Forgejo (PAT + instance URL). Connection status visible on repositories page. |
 
 #### F2 — Repository ↔ Deployment Linkage (P0)
 
 | Aspect | Detail |
 |--------|--------|
 | **Priority** | P0 — Core value of IDP |
-| **Backend** | Join query: deployments + repo_connections, grouped by `(repo_provider, repo_owner, repo_name)`. Endpoint: `GET /repositories/{id}/deployments` dan `GET /deployments/{id}/repository`. |
-| **Frontend** | Di card repo: badge "🚀 2 deployments" yang bisa diklik → liat deployment mana aja. Di card deployment: source chain `repo/owner → commit → branch → environment` visible. |
-| **UX** | Linkage dua arah. Dari repo liat deployment. Dari deployment liat repo. |
+| **Backend** | Join query: deployments + repo_connections, grouped by `(repo_provider, repo_owner, repo_name)`. Endpoint: `GET /repositories/{id}/deployments` and `GET /deployments/{id}/repository`. |
+| **Frontend** | In repo card: badge "🚀 2 deployments" that can be clicked → see which deployments. In deployment card: source chain `repo/owner → commit → branch → environment` visible. |
+| **UX** | Two-way linkage. From repo see deployments. From deployment see repo. |
 
 #### F3 — Tab-Based Deployments Page (P0)
 
 | Aspect | Detail |
 |--------|--------|
 | **Priority** | P0 |
-| **Backend** | `GET /deployments` — list semua deployment, bisa di-filter by environment_id. `GET /deployments/{id}` — detail. `POST /deployments` — create new. `POST /deployments/{id}/rollback` — rollback. `GET /deployments/history` — audit trail. |
-| **Frontend** | Halaman `/deployments` — tabs by environment. Setiap tab nampilin card-grid deployment di environment itu. Tiap card: service name, status badge, source chain (repo → branch → environment), server, container count, quick actions (Restart, Logs, Rollback, Inspect). Summary bar per environment (running count, uptime). |
-| **UX** | Filter chips inline di tab bar: All / Running / Failed. Search bar. New Deployment modal (flow: environment → repo → branch → commit → server → service name → deploy). |
+| **Backend** | `GET /deployments` — list all deployments, filterable by environment_id. `GET /deployments/{id}` — detail. `POST /deployments` — create new. `POST /deployments/{id}/rollback` — rollback. `GET /deployments/history` — audit trail. |
+| **Frontend** | Page `/deployments` — tabs by environment. Each tab displays a card-grid of deployments in that environment. Each card: service name, status badge, source chain (repo → branch → environment), server, container count, quick actions (Restart, Logs, Rollback, Inspect). Summary bar per environment (running count, uptime). |
+| **UX** | Filter chips inline in tab bar: All / Running / Failed. Search bar. New Deployment modal (flow: environment → repo → branch → commit → server → service name → deploy). |
 
 #### F4 — Custom Environments (P0)
 
 | Aspect | Detail |
 |--------|--------|
 | **Priority** | P0 |
-| **Backend** | CRUD endpoints: `GET /environments`, `POST /environments`, `PUT /environments/{id}`, `DELETE /environments/{id}` (soft delete — deployments jadi orphaned). Protected flag prevents delete. |
-| **Frontend** | Manage Environments panel di halaman deployments. Tab "+ Add Environment" ujung kanan. Modal create: name, color (color picker), description. Edit modal sama. Delete dengan konfirmasi. |
-| **UX** | Default seed: Production (#ef4444, protected: true), Staging (#eab308), Development (#10b981). Tambahan: Review Apps (#8b5cf6, auto-cleanup). |
+| **Backend** | CRUD endpoints: `GET /environments`, `POST /environments`, `PUT /environments/{id}`, `DELETE /environments/{id}` (soft delete — deployments become orphaned). Protected flag prevents delete. |
+| **Frontend** | Manage Environments panel on deployments page. "+ Add Environment" tab on the far right. Create modal: name, color (color picker), description. Edit modal same. Delete with confirmation. |
+| **UX** | Default seed: Production (#ef4444, protected: true), Staging (#eab308), Development (#10b981). Additional: Review Apps (#8b5cf6, auto-cleanup). |
 
 #### F5 — CI Status Badge (P1)
 
 | Aspect | Detail |
 |--------|--------|
 | **Priority** | P1 |
-| **Backend** | `GetCommitStatus(owner, repo, ref)` → return latest status checks dari GitHub/Forgejo. Cache 30s. |
-| **Frontend** | Badge pass (● Pass / ✅), fail (✕ Fail / ❌), pending (◐ Pending) di setiap card repo. Warna: green/red/yellow. |
-| **UX** | Badge bisa diklik → detail workflow yang fail (link ke GitHub/Forgejo). |
+| **Backend** | `GetCommitStatus(owner, repo, ref)` → return latest status checks from GitHub/Forgejo. Cache 30s. |
+| **Frontend** | Badge pass (● Pass / ✅), fail (✕ Fail / ❌), pending (◐ Pending) on each repo card. Color: green/red/yellow. |
+| **UX** | Badge can be clicked → detail of failed workflow (link to GitHub/Forgejo). |
 
 #### F6 — Deployment History & Rollback (P1)
 
 | Aspect | Detail |
 |--------|--------|
 | **Priority** | P1 |
-| **Backend** | Tabel `deployment_history` otomatis tercatat tiap status change. Rollback: set status deployment jadi `rolled_back`, update deployment dengan `rollback_from` pointing ke deployment sebelumnya, restore image/commit. |
-| **Frontend** | Tab "History" di detail panel deployment — timeline kronologis. Rollback button di card + detail panel. |
-| **UX** | Konfirmasi rollback: "Rollback Anjungan Backend to commit a3f2c1d from 2h ago?" |
+| **Backend** | `deployment_history` table automatically records each status change. Rollback: set deployment status to `rolled_back`, update deployment with `rollback_from` pointing to previous deployment, restore image/commit. |
+| **Frontend** | "History" tab in deployment detail panel — chronological timeline. Rollback button on card + detail panel. |
+| **UX** | Rollback confirmation: "Rollback Anjungan Backend to commit a3f2c1d from 2h ago?" |
 
 #### F7 — Quick Actions on Deployments (P1)
 
 | Aspect | Detail |
 |--------|--------|
 | **Priority** | P1 |
-| **Backend** | `POST /deployments/{id}/restart` → restart container via server SSH. `POST /deployments/{id}/redeploy` → deploy ulang dengan image/commit yang sama. |
-| **Frontend** | Button: ⟳ Restart, 📋 Logs (link ke container logs), ↩ Rollback, 🔍 Inspect, ↗ Open Repo. |
+| **Backend** | `POST /deployments/{id}/restart` → restart container via server SSH. `POST /deployments/{id}/redeploy` → redeploy with the same image/commit. |
+| **Frontend** | Button: ⟳ Restart, 📋 Logs (link to container logs), ↩ Rollback, 🔍 Inspect, ↗ Open Repo. |
 
 #### F8 — Review Apps / Ephemeral Environments (P2)
 
 | Aspect | Detail |
 |--------|--------|
 | **Priority** | P2 — Future |
-| **Backend** | Environment dengan `auto_cleanup: true`. Auto-create dari webhook PR. Auto-delete pas PR merge/close. |
-| **Frontend** | Tab khusus Review Apps. Badge "⏳ auto-removed after PR merge". |
-| **UX** | Tiap PR di GitHub → auto-deploy ke environment review-apps dengan nama `pr-{number}`. |
+| **Backend** | Environment with `auto_cleanup: true`. Auto-create from webhook PR. Auto-delete on PR merge/close. |
+| **Frontend** | Special Review Apps tab. Badge "⏳ auto-removed after PR merge". |
+| **UX** | Each PR on GitHub → auto-deploy to review-apps environment named `pr-{number}`. |
 
 ---
 
@@ -277,7 +279,7 @@ pending → deploying → running (success)
 
 ## 5. UI/UX Design Guidelines
 
-### 5.1 Layout Kunci
+### 5.1 Key Layout
 
 **Repositories Page:**
 ```
@@ -336,31 +338,31 @@ pending → deploying → running (success)
 
 ![Card Explorer — repo list](sketches/repositories/screenshots/variant-a-card-explorer.png)
 
-Card-based layout, tiap repo sebagai card dengan info lengkap (CI status, branch, PRs, linked deployments). Filter by provider, search, connected accounts status bar.
+Card-based layout, each repo as a card with complete info (CI status, branch, PRs, linked deployments). Filter by provider, search, connected accounts status bar.
 
 ![Card Explorer — detail expanded](sketches/repositories/screenshots/variant-a-detail-expanded.png)
 
-Klik card → expand detail panel: source info, deployment linkage, recent commits, quick actions (Trigger Workflow, Deploy Branch, Open on GitHub).
+Click card → expand detail panel: source info, deployment linkage, recent commits, quick actions (Trigger Workflow, Deploy Branch, Open on GitHub).
 
-#### Repositories — Varian B: Compact Workspace
+#### Repositories — Variant B: Compact Workspace
 
 ![Compact Workspace — table view](sketches/repositories/screenshots/variant-b-compact-table.png)
 
-Table-based layout, lebih padat, multi-select checkbox + bulk actions. Provider tabs (All/GitHub/Forgejo) + count per provider.
+Table-based layout, more compact, multi-select checkbox + bulk actions. Provider tabs (All/GitHub/Forgejo) + count per provider.
 
 #### Deployments (v2) — Tab-based + Custom Environments
 
 ![Production tab](sketches/deployments-v2/screenshots/01-production-tab.png)
 
-Environment tabs (🔴 Production, 🟡 Staging, 🟢 Dev, 🟣 Review Apps, + Add). Summary bar (running count, uptime). Tiap card: service name, status badge, source chain (repo → commit → branch → environment), server, containers, quick actions.
+Environment tabs (🔴 Production, 🟡 Staging, 🟢 Dev, 🟣 Review Apps, + Add). Summary bar (running count, uptime). Each card: service name, status badge, source chain (repo → commit → branch → environment), server, containers, quick actions.
 
 ![Staging tab](sketches/deployments-v2/screenshots/02-staging-tab.png)
 
-Switch tab → konten langsung ganti. Deploying dan Failed status visible dengan actionable buttons (Retry, Logs).
+Switch tab → content changes immediately. Deploying and Failed status visible with actionable buttons (Retry, Logs).
 
 ![Manage Environments panel](sketches/deployments-v2/screenshots/03-manage-environments.png)
 
-CRUD panel: color-coded environment list, edit/delete buttons. Protected environments (Production) ga bisa di-delete. "+ Add Environment" button.
+CRUD panel: color-coded environment list, edit/delete buttons. Protected environments (Production) cannot be deleted. "+ Add Environment" button.
 
 ![New Deployment modal](sketches/deployments-v2/screenshots/04-new-deployment-modal.png)
 
@@ -378,11 +380,11 @@ Modal: pilih Environment → Repository → Branch → Commit → Server → Ser
 
 | Aspect | Target | Notes |
 |--------|--------|-------|
-| API latency | < 500ms | GitHub/Forgejo API panggilan async, cache 30s |
-| Token storage | Encrypted at rest | AES-256-GCM di PostgreSQL |
-| Rate limit | Respect GitHub API rate limit | 5000 req/jam, cache aggressively |
-| Error handling | Graceful fallback | Provider offline → "Connection lost" bukan error 500 |
-| Deployment count | Scalable to 50+ deployments | Virtual scrolling atau pagination |
+| API latency | < 500ms | GitHub/Forgejo API call async, cache 30s |
+| Token storage | Encrypted at rest | AES-256-GCM in PostgreSQL |
+| Rate limit | Respect GitHub API rate limit | 5000 req/hour, cache aggressively |
+| Error handling | Graceful fallback | Provider offline → "Connection lost" not error 500 |
+| Deployment count | Scalable to 50+ deployments | Virtual scrolling or pagination |
 
 ---
 
@@ -433,48 +435,48 @@ Modal: pilih Environment → Repository → Branch → Commit → Server → Ser
 
 ### 8.1 Multi-Provider, Not Just GitHub
 
-- **Why:** Endang pake GitHub + kemungkinan self-hosted Forgejo di infra sendiri
-- **Pattern:** `GitProvider` interface di Go, tiap provider implement beda adapter
-- **Trade-off:** Lebih banyak effort initial, tapi scalable
+- **Why:** Endang uses GitHub + possibly self-hosted Forgejo on his own infra
+- **Pattern:** `GitProvider` interface in Go, each provider implements a different adapter
+- **Trade-off:** More initial effort, but scalable
 
 ### 8.2 Per-User Auth, Not Global Token
 
-- **Why:** Lebih secure, tiap user cuma liat repo yang diakses
+- **Why:** More secure, each user only sees repos they have access to
 - **Pattern:** `repo_connections` table with encrypted PAT per user
 - **Trade-off:** Each user must connect their own accounts
 
 ### 8.3 Tabs, Not Grouped Sections
 
-- **Why:** Lebih scalable kalo environment banyak, fokus per environment
-- **Pattern:** Tabs row with color-coded dot, "+ Add Environment" tab di ujung
-- **Trade-off:** Cross-environment comparison butuh toggle/split view nanti
+- **Why:** More scalable when there are many environments, focus per environment
+- **Pattern:** Tabs row with color-coded dot, "+ Add Environment" tab at the end
+- **Trade-off:** Cross-environment comparison needs toggle/split view later
 
 ### 8.4 Custom Environments, Not Hardcoded
 
-- **Why:** Setup tiap orang beda
+- **Why:** Everyone's setup is different
 - **Pattern:** CRUD with color picker, protected flag for delete protection
 - **Default seeds:** Production (red, protected), Staging (yellow), Development (green)
 
 ### 8.5 Soft Delete for Environments
 
-- **Why:** Kalo Production environment kehapus = bencana. Deployment orphaned ga boleh ilang.
+- **Why:** If Production environment gets deleted = disaster. Orphaned deployments must not disappear.
 - **Pattern:** `is_protected` flag + orphaned deployment status
-- **Trade-off:** Perlu cleanup task kalo mau bersihin orphaned deployments
+- **Trade-off:** Needs cleanup task to clean up orphaned deployments
 
 ---
 
 ## 9. Glossary
 
-| Term | Definition |
-|------|-----------|
-| **Provider** | Git hosting service (GitHub, Forgejo, GitLab) |
-| **Adapter** | Go interface implementasi untuk satu provider |
-| **Environment** | Logical deployment target (Production, Staging, Dev, dll) |
-| **Deployment** | Satu service yang running di satu server dari satu repo |
-| **Source Chain** | Visual path: `repo → commit → branch → environment` |
-| **Protected Environment** | Environment yang gabisa di-delete (biasanya Production) |
-| **Orphaned Deployment** | Deployment yang environment-nya udah di-delete |
-| **Review App** | Ephemeral deployment dari PR, auto-cleanup pas merge |
+|| Term | Definition |
+||------|-----------|
+|| **Provider** | Git hosting service (GitHub, Forgejo, GitLab) |
+|| **Adapter** | Go interface implementation for a single provider |
+|| **Environment** | Logical deployment target (Production, Staging, Dev, etc.) |
+|| **Deployment** | A service running on a server from a repo |
+|| **Source Chain** | Visual path: `repo → commit → branch → environment` |
+|| **Protected Environment** | Environment that cannot be deleted (usually Production) |
+|| **Orphaned Deployment** | Deployment whose environment has been deleted |
+|| **Review App** | Ephemeral deployment from a PR, auto-cleanup on merge |
 
 ---
 

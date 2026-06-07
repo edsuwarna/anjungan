@@ -1,7 +1,7 @@
 # Anj-Agent — PRD
 
-> **Versi:** 1.0
-> **Status:** Draft
+> **Version:** 1.0
+> **Status:** 🔴 Not Implemented — Proposed for Phase 5
 > **Author:** Endang Suwarna
 
 ---
@@ -10,38 +10,38 @@
 
 ### Problem Statement
 
-Anjungan saat ini connect ke server target via **SSH langsung** (`ssh.Dial("tcp", host:port)`). Ini masalah buat server yang:
+Anjungan currently connects to target servers via **direct SSH** (`ssh.Dial("tcp", host:port)`). This is problematic for servers that:
 
-- **Ga punya public IP** — di private network / VPC internal
-- **SSH diprotek firewall** — cuma allow dari IP tertentu
-- **NAT / dynamic IP** — hostnya berubah-ubah
-- **Ephemeral** — container/VM yang naik-turun
+- **No public IP** — on private network / internal VPC
+- **SSH protected by firewall** — only allows from certain IPs
+- **NAT / dynamic IP** — host changes frequently
+- **Ephemeral** — container/VM that come and go
 
-SSH model ini **client-server klasik** dimana Anjungan jadi **client** yang initiate koneksi ke server. Masalahnya, banyak server production yang **ga bisa di-initiate dari luar**.
+This SSH model is **classic client-server** where Anjungan is the **client** that initiates the connection to the server. The problem is, many production servers **cannot be initiated from outside**.
 
 ### Solution
 
-**Anj-Agent** — lightweight agent yang dipasang di target server. Agentnya yang **nginisiasi koneksi outbound** ke Anjungan (reverse connection), jadi firewall friendly dan ga perlu public IP.
+**Anj-Agent** — lightweight agent installed on target servers. The agent **initiates an outbound connection** to Anjungan (reverse connection), making it firewall friendly and not requiring a public IP.
 
 ### Target Audience
 
-- **DevOps / Platform Engineer** yang manage server di private network
-- **Anjungan Admin** yang pengen unified server management tanpa mikirin SSH accessibility
-- **Tim Infra** yang punya server tersebar di berbagai environment (on-prem, cloud, VPC)
+- **DevOps / Platform Engineer** managing servers on private networks
+- **Anjungan Admin** who wants unified server management without worrying about SSH accessibility
+- **Infra Team** with servers spread across various environments (on-prem, cloud, VPC)
 
 ### Goals
 
-1. **Unified server management** — Admin bisa manage semua server lewat Anjungan, baik yg reachable via SSH maupun yg private
-2. **Zero public SSH required** — Server private cukup jalanin agent, ga perlu buka port 22
-3. **Backward compatible** — SSH method tetep ada, user bisa milih sesuai use case
-4. **Minimal friction** — Setup agent cukup 1 command (curl pipe bash)
+1. **Unified server management** — Admin can manage all servers through Anjungan, both those reachable via SSH and those on private networks
+2. **Zero public SSH required** — Private servers just need to run the agent, no need to open port 22
+3. **Backward compatible** — SSH method still exists, users can choose according to their use case
+4. **Minimal friction** — Agent setup is just 1 command (curl pipe bash)
 
 ### Non-Goals
 
-- Bukan replacement total buat SSH — SSH tetep jadi option utama buat server reachable
-- Bukan remote desktop / VNC
-- Bukan VPN atau tunnel replacement
-- Ga nangani file sync atau backup
+- Not a total replacement for SSH — SSH remains the primary option for reachable servers
+- Not a remote desktop / VNC
+- Not a VPN or tunnel replacement
+- Does not handle file sync or backup
 
 ---
 
@@ -82,18 +82,18 @@ SSH model ini **client-server klasik** dimana Anjungan jadi **client** yang init
 
 ### Tech Stack
 
-| Layer | Teknologi | Alasan |
+| Layer | Technology | Reason |
 |-------|-----------|--------|
 | Agent | **Go** (same as backend) | Static binary, cross-compile, single binary deploy |
-| Transport | **WebSocket** (gorilla/websocket) | HTTP upgrade, simple, ga perlu protobuf/proto compiler |
-| Backend Gateway | **Go + gorilla/websocket** | Existing dep di go.mod, proven |
-| Agent Protocol | **JSON over WS** | Human readable, gampang debug |
-| Agent Deployment | **Binary / Docker / Docker Compose** | Flexibel sesuai environment |
+| Transport | **WebSocket** (gorilla/websocket) | HTTP upgrade, simple, no need for protobuf/proto compiler |
+| Backend Gateway | **Go + gorilla/websocket** | Existing dependency in go.mod, proven |
+| Agent Protocol | **JSON over WS** | Human readable, easy to debug |
+| Agent Deployment | **Binary / Docker / Docker Compose** | Flexible according to environment |
 | Auth | **HMAC-SHA256 + registration token** | Simple, no external dep |
 
 ### Data Model
 
-#### Server (tambah field)
+#### Server (add field)
 
 ```go
 type Server struct {
@@ -384,6 +384,6 @@ A: Exponential backoff reconnect. Agent queue operation kalo perlu (future). Bac
 ## 8. Related Documents
 
 - [PRD.md](./PRD.md) — PRD utama Anjungan
-- [ROADMAP.md](../ROADMAP.md) — Roadmap Anjungan
-- [DECISIONS.md](../DECISIONS.md) — Architecture decisions
+- [ROADMAP.md](../docs/ROADMAP.md) — Roadmap Anjungan
+- [DECISIONS.md](../docs/DECISIONS.md) — Architecture decisions
 - [README.md](../README.md) — Technical docs

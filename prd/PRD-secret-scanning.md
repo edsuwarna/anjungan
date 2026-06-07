@@ -1,7 +1,7 @@
 # Anjungan — PRD: Secret Scanning (TruffleHog)
 
 > **Version:** 1.0
-> **Status:** Draft — 🔴 Planned
+> **Status:** 🔴 Not Implemented — Proposed for Phase 3
 > **Author:** Endang Suwarna
 > **Last Updated:** June 5, 2026
 
@@ -11,39 +11,39 @@
 
 ### Problem Statement
 
-Kebocoran secret/kredensial adalah salah satu penyebab breach terbanyak di software engineering. Masalahnya:
+Secret/credential leaks are one of the leading causes of breaches in software engineering. The problems:
 
-- **Developer accidentally commit secret ke git** — API key, database password, cloud credential masuk ke commit history dan tetap ada walau udah dihapus dari file
-- **Secret di Docker image layers** — credential ke-bake di image layer, dan siapapun yang bisa `docker pull` bisa extract
-- **No systematic detection** — Anjungan manage repo + container image, tapi ga ada yang nge-scan secret secara otomatis
-- **False positive noise** — Tools deteksi biasa banyak false positive, bikin orang ignore
+- **Developer accidentally commits a secret to git** — API key, database password, cloud credential enters commit history and stays there even after being deleted from the file
+- **Secrets in Docker image layers** — credentials get baked into image layers, and anyone who can `docker pull` can extract them
+- **No systematic detection** — Anjungan manages repos + container images, but nothing automatically scans for secrets
+- **False positive noise** — Regular detection tools have many false positives, causing people to ignore them
 
-**TruffleHog solves this differently** dari secret scanner biasa:
+**TruffleHog solves this differently** from regular secret scanners:
 
-| Aspek | Trivy Secrets / Grype | TruffleHog |
+| Aspect | Trivy Secrets / Grype | TruffleHog |
 |-------|----------------------|------------|
-| **Detectors** | Built-in terbatas | **700+ detectors** — AWS, GitHub, Slack, Discord, Stripe, 100+ services |
-| **Verification** | ❌ No | ✅ **Verification engine** — nyoba credential ke API asli |
-| **Git-aware** | Scan file statis | ✅ **Git diff/PR scan**, delta detection, commit forensics |
+| **Detectors** | Limited built-in | **700+ detectors** — AWS, GitHub, Slack, Discord, Stripe, 100+ services |
+| **Verification** | ❌ No | ✅ **Verification engine** — tries the credential against the actual API |
+| **Git-aware** | Static file scan | ✅ **Git diff/PR scan**, delta detection, commit forensics |
 | **Approach** | Regex-only | ✅ **Regex + Entropy + ML** — hybrid detection |
 
 ### What This Solves
 
-| Masalah | Solusi TruffleHog |
+| Problem | TruffleHog Solution |
 |---------|-------------------|
-| Secret terlanjur di-commit | **Git history scan** — deteksi semua commit, bukan cuma HEAD |
-| Secret di image layers | **Docker image scan** — extract + scan tiap layer |
-| Banyak false positive | **Verification** — coba credential ke API, verified = real leak |
-| No audit trail | **Historical leak timeline** — kapan secret masuk, ke-deteksi, di-fix |
-| Kredensial masih aktif | **Verified badge** — tau mana yang masih aktif vs udah revoked |
+| Secret accidentally committed | **Git history scan** — detects all commits, not just HEAD |
+| Secrets in image layers | **Docker image scan** — extracts + scans each layer |
+| Many false positives | **Verification** — tries credential against the API, verified = real leak |
+| No audit trail | **Historical leak timeline** — when secret was introduced, detected, fixed |
+| Credentials still active | **Verified badge** — know which ones are still active vs already revoked |
 
 ### Current Status
 
-| Aspek | Status |
+| Aspect | Status |
 |-------|--------|
-| Compliance scanner (CIS, Lynis) | ✅ Ada di PRD-compliance.md |
+| Compliance scanner (CIS, Lynis) | ✅ Available in PRD-compliance.md |
 | Container image vulnerability (Trivy) | 🔴 Planned — PRD-container-image-scanning.md |
-| **TruffleHog Secret Scanner** | ❌ **Not implemented** — PRD ini |
+| **TruffleHog Secret Scanner** | ❌ **Not implemented** — This PRD |
 | Git repo scanning | ❌ Not implemented |
 | Container layer scanning | ❌ Not implemented |
 | Verified credential alerting | ❌ Not implemented |
@@ -52,9 +52,9 @@ Kebocoran secret/kredensial adalah salah satu penyebab breach terbanyak di softw
 ### Target Audience
 
 - **Endang** (platform engineer) — detect leaked credentials across repos + servers
-- **DevOps** — prevent deploy yang mengandung secret
+- **DevOps** — prevent deployments containing secrets
 - **Security team** — audit trail + verified credential scoring
-- **Developers** — tau kalo credential mereka bocor, bisa rotate
+- **Developers** — know if their credentials are leaked, can rotate
 
 ### Goals
 
@@ -65,7 +65,7 @@ Kebocoran secret/kredensial adalah salah satu penyebab breach terbanyak di softw
 | Verified vs unverified classification | ✅ TruffleHog verification engine |
 | Historical leak tracking | ✅ Timeline: commit → detected → fixed |
 | Integrate with Anjungan repos + containers | ✅ Cross-module |
-| Response time (single repo scan) | < 2 menit |
+| Response time (single repo scan) | < 2 minutes |
 
 ---
 
@@ -99,7 +99,7 @@ Kebocoran secret/kredensial adalah salah satu penyebab breach terbanyak di softw
 
 ### Scanning Modes
 
-TruffleHog punya 3 mode scanning di Anjungan:
+TruffleHog has 3 scanning modes in Anjungan:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -129,12 +129,12 @@ TruffleHog punya 3 mode scanning di Anjungan:
 
 ### Integration Points
 
-| Integrasi | Deskripsi |
+| Integration | Description |
 |-----------|-----------|
-| **PRD-repositories-deployments.md** | Scan secrets di repository yang terdaftar di Anjungan |
-| **PRD-container-image-scanning.md** | Complement — Trivy handle CVE, TruffleHog handle secrets di image |
-| **PRD-anj-agent.md** | Agent execute filesystem scan di server target |
-| **Existing Deployments** | Gate deployment — block deploy kalo ada verified secret |
+| **PRD-repositories-deployments.md** | Scan secrets in repositories registered in Anjungan |
+| **PRD-container-image-scanning.md** | Complement — Trivy handles CVEs, TruffleHog handles secrets in images |
+| **PRD-anj-agent.md** | Agent executes filesystem scan on target server |
+| **Existing Deployments** | Gate deployment — block deploy if verified secret is found |
 | **Existing Compliance Dashboard** | Summary widget — verified leaks count, trend |
 
 ---
@@ -149,9 +149,9 @@ TruffleHog punya 3 mode scanning di Anjungan:
 |---|---|
 | **Priority** | P1 |
 | **Status** | 🔴 **Planned** |
-| **Backend** | `POST /api/v1/secrets/scan` dengan `{type: "git", target: "https://github.com/org/repo"}`. Backend execute `trufflehog git --json --no-verification` (atau via agent). Parse JSON output → extract findings per detector. Simpan ke `secret_scans` + `secret_findings`. Bisa scan specific branch, specific commit range, atau full history. |
-| **Integration** | Bisa di-trigger dari halaman `/repositories` → "Scan Secrets" button per repo. Juga dari repo detail page. |
-| **Limitations** | Repo besar (> 10K commits) → scan limited ke last 100 commits atau last 30 days. Full history scan available manual. |
+| **Backend** | `POST /api/v1/secrets/scan` with `{type: "git", target: "https://github.com/org/repo"}`. Backend executes `trufflehog git --json --no-verification` (or via agent). Parse JSON output → extract findings per detector. Store in `secret_scans` + `secret_findings`. Can scan specific branch, specific commit range, or full history. |
+| **Integration** | Can be triggered from `/repositories` page → "Scan Secrets" button per repo. Also from repo detail page. |
+| **Limitations** | Large repos (> 10K commits) → scan limited to last 100 commits or last 30 days. Full history scan available manually. |
 
 ### F2 — Container Filesystem Scan
 
@@ -159,9 +159,9 @@ TruffleHog punya 3 mode scanning di Anjungan:
 |---|---|
 | **Priority** | P1 |
 | **Status** | 🔴 **Planned** |
-| **Backend** | Agent execute `trufflehog filesystem --directory=/app --json --no-verification` di dalam container atau host filesystem. Parse hasil → extract finding path, detector name, verified status, raw value (masked). |
+| **Backend** | Agent executes `trufflehog filesystem --directory=/app --json --no-verification` inside the container or host filesystem. Parse results → extract finding path, detector name, verified status, raw value (masked). |
 | **Scope** | Container image layers, `/env`, `.env` files, config files (`*.config.*`, `*.json`, `*.yaml`), mounted secrets, build artifacts. |
-| **Integration** | Halaman container detail — "Scan Container for Secrets" button. Agent-based, jadi server private pun bisa di-scan. |
+| **Integration** | Container detail page — "Scan Container for Secrets" button. Agent-based, so private servers can also be scanned. |
 
 ### F3 — Webhook Receiver
 
@@ -169,8 +169,8 @@ TruffleHog punya 3 mode scanning di Anjungan:
 |---|---|
 | **Priority** | P2 |
 | **Status** | 🔴 **Planned** |
-| **Backend** | `POST /api/v1/secrets/webhook` menerima TruffleHog JSON output dari GitHub Action / CI pipeline. Validate payload source (HMAC signature atau IP whitelist). Store dengan source=webhook, linked to repo + commit SHA kalo ada. |
-| **CI/CD Integration** | GitHub Action: `trufflesecurity/trufflehog@main` dengan `--json` output → `curl -X POST https://anjungan.internal/api/v1/secrets/webhook -d @-`. |
+| **Backend** | `POST /api/v1/secrets/webhook` receives TruffleHog JSON output from GitHub Action / CI pipeline. Validate payload source (HMAC signature or IP whitelist). Store with source=webhook, linked to repo + commit SHA if available. |
+| **CI/CD Integration** | GitHub Action: `trufflesecurity/trufflehog@main` with `--json` output → `curl -X POST https://anjungan.internal/api/v1/secrets/webhook -d @-`. |
 
 ### F4 — Verification Engine
 
@@ -178,11 +178,11 @@ TruffleHog punya 3 mode scanning di Anjungan:
 |---|---|
 | **Priority** | P1 |
 | **Status** | 🔴 **Planned** |
-| **What It Does** | TruffleHog **mencoba credential** ke API targetnya langsung. Misal: nemu AWS Access Key → TruffleHog coba `sts:GetCallerIdentity` ke AWS API. Kalo sukses → `verified: true`. Kalo gagal → `verified: false`. |
-| **Why This Matters** | **Ini bedanya TruffleHog dari secret scanner lain.** Scanner biasa deteksi semua yg mirip secret → banyak false positive → orang ignore. TruffleHog verified = **confirm leak**, prioritas #1 buat di-fix. |
+| **What It Does** | TruffleHog **tries the credential** directly against its target API. For example: finds an AWS Access Key → TruffleHog tries `sts:GetCallerIdentity` against AWS API. If successful → `verified: true`. If it fails → `verified: false`. |
+| **Why This Matters** | **This is what sets TruffleHog apart from other secret scanners.** Regular scanners detect anything that looks like a secret → many false positives → people ignore them. TruffleHog verified = **confirmed leak**, priority #1 to fix. |
 | **Severity Mapping** | `verified: true` → **Critical** (immediate fix required). `verified: false` → **Medium** (high confidence pattern, not confirmed active). |
-| **Backend** | Agent execute `trufflehog git --json` (verification default ON). Atau webhook payload contains verified field. Simpan `is_verified` di `secret_findings`. |
-| **Risk** | Verification **aktif hubungi API eksternal**. Beberapa org mungkin ga mau ini. Option: `--no-verification` flag untuk disable. |
+| **Backend** | Agent executes `trufflehog git --json` (verification default ON). Or webhook payload contains verified field. Store `is_verified` in `secret_findings`. |
+| **Risk** | Verification **actively contacts external APIs**. Some organizations may not want this. Option: `--no-verification` flag to disable. |
 
 ### F5 — Historical Leak Tracking
 
@@ -190,9 +190,9 @@ TruffleHog punya 3 mode scanning di Anjungan:
 |---|---|
 | **Priority** | P2 |
 | **Status** | 🔴 **Planned** |
-| **Backend** | TruffleHog git scan includes commit metadata: commit SHA, author, timestamp, file path, line number. Kalau scan ulang repo yang sama, TruffleHog bedain finding baru vs existing via `commit_sha + file + line`. **Historical leak timeline**: kapan secret pertama masuk commit, kapan ke-deteksi, kapan ga ada lagi di commit terbaru (fixed). |
-| **Frontend** | Tab "Historical Leaks" per repo atau per finding. Timeline: 🔴 Leak introduced (commit abc123) → 🟡 Detected (scan #3) → 🟢 Fixed (commit def456). |
-| **Data** | `secret_findings` punya `first_seen_scan_id`, `first_seen_at`, `last_seen_at`, `is_resolved` (ga muncul lagi di scan terbaru). |
+| **Backend** | TruffleHog git scan includes commit metadata: commit SHA, author, timestamp, file path, line number. When re-scanning the same repo, TruffleHog distinguishes new findings from existing ones via `commit_sha + file + line`. **Historical leak timeline**: when the secret first entered a commit, when it was detected, when it's no longer in the latest commit (fixed). |
+| **Frontend** | Tab "Historical Leaks" per repo or per finding. Timeline: 🔴 Leak introduced (commit abc123) → 🟡 Detected (scan #3) → 🟢 Fixed (commit def456). |
+| **Data** | `secret_findings` has `first_seen_scan_id`, `first_seen_at`, `last_seen_at`, `is_resolved` (no longer appears in latest scan). |
 
 ### F6 — Secret Dashboard & Findings
 
@@ -210,7 +210,7 @@ TruffleHog punya 3 mode scanning di Anjungan:
 |---|---|
 | **Priority** | P3 |
 | **Status** | 🔴 **Planned (Future)** |
-| **Description** | Sebelum deployment di-execute, Anjungan cek: apakah repo ini punya findings yang belum di-fix dengan `verified: true`? Kalo ada, deployment di-block dengan reason + link ke finding. Admin bisa override dengan reason tertulis. |
+| **Description** | Before a deployment is executed, Anjungan checks: does this repo have any findings that are not yet fixed with `verified: true`? If so, deployment is blocked with a reason + link to the finding. Admin can override with a written reason. |
 
 ---
 
@@ -400,32 +400,32 @@ CREATE TABLE secret_finding_status_history (
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 1 | `secret_scans` + `secret_findings` tables + migration | 0.5 hari | — |
-| 2 | `secret_finding_status_history` table | 0.5 hari | #1 |
-| 3 | Scan API endpoints (trigger, list, detail) | 1.5 hari | #1 |
-| 4 | Findings API (list, detail, update status) | 1 hari | #1 |
-| 5 | Git scan backend (trufflehog git executor) | 1.5 hari | Agent/SSH executor |
-| 6 | Secret dashboard frontend (/secrets) | 2 hari | #3, #4 |
-| 7 | Finding detail + verified badge | 1 hari | #4 |
+| 1 | `secret_scans` + `secret_findings` tables + migration | 0.5 days | — |
+| 2 | `secret_finding_status_history` table | 0.5 days | #1 |
+| 3 | Scan API endpoints (trigger, list, detail) | 1.5 days | #1 |
+| 4 | Findings API (list, detail, update status) | 1 days | #1 |
+| 5 | Git scan backend (trufflehog git executor) | 1.5 days | Agent/SSH executor |
+| 6 | Secret dashboard frontend (/secrets) | 2 days | #3, #4 |
+| 7 | Finding detail + verified badge | 1 days | #4 |
 
 ### 🔴 Phase 2 — Deep Scanning (Planned)
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 8 | Container filesystem scan backend (agent-based) | 1.5 hari | Agent |
-| 9 | Scan trigger from repo + container pages | 1 hari | #8 |
-| 10 | Verification engine (verified vs unverified UI) | 1 hari | #6 |
-| 11 | Historical leak timeline | 1.5 hari | #4 |
-| 12 | Webhook receiver | 1 hari | #3 |
+| 8 | Container filesystem scan backend (agent-based) | 1.5 days | Agent |
+| 9 | Scan trigger from repo + container pages | 1 days | #8 |
+| 10 | Verification engine (verified vs unverified UI) | 1 days | #6 |
+| 11 | Historical leak timeline | 1.5 days | #4 |
+| 12 | Webhook receiver | 1 days | #3 |
 
 ### 🔴 Phase 3 — Automation & Gates (Planned — Future)
 
 | Order | Feature | Effort | Notes |
 |-------|---------|--------|-------|
-| 13 | Deployment gate (block deploy on verified secrets) | 2 hari | Requires deployment pipeline |
-| 14 | Scheduled repo scan (weekly) | 1 hari | — |
-| 15 | In-app notification (new verified finding) | 1 hari | — |
-| 16 | Telegram/email alert (critical finding) | 1 hari | Requires notification system |
+| 13 | Deployment gate (block deploy on verified secrets) | 2 days | Requires deployment pipeline |
+| 14 | Scheduled repo scan (weekly) | 1 days | — |
+| 15 | In-app notification (new verified finding) | 1 days | — |
+| 16 | Telegram/email alert (critical finding) | 1 days | Requires notification system |
 
 ---
 
@@ -433,14 +433,14 @@ CREATE TABLE secret_finding_status_history (
 
 | Requirement | Target |
 |-------------|--------|
-| Git scan speed (10K commits) | < 3 menit |
-| Git scan speed (100 commits) | < 30 detik |
-| Filesystem scan (1GB) | < 2 menit |
-| Dashboard load | < 2 detik |
+| Git scan speed (10K commits) | < 3 minutes |
+| Git scan speed (100 commits) | < 30 seconds |
+| Filesystem scan (1GB) | < 2 minutes |
+| Dashboard load | < 2 seconds |
 | Finding list pagination | < 500ms per page |
 | Raw value storage | Hashed + encrypted, never in plaintext |
 | Raw value display | Default masked, click to reveal (audit logged) |
-| DB cleanup | Findings > 1 tahun → archive |
+| DB cleanup | Findings > 1 year → archive |
 | TruffleHog version | Latest stable, pin in agent config |
 | False positive rate | < 10% (verified-only mode) |
 
@@ -448,7 +448,7 @@ CREATE TABLE secret_finding_status_history (
 
 - **Raw values** — stored encrypted at rest (column-level encryption). API returns masked by default (`ghp_****`). Only admin can reveal with reason logged in audit trail.
 - **Verification** — hits external APIs. Rate limited: max 10 verifications/minute. Option to disable verification entirely.
-- **Scan tokens** — kalo scan GitHub repo, perlu personal access token dengan repo scope. Disimpan encrypted di `repo_connections`.
+- **Scan tokens** — if scanning a GitHub repo, needs a personal access token with repo scope. Stored encrypted in `repo_connections`.
 - **Masking** — default mask: show first 4 + last 4 chars (`AKIA****WXYZ`). Full reveal: click button → confirm dialog → audit log entry.
 
 ---

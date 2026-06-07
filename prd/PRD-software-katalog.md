@@ -3,7 +3,7 @@
 > **Feature:** Software Katalog (App Catalog) — recurring Docker Compose stack templates that admin can curate and users can deploy to any server with one click.
 >
 > **Project:** Anjungan IDP
-> **Status:** Draft — Proposed for Phase 2
+> **Status:** 🔴 Not Implemented — Proposed for Phase 2. Mockups ✅
 > **Last Updated:** June 2026
 
 ---

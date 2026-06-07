@@ -1,7 +1,7 @@
 # Anjungan — PRD: Script Library
 
 > **Version:** 1.0
-> **Status:** Draft — 🔴 Planned
+> **Status:** 🔴 Not Implemented — Proposed for Phase 5
 > **Author:** Endang Suwarna
 > **Last Updated:** June 5, 2026
 
@@ -11,20 +11,20 @@
 
 ### Problem Statement
 
-Managing infrastructure requires running repetitive operational scripts across multiple servers — disk cleanup, SSL renewal, DB backup, system updates, health checks. Saat ini:
+Managing infrastructure requires running repetitive operational scripts across multiple servers — disk cleanup, SSL renewal, DB backup, system updates, health checks. Currently:
 
-- **Manual SSH** — tiap execute buka terminal, SSH satu-satu, jalanin script, tunggu selesai
-- **No inventory** — script berserakan di notes, ~/.scripts/ tiap server, repo random
-- **No audit trail** — siapa jalanin script apa di server mana kapan? Exit code berapa?
-- **No multi-server** — kalau perlu cleanup di 5 server, execute 5 kali manual
-- **No results history** — berhasil/gagal outputnya hilang setelah terminal ditutup
+- **Manual SSH** — each execution opens terminal, SSH one by one, run script, wait for completion
+- **No inventory** — scripts scattered across notes, ~/.scripts/ on each server, random repos
+- **No audit trail** — who ran which script on which server when? What was the exit code?
+- **No multi-server** — if cleanup is needed on 5 servers, execute 5 times manually
+- **No results history** — success/failure output disappears after terminal is closed
 
-**Script Library solving this:**
+**Script Library solves this:**
 
-- **Single inventory** — semua script tersimpan, tercategory, searchable
-- **One-click run** — pilih script, set parameter, pilih server, execute via SSH
-- **Multi-server** — run script ke N server parallel, lihat hasil aggregated
-- **Full audit trail** — tiap run tercatat: siapa, server mana, status, output
+- **Single inventory** — all scripts stored, categorized, searchable
+- **One-click run** — select script, set parameters, select servers, execute via SSH
+- **Multi-server** — run script on N servers in parallel, view aggregated results
+- **Full audit trail** — each run is recorded: who, which server, status, output
 - **Scheduling** — cron-based, daily/weekly/custom
 - **Templates** — parameter injection, multi-server aware script structure
 
@@ -43,16 +43,16 @@ Managing infrastructure requires running repetitive operational scripts across m
 ### Target Audience
 
 - **Endang** (platform engineer) — run infra scripts, schedule backups, health checks
-- **Team members (future)** — execute approved scripts tanpa perlu akses SSH langsung
+- **Team members (future)** — execute approved scripts without needing direct SSH access
 - **Ops / SRE (future)** — automate routine maintenance via scheduled scripts
 
 ### Goals
 
 | Goal | Metric |
 |------|--------|
-| Script execution dari UI | < 3 klik untuk run script |
+| Script execution from UI | < 3 clicks to run a script |
 | Multi-server parallel execution | Up to 10 servers simultaneously |
-| Real-time results streaming | Output muncul < 1 detik per line |
+| Real-time results streaming | Output appears < 1 second per line |
 | Script template system | Variable injection, parameter validation |
 | Scheduled execution | Cron-based (daily/weekly/custom) |
 | Audit trail completeness | 100% runs logged forever |
@@ -104,7 +104,7 @@ Anjungan Backend                          Target Server(s)
 
 ### Script Categories & Tags
 
-```  
+```
 Script Categories          Tags (multi)
 ├── Infrastructure         ├── infra
 ├── Database               ├── db
@@ -115,9 +115,9 @@ Script Categories          Tags (multi)
 └── Custom                 └── custom
 
 Script Lifecycle
-├── Draft    — masih dikerjain
-├── Active   — siap dipake
-├── Archived — pensiun (tapi ga dihapus — audit trail)
+├── Draft    — still being worked on
+├── Active   — ready to use
+└── Archived — retired (but not deleted — audit trail)
 ```
 
 ---
@@ -132,9 +132,9 @@ Script Lifecycle
 |---|---|
 | **Priority** | P0 |
 | **Status** | 🔴 **Not implemented** |
-| **Backend** | `GET /api/v1/scripts` — list semua scripts with pagination + filters (category, tag, search). `GET /api/v1/scripts/stats` — aggregate: total scripts, runs (7d), success rate %, avg duration. Script yang archived tetap visible dengan visual indicator. |
-| **Frontend** | Route `/scripts`. **KPI cards** (top row): Total Scripts, Runs (7d), Success Rate (color-coded: 🟢>90%, 🟡80-90%, 🔴<80%), Avg Duration. **Filter chips**: All, Bash, SQL, Infrastructure, Database, Backup, Scheduled. **Script cards** (2-col grid): icon (per category), title, description (2 line max), tags (multi), version badge, last run timestamp, server count, quick Run button. Search bar di kanan atas — search by name/description/tags. **New Script** button → create modal/page. |
-| **UX** | Cards: click → detail page with full info + run history. Run button langsung buka slide-over run panel. Hover card → subtle border highlight. Empty state when no scripts exist: "No scripts yet. Create your first script to automate server tasks." **Mockup reference:** ![Script Library Dashboard](../sketches/anjungan/scripts-mockup-01-list.png) |
+| **Backend** | `GET /api/v1/scripts` — list all scripts with pagination + filters (category, tag, search). `GET /api/v1/scripts/stats` — aggregate: total scripts, runs (7d), success rate %, avg duration. Archived scripts remain visible with visual indicator. |
+| **Frontend** | Route `/scripts`. **KPI cards** (top row): Total Scripts, Runs (7d), Success Rate (color-coded: 🟢>90%, 🟡80-90%, 🔴<80%), Avg Duration. **Filter chips**: All, Bash, SQL, Infrastructure, Database, Backup, Scheduled. **Script cards** (2-col grid): icon (per category), title, description (2 line max), tags (multi), version badge, last run timestamp, server count, quick Run button. Search bar on the top right — search by name/description/tags. **New Script** button → create modal/page. |
+| **UX** | Cards: click → detail page with full info + run history. Run button directly opens slide-over run panel. Hover card → subtle border highlight. Empty state when no scripts exist: "No scripts yet. Create your first script to automate server tasks." **Mockup reference:** ![Script Library Dashboard](../sketches/anjungan/scripts-mockup-01-list.png) |
 
 ### F2 — Script CRUD (Create/Edit/Delete)
 
@@ -142,7 +142,7 @@ Script Lifecycle
 |---|---|
 | **Priority** | P0 |
 | **Status** | 🔴 **Not implemented** |
-| **Backend** | `POST /api/v1/scripts` — create script (name, description, content, category, tags, parameters schema). `PUT /api/v1/scripts/{id}` — update. `DELETE /api/v1/scripts/{id}` — soft delete (archived). `GET /api/v1/scripts/{id}` — detail. `GET /api/v1/scripts/{id}/versions` — version history. Versioning: tiap update create new version row — script_versions table. Restore version endpoint: `POST /api/v1/scripts/{id}/restore/{version}`. |
+| **Backend** | `POST /api/v1/scripts` — create script (name, description, content, category, tags, parameters schema). `PUT /api/v1/scripts/{id}` — update. `DELETE /api/v1/scripts/{id}` — soft delete (archived). `GET /api/v1/scripts/{id}` — detail. `GET /api/v1/scripts/{id}/versions` — version history. Versioning: each update creates a new version row — script_versions table. Restore version endpoint: `POST /api/v1/scripts/{id}/restore/{version}`. |
 | **Frontend** | **Create modal/editor**: script name input, description textarea, code editor (monaco or code-mirror clone — syntax highlight bash/sql/yaml), category select, tags multi-select, parameters schema builder (variable name, type, default value, description). Save → auto-create version 1. **Edit page**: same form pre-filled, "Update" → auto-bump version. **Delete**: confirmation modal "Archive this script? Runs will be preserved." **Version history**: list of versions with diff viewer. |
 | **UX** | Code editor with line numbers, syntax highlight (bash default). Parameter schema builder: add row — name/type(default)/desc — generates `$PARAM_NAME` injection. Diff view between versions: green/red lines. |
 
@@ -153,7 +153,7 @@ Script Lifecycle
 | **Priority** | P0 |
 | **Status** | 🔴 **Not implemented** |
 | **Backend** | `POST /api/v1/scripts/{id}/run` — accept: `{parameters: {}, server_ids: [], schedule?: {cron: string}}`. Validate parameters against schema, validate server access, queue async execution. Return `run_id` immediately. `GET /api/v1/scripts/{id}/run/{runId}/status` — polling endpoint (running/completed/failed). |
-| **Frontend** | **Slide-over panel from right** (600px). Content: script header (name, version, description), **script preview** (read-only syntax highlighted, scrollable max-height 140px), **parameters section** (auto-generated from schema — input fields, selects, toggles), **target servers** (checkbox list with status dot: 🟢 online / 🔴 offline / 🟡 pending, offline servers disabled with explanation), **schedule option** (run now / daily / weekly / custom cron), **estimated duration** indicator. Footer: Cancel + "Run on N Servers" primary button. Panel open/close animation slide. | 
+| **Frontend** | **Slide-over panel from right** (600px). Content: script header (name, version, description), **script preview** (read-only syntax highlighted, scrollable max-height 140px), **parameters section** (auto-generated from schema — input fields, selects, toggles), **target servers** (checkbox list with status dot: 🟢 online / 🔴 offline / 🟡 pending, offline servers disabled with explanation), **schedule option** (run now / daily / weekly / custom cron), **estimated duration** indicator. Footer: Cancel + "Run on N Servers" primary button. Panel open/close animation slide. |
 | **UX** | Form validation: parameters required check, server min 1 selected. If schedule set → "Schedule Run" button instead. Offline servers: disabled, greyed out, tooltip "Server offline". Duration estimate based on historical avg. **Mockup reference:** ![Run Panel](../sketches/anjungan/scripts-mockup-02-run-panel.png) |
 
 ### F4 — Multi-Server Execution Engine
@@ -162,9 +162,9 @@ Script Lifecycle
 |---|---|
 | **Priority** | P0 |
 | **Status** | 🔴 **Not implemented** |
-| **Backend** | `internal/scripts/runner.go` — execution engine. **Parallel execution** — goroutine per server, max concurrency 10 (configurable). **SSH connection pooling** — reuse existing management SSH connections. **Parameter injection** — replace `$PARAM_NAME` or `${PARAM_NAME}` with actual values. **Timeout control** — per-server timeout 120s default (configurable per script). **Error handling** — per-server isolated: server A fail tidak ngaruh server B. **Output capture** — stdout + stderr separate, duration per-server. **Exit code** — 0 = success, non-zero = fail. |
-| **Frontend** | Progress indicator saat running: per-server status (running/spinner, completed ✓, failed ✗). Real-time output streaming via SSE/WebSocket. |
-| **UX** | Kalo ada server fail: partial success tetap acceptable — failed server marked merah, success tetap hijau. Tidak ada rollback — infra script idempotent. |
+| **Backend** | `internal/scripts/runner.go` — execution engine. **Parallel execution** — goroutine per server, max concurrency 10 (configurable). **SSH connection pooling** — reuse existing management SSH connections. **Parameter injection** — replace `$PARAM_NAME` or `${PARAM_NAME}` with actual values. **Timeout control** — per-server timeout 120s default (configurable per script). **Error handling** — per-server isolated: server A failure does not affect server B. **Output capture** — stdout + stderr separate, duration per-server. **Exit code** — 0 = success, non-zero = fail. |
+| **Frontend** | Progress indicator during execution: per-server status (running/spinner, completed ✓, failed ✗). Real-time output streaming via SSE/WebSocket. |
+| **UX** | If a server fails: partial success is still acceptable — failed server marked red, success stays green. No rollback — infra scripts are idempotent. |
 
 ### F5 — Results Viewer
 
@@ -202,9 +202,9 @@ Script Lifecycle
 |---|---|
 | **Priority** | P2 |
 | **Status** | 🔴 **Not implemented** |
-| **Backend** | Built-in template engine. Variables declared in script header comment block: `# @param THRESHOLD_PCT number 80 "Disk usage threshold"` — auto-parsed saat create. Pre-built templates: Disk Cleanup, SSL Renew, DB Backup, Health Check, System Update — di-seed via migration. |
-| **Frontend** | "New from Template" button — pilih template from list, edit content, save as new script. Template gallery: categorized templates. |
-| **UX** | Template tetap read-only — user duplikat baru custom. Template updatable via server migration. |
+| **Backend** | Built-in template engine. Variables declared in script header comment block: `# @param THRESHOLD_PCT number 80 "Disk usage threshold"` — auto-parsed on create. Pre-built templates: Disk Cleanup, SSL Renew, DB Backup, Health Check, System Update — seeded via migration. |
+| **Frontend** | "New from Template" button — select template from list, edit content, save as new script. Template gallery: categorized templates. |
+| **UX** | Template remains read-only — user duplicates to create a custom one. Template updatable via server migration. |
 
 ---
 
@@ -395,25 +395,25 @@ CREATE TABLE script_schedules (
 
 | Order | Feature | Effort | Dependencies |
 |-------|---------|--------|-------------|
-| 1 | `scripts` + `script_versions` tables + migration | 0.5 hari | — |
-| 2 | Script CRUD backend (create, read, update, archive) | 1 hari | #1 |
-| 3 | Script CRUD frontend (editor + form) | 1.5 hari | #2 |
-| 4 | Script Library dashboard (KPI cards, filter chips, card grid) | 1.5 hari | #2 |
-| 5 | `script_runs` + `script_run_outputs` tables + migration | 0.5 hari | — |
-| 6 | Multi-server execution engine (SSH parallel, param injection) | 2 hari | #5 |
-| 7 | Run API + status polling | 1 hari | #6 |
-| 8 | Run slide-over panel (preview, params, server select) | 1 hari | #3, #7 |
-| 9 | Results viewer (summary + per-server tabs) | 1.5 hari | #7 |
-| 10 | Run history + global history page | 1 hari | #9 |
-| 11 | Export results (text/JSON) | 0.5 hari | #9 |
-| 12 | `script_schedules` table + migration | 0.5 hari | — |
-| 13 | Scheduling engine + cron integration | 1.5 hari | #12 |
-| 14 | Schedule editor UI | 1 hari | #13 |
-| 15 | Version history + diff viewer | 1 hari | #2 |
-| 16 | Template library (seed templates + gallery UI) | 1 hari | #3 |
-| 17 | Notification on scheduled failure | 0.5 hari | #13 |
+| 1 | `scripts` + `script_versions` tables + migration | 0.5 days | — |
+| 2 | Script CRUD backend (create, read, update, archive) | 1 days | #1 |
+| 3 | Script CRUD frontend (editor + form) | 1.5 days | #2 |
+| 4 | Script Library dashboard (KPI cards, filter chips, card grid) | 1.5 days | #2 |
+| 5 | `script_runs` + `script_run_outputs` tables + migration | 0.5 days | — |
+| 6 | Multi-server execution engine (SSH parallel, param injection) | 2 days | #5 |
+| 7 | Run API + status polling | 1 days | #6 |
+| 8 | Run slide-over panel (preview, params, server select) | 1 days | #3, #7 |
+| 9 | Results viewer (summary + per-server tabs) | 1.5 days | #7 |
+| 10 | Run history + global history page | 1 days | #9 |
+| 11 | Export results (text/JSON) | 0.5 days | #9 |
+| 12 | `script_schedules` table + migration | 0.5 days | — |
+| 13 | Scheduling engine + cron integration | 1.5 days | #12 |
+| 14 | Schedule editor UI | 1 days | #13 |
+| 15 | Version history + diff viewer | 1 days | #2 |
+| 16 | Template library (seed templates + gallery UI) | 1 days | #3 |
+| 17 | Notification on scheduled failure | 0.5 days | #13 |
 
-**Total estimasi: 17 hari kerja**
+**Total estimated: 17 work days**
 
 ### Phase Dependencies
 
@@ -449,9 +449,9 @@ Phase 5.4 — Enhancement (Order 15-17)
 
 | Requirement | Target |
 |-------------|--------|
-| Script execution (single server) | < 5 detik per script (excluding script runtime) |
-| Multi-server parallel (10 servers) | < 10 detik overhead total |
-| Dashboard load (14 scripts) | < 1.5 detik |
+| Script execution (single server) | < 5 seconds per script (excluding script runtime) |
+| Multi-server parallel (10 servers) | < 10 seconds overhead total |
+| Dashboard load (14 scripts) | < 1.5 seconds |
 | History query (90 days) | < 500ms |
 | Output retention | 90 days auto-cleanup |
 | Script max length | 100 KB per script |
@@ -466,14 +466,14 @@ Phase 5.4 — Enhancement (Order 15-17)
 
 | Term | Definition |
 |------|------------|
-| **Script** | Bash/sql/yaml file yang bisa di-execute di server target via SSH |
-| **Parameter** | Variable injection dalam script: `$PARAM_NAME` diganti user input saat run |
-| **Run** | Satu eksekusi script ke satu atau lebih server |
-| **Output** | stdout + stderr + exit code dari satu server dalam satu run |
-| **Run ID** | Unique identifier per execution, dibuat saat user klik Run |
-| **Schedule** | Cron-based auto-execution dengan parameter tetap |
-| **Version** | Auto-increment tiap update script — freeze di setiap run untuk audit |
-| **Template** | Pre-built script yang bisa di-duplicate jadi script baru |
+| **Script** | Bash/sql/yaml file that can be executed on target servers via SSH |
+| **Parameter** | Variable injection in script: `$PARAM_NAME` replaced with user input at runtime |
+| **Run** | One execution of a script to one or more servers |
+| **Output** | stdout + stderr + exit code from one server in one run |
+| **Run ID** | Unique identifier per execution, created when user clicks Run |
+| **Schedule** | Cron-based auto-execution with fixed parameters |
+| **Version** | Auto-increment on each script update — frozen per run for audit |
+| **Template** | Pre-built script that can be duplicated into a new script |
 | **Category** | Infra, DB, Backup, Security, Monitoring, System, Custom |
 | **Tag** | Multi-label: infra, cron, security, monitoring, db, backup |
 | **Source** | Manual (user click), Scheduled (cron), Webhook (external trigger) |

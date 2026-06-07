@@ -1,7 +1,7 @@
 # Anjungan — Product Requirements Document
 
 > **Version:** 2.0
-> **Status:** Active
+> **Status:** 🟡 Partially Implemented — Phase 1 ✅, Phase 2 🟡, Phase 3–5 🔴
 > **Last Updated:** June 2026 — status sync with main branch
 
 ---
@@ -74,14 +74,14 @@ Make infrastructure management accessible for ops teams AND application deployme
 | Domain | Backend | Frontend | Notes |
 --------|---------|----------|-------|
 | Auth (login, register, JWT, refresh) | ✅ Done | ✅ Done | Login, register, refresh, logout, me ✅ |
-| TOTP 2FA | ✅ Done | 🟡 Partial | Backend: verify endpoint ✅. Frontend: input di login belum integrate penuh |
+| TOTP 2FA | ✅ Done | 🟡 Partial | Backend: verify endpoint ✅. Frontend: login input not yet fully integrated |
 | Dashboard | ✅ Done | ✅ Done | Summary API: server count, status dist, user count. StatCards + data |
 | Servers CRUD | ✅ Done | ✅ Done | List/Create/Get/Update/Delete ✅. Test connection, metrics, detect info, groups/regions/types |
 | Containers (per-server + global) | ✅ Done | ✅ Done | List, start/stop/restart, logs, inspect, exec (WebSocket), stats. Security report per container |
-| Docker Compose | ❌ Missing | ❌ Missing | Belum implement |
+| Docker Compose | ❌ Missing | ❌ Missing | Not implemented — see PRD-software-katalog for catalog-based Docker Compose deployment plan |
 | Registry (Zot) | ✅ Done | ✅ Done | Repos, tags, delete, GC, image detail. Self-serve creds. Admin user management + htpasswd sync |
 | Repositories (Git) | ✅ Done | ✅ Done | GitHub + Forgejo connections. Selections, branches, CI status |
-| Deployments | ✅ Done | 🟡 Partial | CRUD ✅. Restart/redeploy/rollback ✅. History. Environments CRUD. Frontend dasar ✅ |
+| Deployments | ✅ Done | ✅ Done | CRUD, restart/redeploy/rollback, history, environments. Full frontend |
 | Admin Users | ✅ Done | ✅ Done | List/Create/Get/Update/Delete/Unlock ✅ |
 | Audit Log | ✅ Done | ✅ Done | List, filter (action/entity/user/date range), export CSV/JSON |
 | SSH Keys | ✅ Done | ✅ Done | List/Create/Get/Update/Delete. Admin-only |
@@ -90,13 +90,13 @@ Make infrastructure management accessible for ops teams AND application deployme
 | Container Security Report | ✅ Done | ✅ Done | Per-container findings, scan history, **container page |
 | SSH Terminal | ✅ Done | ✅ Done | Server-level + container-level terminal via WebSocket |
 | Trivy Vulnerability Scanner | ❌ Missing | ❌ Missing | Belum implement |
-| Agent system | ❌ Missing | ❌ Missing | Core architecture — PRD-anj-agent |
-| Centralized Vault / Secrets | ❌ Missing | ❌ Missing | Belum implement |
-| API Key Management | ❌ Missing | ❌ Missing | Belum implement |
-| Deployment Freeze | ❌ Missing | ❌ Missing | Belum implement |
-| Service Catalog (IDP) | ❌ Missing | ❌ Missing | Belum implement |
-| Bookmarks (Tool Shortcuts) | ❌ Missing | ❌ Missing | Tool shortcut management — pake kategori, auto-favicon, sidebar quick access, dashboard widget — PRD-bookmarks |
-| CLI Tool | ❌ Missing | ❌ Missing | Belum implement |
+| Trivy Vulnerability Scanner | ❌ Missing | ❌ Missing | Not implemented |
+| Centralized Vault / Secrets | ❌ Missing | ❌ Missing | Not implemented |
+| API Key Management | ❌ Missing | ❌ Missing | Not implemented |
+| Deployment Freeze | ❌ Missing | ❌ Missing | Not implemented |
+| Service Catalog (IDP) | ❌ Missing | ❌ Missing | Not implemented |
+| Bookmarks (Tool Shortcuts) | ❌ Missing | ❌ Missing | Tool shortcut management — using categories, auto-favicon, sidebar quick access, dashboard widget — PRD-bookmarks |
+| CLI Tool | ❌ Missing | ❌ Missing | Not implemented |
 
 ### 3.2 Database Schema (19 migrations — main branch)
 
@@ -119,7 +119,7 @@ Make infrastructure management accessible for ops teams AND application deployme
 | 15 | `deployment_history` | ✅ Done | id (UUID PK), deployment_id (FK), status, message, created_at |
 | 16 | `activity_log` | ✅ Done | Activity log — referenced in code as `SaveActivity`/`ListRecentActivity` |
 
-#### ❌ Belum Dibuat
+#### ❌ Not Yet Created
 
 | Table | Purpose |
 -------|---------|
@@ -140,7 +140,7 @@ Make infrastructure management accessible for ops teams AND application deployme
 
 ### ✅ Phase 1 — Foundation (Completed — June 2026)
 
-> Semua fitur Phase 1 sudah selesai implement di main branch, kecuali Docker Compose.
+> All Phase 1 features are implemented on main branch, except Docker Compose.
 
 #### ✅ F1.1 — Server Create & Test Connection
 | | |
@@ -201,7 +201,7 @@ Make infrastructure management accessible for ops teams AND application deployme
 ### 🟡 Phase 2 — Platform Engineering (IDP Core) — Partial
 
 > Environments CRUD ✅ Done. Deployments CRUD + restart/redeploy/rollback/history ✅ Done.
-> Service Catalog (F2.1) dan GitHub Integration (F2.5) masih tersisa.
+> Service Catalog (F2.1) and GitHub Integration (F2.5) still remaining.
 
 #### F2.1 — Service Catalog
 | | |
@@ -245,7 +245,7 @@ Make infrastructure management accessible for ops teams AND application deployme
 
 ### 🔵 Phase 3 — Security & Governance — Partial
 
-> Lynis scanning ✅, CIS Docker ✅, Audit Log ✅, SSH Keys ✅. Trivy, Vault, API Keys masih tersisa.
+> Lynis scanning ✅, CIS Docker ✅, Audit Log ✅, SSH Keys ✅. Trivy, Vault, API Keys still remaining.
 
 #### F3.1 — Centralized Vault
 | | |
@@ -428,14 +428,14 @@ Make infrastructure management accessible for ops teams AND application deployme
 
 ### 6.3 UX Principles
 
-1. **≤ 2 clicks** — every common action (deploy, restart, view log) maksimal 2 klik dari halaman mana pun
-2. **Self-service first** — developer harus bisa deploy tanpa bantuan infra engineer
+1. **≤ 2 clicks** — every common action (deploy, restart, view log) within maximum 2 clicks from any page
+2. **Self-service first** — developer must be able to deploy without infra engineer's help
 3. **Real-time by default** — status, logs, health must update without page refresh
-4. **Error states matter** — setiap komponen punya loading, empty, error, dan success state
+4. **Error states matter** — every component has loading, empty, error, and success states
 5. **Mobile responsive** — sidebar collapse, table scroll, touch-friendly buttons
 6. **Consistent empty states** — icon + title + description + CTA button
 7. **Keyboard shortcuts** — `d` dashboard, `s` servers, `/` search
-8. **Confirmation for destructive** — delete, restart, rollback perlu konfirmasi modal
+8. **Confirmation for destructive** — delete, restart, rollback requires confirmation modal
 
 ### 6.4 Color Semantics
 
@@ -485,11 +485,11 @@ Proxy           Traefik (external) or built-in
 └─────────────┘                               └─────────────┘
 ```
 
-Agent dipasang di setiap server target via one-liner install. Agent:
-- Outbound WebSocket ke Anjungan hub (no inbound port needed)
+Agent is installed on each target server via one-liner install. Agent:
+- Outbound WebSocket to Anjungan hub (no inbound port needed)
 - Proxy SSH, Docker API, metrics via tunnel
 - Auto-register + auto-update
-- Heartbeat setiap 15s
+- Heartbeat every 15s
 - Minimal resource (Go binary ~10MB, RAM < 30MB)
 
 ### 7.3 API Design (main branch — ~108 registered routes)
@@ -653,8 +653,8 @@ Error response:
 
 ### ✅ Phase 1 — Foundation (Completed)
 
-> Semua fitur Phase 1 sudah di main branch: Server CRUD, Containers, Logs/Exec, Admin Users, Dashboard, SSH Terminal, SSH Keys, Server Metrics.
-> **Tersisa:** Docker Compose (F1.7).
+> All Phase 1 features are on main branch: Server CRUD, Containers, Logs/Exec, Admin Users, Dashboard, SSH Terminal, SSH Keys, Server Metrics.
+> **Remaining:** Docker Compose (F1.7).
 
 | Feature | Effort | Status |
 ---------|--------|--------|
@@ -668,7 +668,7 @@ Error response:
 
 ### 🟡 Phase 2 — IDP Core (Partial)
 
-> Deployments + Environments ✅. Service Catalog & GitHub webhook integration tersisa.
+> Deployments + Environments ✅. Service Catalog & GitHub webhook integration remaining.
 
 | Order | Feature | Effort | Status |
 -------|---------|--------|--------|
@@ -682,7 +682,7 @@ Error response:
 ### 🔵 Phase 3 — Security & Governance (Partial)
 
 > Lynis ✅, CIS L1/L2 ✅, CIS Docker ✅, Audit Log ✅, SSH Terminal ✅, Container Security ✅.
-> **Tersisa:** Trivy, Vault, API Keys, Deployment Freeze.
+> **Remaining:** Trivy, Vault, API Keys, Deployment Freeze.
 
 | Order | Feature | Effort | Status |
 -------|---------|--------|--------|
@@ -720,7 +720,7 @@ Error response:
 
 ### 9.1 Comparison Matrix
 
-| Fitur | Anjungan | Portainer | Dokploy | Coolify |
+| Feature | Anjungan | Portainer | Dokploy | Coolify |
 -------|----------|-----------|---------|---------|
 | Server management | ✅ Planned | ❌ | ❌ | ❌ |
 | Container management | ✅ Planned | ✅ | ✅ | ✅ |
@@ -758,8 +758,8 @@ Error response:
 
 ### 9.3 References
 
-- ROADMAP.md — Phase planning & status
-- DECISIONS.md — Architectural decision records
+- [ROADMAP.md](../docs/ROADMAP.md) — Phase planning & status
+- [DECISIONS.md](../docs/DECISIONS.md) — Architectural decision records
 - docker-compose.yml — Deployment config
 - Dockerfile.frontend — Frontend build
 - Dockerfile.backend — Backend build
