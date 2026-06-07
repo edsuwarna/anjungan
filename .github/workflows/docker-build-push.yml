@@ -60,6 +60,13 @@ jobs:
           file: ${{ matrix.service.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=Anjungan ${{ matrix.service.name == 'backend' && 'Backend' || 'Frontend' }}
+            org.opencontainers.image.description=${{ matrix.service.name == 'backend' && 'Backend service for Anjungan IDP platform' || 'Web frontend for Anjungan IDP platform' }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=Edsuwarna
+            org.opencontainers.image.source=https://github.com/edsuwarna/anjungan
+            org.opencontainers.image.url=https://github.com/edsuwarna/anjungan
           annotations: |
             org.opencontainers.image.title=Anjungan ${{ matrix.service.name == 'backend' && 'Backend' || 'Frontend' }}
             org.opencontainers.image.description=${{ matrix.service.name == 'backend' && 'Backend service for Anjungan IDP platform' || 'Web frontend for Anjungan IDP platform' }}
