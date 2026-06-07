@@ -42,7 +42,7 @@ jobs:
           username: ${{ env.REGISTRY_USERNAME }}
           password: ${{ env.REGISTRY_PASSWORD }}
 
-      - name: Docker Metadata
+      - name: Docker Metadata (tags only)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -52,7 +52,15 @@ jobs:
             type=sha,prefix=
             type=raw,value=release-latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=raw,value=main-latest,enable=${{ github.ref == 'refs/heads/main' }}
-          labels:
+
+      - name: Build & Push with Annotations
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          annotations: |
             org.opencontainers.image.title=Anjungan ${{ matrix.service.name == 'backend' && 'Backend' || 'Frontend' }}
             org.opencontainers.image.description=${{ matrix.service.name == 'backend' && 'Backend service for Anjungan IDP platform' || 'Web frontend for Anjungan IDP platform' }}
             org.opencontainers.image.licenses=MIT
@@ -60,15 +68,5 @@ jobs:
             org.opencontainers.image.source=https://github.com/edsuwarna/anjungan
             org.opencontainers.image.url=https://github.com/edsuwarna/anjungan
             org.opencontainers.image.version=${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
-
-      - name: Build & Push
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.service.context }}
-          file: ${{ matrix.service.dockerfile }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
