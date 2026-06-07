@@ -16,6 +16,7 @@
 | [docker.md](docs/docker.md) | Build, tagging convention, CI/CD pipeline |
 | [compliance.md](docs/compliance.md) | CIS scanning, Lynis, scoring system, thresholds |
 | [registry.md](docs/registry.md) | Zot self-service credentials, roles, usage |
+| [software-katalog.md](docs/software-katalog.md) | Software Catalog PRD — app store for Docker Compose deployments |
 
 ## Quick Start
 
