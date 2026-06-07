@@ -1,5 +1,7 @@
 package compliance
 
+import "strings"
+
 // ─── Prowler-Style Check Registry ─────────────────────────────────────────
 //
 // All checks are registered here and organized by profile (CIS Level 1 / 2)
@@ -54,12 +56,34 @@ func (r *CheckRegistry) Count() int {
 
 // GetByProfile returns checks matching the given profile.
 // ProfileAll returns all checks.
+// ProfileDocker returns checks with the "docker_" ID prefix.
+// ProfileCISLevel1 and ProfileCISLevel2 exclude Docker checks — those only
+// run under ProfileDocker since their CISLevel values collide.
 func (r *CheckRegistry) GetByProfile(profile ScanProfile) []CheckDefinition {
 	if profile == ProfileAll {
 		return r.All()
 	}
+
+	// Docker checks have their own CIS benchmark levels (1 or 2) that don't
+	// map to ScanProfile values — identify them by ID prefix instead.
+	if profile == ProfileDocker {
+		var out []CheckDefinition
+		for _, c := range r.items {
+			if strings.HasPrefix(c.ID, "docker_") {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+
 	var out []CheckDefinition
 	for _, c := range r.items {
+		// Exclude Docker checks from CIS Level 1/2 profiles — they have
+		// overlapping CISLevel values (most are Level 1) that would cause
+		// them to appear in Level 1/2 scans when they shouldn't.
+		if strings.HasPrefix(c.ID, "docker_") {
+			continue
+		}
 		if c.CISLevel == 0 || c.CISLevel == int(profile) {
 			out = append(out, c)
 		}
