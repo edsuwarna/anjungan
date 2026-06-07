@@ -481,7 +481,24 @@ CREATE TABLE image_scan_schedules (
 
 ---
 
-## 8. Non-Functional Requirements
+## 8. Mockup References
+
+> Mockup previews for the Container Image Scanning feature. See `prd/assets/container-scanning/` for full-size images.
+
+| Screen | Preview |
+|--------|---------|
+| **Trivy Dashboard** — Image vulnerability overview with severity breakdown | ![Trivy Dashboard](assets/container-scanning/trivy-a-dashboard.png) |
+| **Scan Dashboard Tab** — Per-image scan list with status badges | ![Scan Dashboard](assets/container-scanning/tab-a-dashboard.png) |
+| **Vulnerability Detail** — CVE list with severity, package, fix version | ![Vuln Detail](assets/container-scanning/detail-a-vulns.png) |
+| **Misconfiguration Detail** — Dockerfile lint findings | ![Misconfig Detail](assets/container-scanning/detail-b-misconfig.png) |
+| **Secrets Findings** — Hardcoded secret detection results | ![Secrets Detail](assets/container-scanning/detail-c-secrets.png) |
+| **Concept Art — Phase 2 Container Scan** — Multi-server scan overview | ![Concept Art](assets/container-scanning/phase2-container-scan.png) |
+
+> **Interactive mockup:** See [sketches/container-compliance/](../sketches/container-compliance/) for HTML mockups with tab switching, theme toggle, and live data simulation.
+
+---
+
+## 9. Non-Functional Requirements
 
 | Requirement | Target |
 ||-------------|--------|
@@ -503,5 +520,6 @@ CREATE TABLE image_scan_schedules (
 - [PRD-compliance.md](./PRD-compliance.md) — Existing CIS hardening + Container Security
 - [PRD-secret-scanning.md](./PRD-secret-scanning.md) — TruffleHog secret detection
 - [Trivy](https://github.com/aquasecurity/trivy) — Vulnerability scanner by Aqua Security
-- [sketches/container-compliance/](../sketches/container-compliance/) — Trivy design mockups
+- [sketches/container-compliance/](../sketches/container-compliance/) — Interactive HTML mockups (tab switching, theme toggle)
+- [Mockup Screenshots](../prd/assets/container-scanning/) — Pre-rendered PNG screenshots (see section 8)
 - [PRD-registry.md](./PRD-registry.md) — Zot registry integration

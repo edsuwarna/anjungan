@@ -347,3 +347,13 @@ CREATE TABLE registry_policies (
 - [PRD.md](./PRD.md) — Main Anjungan PRD (Phase 2 Registry)
 - [PRD-repositories-deployments.md](./PRD-repositories-deployments.md)
 - [DECISIONS.md](../docs/DECISIONS.md)
+
+## 10. Mockup References
+
+The following mockup screenshots were created to visualize the Registry feature UI:
+
+| Screen | Preview |
+|--------|---------|
+| **Registry Dashboard** — KPI cards (total images, tags, size), search/filter bar, image grid with namespace badges and tag lists | ![Registry Dashboard](assets/registry/dashboard.png) |
+| **Image Detail** — Config/Layers/History tabs, side panel with pull command, vulnerability severity breakdown (3 Critical, 7 High, 12 Medium, 24 Low) | ![Image Detail](assets/registry/image-detail.png) |
+| **Push Credentials** — Self-service credential card (auto-generated username, masked password, reset button, docker login command), admin user management table with status badges | ![Push Credentials](assets/registry/push-credentials.png) |

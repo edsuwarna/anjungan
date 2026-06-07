@@ -421,7 +421,20 @@ CREATE TABLE scan_findings (
 
 ---
 
-## 10. Glossary
+## 10. Mockup References
+
+> Mockup previews for the Compliance feature. See `prd/assets/compliance/` for full-size images.
+
+| Screen | Preview |
+|--------|---------|
+| **Compliance Overview** — KPI cards, benchmark cards, server compliance status | ![Compliance Overview](assets/compliance/01-compliance-overview.png) |
+| **Server Detail** — Per-server compliance status and scan controls | ![Server Detail](assets/compliance/02-server-detail.png) |
+| **Server Compliance Detail** — Category breakdown with score gauges | ![Server Compliance Detail](assets/compliance/03-server-compliance.png) |
+| **Lynis Detail** — Hardening index gauge, warnings, suggestions | ![Lynis Detail](assets/compliance/04-server-lynis.png) |
+
+---
+
+## 11. Glossary
 
 || Term | Definition |
 ||------|------------|

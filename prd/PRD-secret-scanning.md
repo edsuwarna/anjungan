@@ -460,3 +460,13 @@ CREATE TABLE secret_finding_status_history (
 - [PRD-container-image-scanning.md](./PRD-container-image-scanning.md) — Trivy vulnerability scanning
 - [PRD-compliance.md](./PRD-compliance.md) — CIS hardening (sister module)
 - [PRD-repositories-deployments.md](./PRD-repositories-deployments.md) — Repository management
+
+## 10. Mockup References
+
+The following mockup screenshots were created to visualize the Secret Scanning feature UI:
+
+| Screen | Preview |
+|--------|---------|
+| **Secret Scan Dashboard** — KPI cards (total scans, verified critical, unverified, resolved), severity breakdown (Critical/High/Medium/Low), scan history table with type, target, findings, and status badges | ![Secret Scan Dashboard](assets/secret-scanning/dashboard.png) |
+| **Findings List** — Severity-filtered findings with search bar, detector/repo dropdowns, finding cards (GitHub OAuth Token, AWS Access Key, Slack API Token, Discord Webhook URL) with severity-left-border, verified badges, file paths, and action buttons | ![Findings List](assets/secret-scanning/findings-list.png) |
+| **Finding Detail** — Header with Critical/Verified/Open badges, location section (file path, line number, commit SHA, author), masked raw secret with reveal button, detector details (score 92, verified), 4-step remediation guide, and historical leak timeline (introduced → detected → action required) | ![Finding Detail](assets/secret-scanning/finding-detail.png) |
