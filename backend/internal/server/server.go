@@ -24,6 +24,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/ratelimit"
 	"github.com/edsuwarna/anjungan/internal/registry"
 	repoapi "github.com/edsuwarna/anjungan/internal/repository"
+	"github.com/edsuwarna/anjungan/internal/self"
 	"github.com/edsuwarna/anjungan/internal/settings"
 )
 
@@ -65,6 +66,13 @@ func New(cfg *config.Config) (*Server, error) {
 
 	srv := &Server{cfg: cfg, db: database}
 	srv.setupRouter(authH, authSvc, repo, rl)
+
+	// ─── Self-server auto-registration ────────────────────────────────────
+	if cfg.SelfServer.Enabled {
+		detector := self.NewDetector(repo, &cfg.SelfServer)
+		go detector.DetectAndRegister(context.Background())
+	}
+
 	return srv, nil
 }
 
@@ -88,13 +96,13 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 		r.Mount("/auth", authRoutes(authH))
 		r.Route("/", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
-			r.Mount("/servers", infra.NewHandler(repo).Routes())
+			r.Mount("/servers", infra.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
 			r.Mount("/ssh-keys", infra.NewSSHKeyHandler(repo).Routes())
-			r.Mount("/containers", container.NewHandler(repo).Routes())
+			r.Mount("/containers", container.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
 			r.Mount("/registry", registry.NewHandler(s.cfg.Registry, repo).Routes())
 			r.Mount("/repositories", repoapi.NewHandler(repo).Routes())
 			r.Mount("/deployments", deployment.NewHandler(repo).Routes())
-			r.Mount("/compliance", compliance.NewHandler(repo).Routes())
+			r.Mount("/compliance", compliance.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
 		r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
 		r.Mount("/settings", settings.NewHandler(repo).Routes())
 		r.Get("/dashboard", dashboard.NewHandler(repo).Summary)

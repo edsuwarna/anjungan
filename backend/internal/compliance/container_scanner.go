@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	sshtool "github.com/edsuwarna/anjungan/internal/infra/ssh"
 )
 
 // ─── Container Security Scanner ──────────────────────────────────────────
@@ -49,7 +47,8 @@ type ContainerScanSummary struct {
 	Containers           []ContainerSecurityResult `json:"containers"`
 }
 
-// ContainerScanner performs security scans on Docker containers via SSH.
+// ContainerScanner performs security scans on Docker containers.
+// Supports both SSH and docker-socket command runners.
 type ContainerScanner struct{}
 
 // NewContainerScanner creates a new ContainerScanner.
@@ -57,11 +56,11 @@ func NewContainerScanner() *ContainerScanner {
 	return &ContainerScanner{}
 }
 
-// Scan runs container security checks on the target server via SSH.
-func (cs *ContainerScanner) Scan(ctx context.Context, sshCfg sshtool.Config) (*ContainerScanSummary, error) {
+// Scan runs container security checks on the target server via the given command runner.
+func (cs *ContainerScanner) Scan(ctx context.Context, runner CommandRunner) (*ContainerScanSummary, error) {
 	// Step 1: List all containers on the server
 	listCmd := `docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}' 2>/dev/null || echo "docker-not-found"`
-	raw, err := sshtool.RunCommand(ctx, sshCfg, listCmd)
+	raw, err := runner(ctx, listCmd)
 	if err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
@@ -87,7 +86,7 @@ func (cs *ContainerScanner) Scan(ctx context.Context, sshCfg sshtool.Config) (*C
 		image := strings.TrimSpace(parts[2])
 		status := strings.TrimSpace(parts[3])
 
-		result, err := cs.scanContainer(ctx, sshCfg, containerID, containerName, image, status)
+		result, err := cs.scanContainer(ctx, runner, containerID, containerName, image, status)
 		if err != nil {
 			// Skip failed container scans but continue with others
 			continue
@@ -127,10 +126,10 @@ func (cs *ContainerScanner) Scan(ctx context.Context, sshCfg sshtool.Config) (*C
 	return summary, nil
 }
 
-func (cs *ContainerScanner) scanContainer(ctx context.Context, sshCfg sshtool.Config, id, name, image, status string) (ContainerSecurityResult, error) {
+func (cs *ContainerScanner) scanContainer(ctx context.Context, runner CommandRunner, id, name, image, status string) (ContainerSecurityResult, error) {
 	// Get container inspect JSON
 	inspectCmd := fmt.Sprintf(`docker inspect '%s' 2>/dev/null || echo '{"error":"inspect-failed"}'`, id)
-	raw, err := sshtool.RunCommand(ctx, sshCfg, inspectCmd)
+	raw, err := runner(ctx, inspectCmd)
 	if err != nil {
 		return ContainerSecurityResult{}, fmt.Errorf("inspect container %s: %w", id, err)
 	}
@@ -259,11 +258,11 @@ func (cs *ContainerScanner) scanContainer(ctx context.Context, sshCfg sshtool.Co
 }
 
 // ScanSingleContainer runs container security checks on a single container
-// identified by containerID on the target server via SSH.
-func (cs *ContainerScanner) ScanSingleContainer(ctx context.Context, sshCfg sshtool.Config, containerID string) (ContainerSecurityResult, error) {
+// identified by containerID on the target server via the given command runner.
+func (cs *ContainerScanner) ScanSingleContainer(ctx context.Context, runner CommandRunner, containerID string) (ContainerSecurityResult, error) {
 	// Get container info
 	infoCmd := fmt.Sprintf(`docker inspect '%s' --format '{{.Name}}|{{.Config.Image}}|{{.State.Status}}' 2>/dev/null || echo "not-found"`, containerID)
-	raw, err := sshtool.RunCommand(ctx, sshCfg, infoCmd)
+	raw, err := runner(ctx, infoCmd)
 	if err != nil {
 		return ContainerSecurityResult{}, fmt.Errorf("get container info: %w", err)
 	}
@@ -284,7 +283,7 @@ func (cs *ContainerScanner) ScanSingleContainer(ctx context.Context, sshCfg ssht
 		status = strings.TrimSpace(parts[2])
 	}
 
-	return cs.scanContainer(ctx, sshCfg, containerID, containerName, image, status)
+	return cs.scanContainer(ctx, runner, containerID, containerName, image, status)
 }
 
 // ─── Individual check implementations ────────────────────────────────────
@@ -589,10 +588,10 @@ func extractShortStatus(status string) string {
 
 // RunContainerScan runs a full container security scan on the target server,
 // saving results to the scan result database.
-func RunContainerScan(ctx context.Context, sshCfg sshtool.Config) (*ContainerScanSummary, error) {
+func RunContainerScan(ctx context.Context, runner CommandRunner) (*ContainerScanSummary, error) {
 	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 
 	scanner := NewContainerScanner()
-	return scanner.Scan(ctx, sshCfg)
+	return scanner.Scan(ctx, runner)
 }

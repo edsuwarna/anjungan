@@ -15,15 +15,17 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/executor"
 	sshtool "github.com/edsuwarna/anjungan/internal/infra/ssh"
 )
 
 type Handler struct {
-	repo *db.Repository
+	repo            *db.Repository
+	dockerSocketPath string
 }
 
-func NewHandler(repo *db.Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *db.Repository, dockerSocketPath string) *Handler {
+	return &Handler{repo: repo, dockerSocketPath: dockerSocketPath}
 }
 
 // ─── Models ─────────────────────────────────────────────────────────────────
@@ -120,7 +122,68 @@ func (h *Handler) sshConfigForServer(ctx context.Context, srv *model.Server) (ss
 	}, nil
 }
 
-// runDockerSSH runs a docker command on a server via SSH
+// ─── Executor helpers ───────────────────────────────────────────────────────
+
+func (h *Handler) getExecutor(srv *model.Server) (executor.ServerExecutor, error) {
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		return executor.NewDockerExecutor(h.dockerSocketPath)
+	}
+	return nil, nil // nil means use SSH path
+}
+
+// runDockerCommand runs a docker command on a server, supporting both SSH and docker-socket.
+func (h *Handler) runDockerCommand(ctx context.Context, srv *model.Server, cmd string) (string, error) {
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		exec, err := h.getExecutor(srv)
+		if err != nil {
+			return "", fmt.Errorf("executor init: %w", err)
+		}
+		defer exec.Close()
+
+		// cmd is like "docker ps -a --format '...'" — strip "docker " prefix
+		trimmed := strings.TrimPrefix(cmd, "docker ")
+		// Use shell-aware parsing to handle --format '...' quoting properly.
+		// strings.Fields doesn't handle shell quoting, so single quotes would be
+		// passed literally to docker CLI and break JSON output parsing.
+		args := shellSplit(trimmed)
+		return exec.RunDockerCommand(ctx, args...)
+	}
+
+	// SSH path
+	return h.runDockerSSH(ctx, srv, cmd)
+}
+
+// shellSplit splits a command string into tokens like a POSIX shell would,
+// respecting single-quote and double-quote quoting. This is needed because
+// the command strings contain shell quoting (e.g. --format '{"id":"{{.ID}}"}').
+func shellSplit(s string) []string {
+	var args []string
+	var cur []byte
+	inSingle := false
+	inDouble := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '\'' && !inDouble:
+			inSingle = !inSingle
+		case c == '"' && !inSingle:
+			inDouble = !inDouble
+		case (c == ' ' || c == '\t') && !inSingle && !inDouble:
+			if len(cur) > 0 {
+				args = append(args, string(cur))
+				cur = nil
+			}
+		default:
+			cur = append(cur, c)
+		}
+	}
+	if len(cur) > 0 {
+		args = append(args, string(cur))
+	}
+	return args
+}
+
+// runDockerSSH runs a docker command on a server via SSH (legacy path)
 func (h *Handler) runDockerSSH(ctx context.Context, srv *model.Server, cmd string) (string, error) {
 	cfg, err := h.sshConfigForServer(ctx, srv)
 	if err != nil {
@@ -189,7 +252,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 			defer cancel()
 
-			out, err := h.runDockerSSH(ctx, srv,
+			out, err := h.runDockerCommand(ctx, srv,
 				`docker ps -a --format '{"id":"{{.ID}}","name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}","created":"{{.CreatedAt}}"}'`,
 			)
 			if err != nil {
@@ -260,7 +323,7 @@ func (h *Handler) ByServer(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 			defer cancel()
 
-			out, err := h.runDockerSSH(ctx, srv,
+			out, err := h.runDockerCommand(ctx, srv,
 				`docker ps -a --format '{"id":"{{.ID}}","name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}","created":"{{.CreatedAt}}"}'`,
 			)
 			if err != nil {
@@ -411,7 +474,7 @@ func (h *Handler) ContainerStats(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
-	out, err := h.runDockerSSH(ctx, srv, fmt.Sprintf("docker stats --no-stream --format '{{json .}}' %s", containerID))
+	out, err := h.runDockerCommand(ctx, srv, fmt.Sprintf("docker stats --no-stream --format '{{json .}}' %s", containerID))
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to get container stats: "+err.Error())
 		return
@@ -524,7 +587,7 @@ func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 			defer cancel()
 
-			out, err := h.runDockerSSH(ctx, srv,
+			out, err := h.runDockerCommand(ctx, srv,
 				`docker ps -a --format '{{.State}}'`,
 			)
 			if err != nil {
@@ -645,7 +708,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
-	out, err := h.runDockerSSH(ctx, srv, fmt.Sprintf("docker inspect %s", containerID))
+	out, err := h.runDockerCommand(ctx, srv, fmt.Sprintf("docker inspect %s", containerID))
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to inspect container: "+err.Error())
 		return
@@ -677,13 +740,13 @@ func (h *Handler) performAction(w http.ResponseWriter, r *http.Request, action s
 	// Get container name for audit log
 	containerName := containerID
 	nameCmd := fmt.Sprintf("docker ps --filter id=%s --format '{{.Names}}'", containerID)
-	if nameOut, nameErr := h.runDockerSSH(ctx, srv, nameCmd); nameErr == nil {
+	if nameOut, nameErr := h.runDockerCommand(ctx, srv, nameCmd); nameErr == nil {
 		if n := strings.TrimSpace(nameOut); n != "" {
 			containerName = n
 		}
 	}
 
-	out, err := h.runDockerSSH(ctx, srv, fmt.Sprintf("docker %s %s", action, containerID))
+	out, err := h.runDockerCommand(ctx, srv, fmt.Sprintf("docker %s %s", action, containerID))
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to "+action+" container: "+err.Error())
 		return
@@ -741,7 +804,7 @@ func (h *Handler) Logs(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	out, err := h.runDockerSSH(ctx, srv, fmt.Sprintf("docker logs --tail=%s %s", tail, containerID))
+	out, err := h.runDockerCommand(ctx, srv, fmt.Sprintf("docker logs --tail=%s %s", tail, containerID))
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to get logs: "+err.Error())
 		return
@@ -769,7 +832,7 @@ func (h *Handler) GetSecurity(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// Get container info via docker ps
-	out, err := h.runDockerSSH(ctx, srv, fmt.Sprintf(
+	out, err := h.runDockerCommand(ctx, srv, fmt.Sprintf(
 		`docker ps -a --filter id=%s --format '{"id":"{{.ID}}","name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}","created":"{{.CreatedAt}}"}'`,
 		containerID,
 	))

@@ -7,16 +7,17 @@
 📚 **[docs/](docs/)** — Full documentation:
 
 | File | Contents |
-|------|----------|
-| [README.md](docs/README.md) | Overview, tech stack, project structure |
-| [setup.md](docs/setup.md) | Development setup, prerequisites, make commands |
-| [deployment.md](docs/deployment.md) | Docker Compose (with & without clone), production guide |
-| [architecture.md](docs/architecture.md) | System architecture, router, frontend, Zot |
-| [api.md](docs/api.md) | Full API reference (all endpoints) |
-| [docker.md](docs/docker.md) | Build, tagging convention, CI/CD pipeline |
-| [compliance.md](docs/compliance.md) | CIS scanning, Lynis, scoring system, thresholds |
-| [registry.md](docs/registry.md) | Zot self-service credentials, roles, usage |
-| [software-katalog.md](prd/PRD-software-katalog.md) | Software Catalog PRD — app store for Docker Compose deployments |
+||------|----------|
+|| [README.md](docs/README.md) | Overview, tech stack, project structure |
+|| [setup.md](docs/setup.md) | Development setup, prerequisites, make commands |
+|| [deployment.md](docs/deployment.md) | Docker Compose (with & without clone), production guide |
+|| [architecture.md](docs/architecture.md) | System architecture, router, frontend, Zot |
+|| [api.md](docs/api.md) | Full API reference (all endpoints) |
+|| [docker.md](docs/docker.md) | Build, tagging convention, CI/CD pipeline |
+|| [compliance.md](docs/compliance.md) | CIS scanning, Lynis, scoring system, thresholds |
+|| [registry.md](docs/registry.md) | Zot self-service credentials, roles, usage |
+|| [self-server.md](docs/self-server.md) | Host auto-registration, Docker socket, configuration |
+|| [software-katalog.md](prd/PRD-software-katalog.md) | Software Catalog PRD — app store for Docker Compose deployments |
 
 ## Quick Start
 

@@ -84,6 +84,9 @@ Key variables (see `.env.example` for all):
 | `REGISTRY_URL` | `http://zot:5000` | Internal Zot URL |
 | `REGISTRY_EXTERNAL_URL` | `registry.anjungan.io` | External Zot URL |
 | `LOG_LEVEL` | `info` | Log level: debug, info, warn, error |
+| `SELF_SERVER_ENABLED` | `false` | Auto-register host server (set `"true"` to enable) |
+| `SELF_SERVER_NAME` | `anjungan-host` | Display name for the self-server |
+| `SELF_HOST_NETWORK` | — | Host IP from inside container (e.g. `host.docker.internal`) |
 
 ## Connecting to the Database
 

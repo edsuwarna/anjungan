@@ -93,7 +93,7 @@
 						bind:value={email}
 						required
 						class="input"
-						placeholder="name@anjungan.id"
+						placeholder="your-name@example.com"
 					/>
 				</div>
 

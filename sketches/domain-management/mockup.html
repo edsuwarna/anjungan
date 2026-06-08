@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Domain Management</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #10b981;
+    --primary-light: #d1fae5;
+    --primary-dark: #059669;
+    --bg: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-sidebar: #ffffff;
+    --text: #0f172a;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+    --shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px 0 rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+    --sidebar-w: 256px;
+    --topbar-h: 64px;
+    --critical: #ef4444;
+    --high: #fb923c;
+    --medium: #fbbf24;
+    --low: #34d399;
+    --green: #22c55e;
+    --green-bg: #dcfce7;
+    --amber: #f59e0b;
+    --amber-bg: #fef3c7;
+    --red: #ef4444;
+    --red-bg: #fee2e2;
+  }
+  .dark {
+    --bg: #0f172a;
+    --bg-card: #1e293b;
+    --bg-sidebar: #1e293b;
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border: #334155;
+    --border-light: #1e293b;
+    --shadow: 0 1px 3px 0 rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+  }
+  html { font-size: 14px; }
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    transition: background 0.2s, color 0.2s;
+  }
+  .sidebar {
+    width: var(--sidebar-w);
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 50;
+    transition: background 0.2s;
+  }
+  .sidebar-logo {
+    height: var(--topbar-h);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    gap: 10px;
+  }
+  .sidebar-logo svg { flex-shrink: 0; }
+  .sidebar-logo span {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .sidebar-logo span em {
+    font-style: normal;
+    color: var(--primary);
+  }
+  .sidebar-nav {
+    flex: 1;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: default;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: var(--primary-light); color: var(--primary-dark); }
+  .dark .nav-item:hover { background: rgba(16,185,129,0.12); color: var(--primary); }
+  .nav-item.active {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: 600;
+  }
+  .dark .nav-item.active { background: rgba(16,185,129,0.15); color: var(--primary); }
+  .nav-item .icon { font-size: 1.2rem; width: 24px; text-align: center; }
+  .sidebar-footer {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+  }
+  .user-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+  .user-name { font-size: 0.85rem; font-weight: 500; }
+  .user-role { font-size: 0.7rem; color: var(--text-muted); }
+
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .topbar {
+    height: var(--topbar-h);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    transition: background 0.2s;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .topbar-title { font-size: 1.1rem; font-weight: 600; }
+  .topbar-breadcrumb { font-size: 0.8rem; color: var(--text-muted); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .theme-toggle {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 36px; height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.15s;
+    color: var(--text);
+  }
+  .theme-toggle:hover { border-color: var(--primary); }
+
+  .content {
+    flex: 1;
+    padding: 28px;
+    overflow-y: auto;
+    max-height: calc(100vh - var(--topbar-h));
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg);
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    padding: 9px 18px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--bg-card); }
+  .tab-btn.active {
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .badge-green { background: var(--green-bg); color: #15803d; }
+  .badge-amber { background: var(--amber-bg); color: #92400e; }
+  .badge-red { background: var(--red-bg); color: #991b1b; }
+  .dark .badge-green { background: rgba(34,197,94,0.15); color: #86efac; }
+  .dark .badge-amber { background: rgba(245,158,11,0.15); color: #fde68a; }
+  .dark .badge-red { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+  .badge-tag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    background: var(--bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    line-height: 1.3;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover { background: var(--bg); color: var(--text); }
+  .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+  .btn-danger { background: #ef4444; color: white; }
+  .btn-danger:hover { background: #dc2626; }
+  .btn-success { background: #22c55e; color: white; }
+  .btn-success:hover { background: #16a34a; }
+  .btn-warning { background: #f59e0b; color: white; }
+  .btn-warning:hover { background: #d97706; }
+
+  .form-input, .form-select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
+  }
+
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  table.domain-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .domain-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .domain-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.85rem;
+    vertical-align: middle;
+  }
+  .domain-table tr:last-child td { border-bottom: none; }
+  .domain-table tr:hover td { background: var(--bg); }
+
+  /* Status dot */
+  .status-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+  .status-dot.green { background: var(--green); }
+  .status-dot.red { background: var(--red); }
+  .status-dot.amber { background: var(--amber); }
+
+  /* Toggle switch */
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: #cbd5e1;
+    border-radius: 22px;
+    transition: 0.2s;
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    height: 16px; width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+  .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+  .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+  .dark .toggle-slider { background: #475569; }
+
+  /* Detail grid */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .detail-section { margin-bottom: 20px; }
+  .detail-section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .endpoint-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+  }
+  .endpoint-row:last-child { margin-bottom: 0; }
+  .endpoint-label { font-size: 0.85rem; font-weight: 500; }
+  .endpoint-url {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    color: var(--primary);
+  }
+  .endpoint-port {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .yaml-preview {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 8px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .proxy-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+  }
+  .proxy-setting:last-child { margin-bottom: 0; }
+  .proxy-label { font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .proxy-desc { font-size: 0.75rem; color: var(--text-muted); }
+
+  /* Filters */
+  .filter-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filter-bar .filter-select {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.8rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  /* Cert row */
+  .cert-row {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-light);
+    gap: 16px;
+  }
+  .cert-row:last-child { border-bottom: none; }
+  .cert-row:hover { background: var(--bg); }
+  .cert-info { flex: 1; }
+  .cert-domain { font-weight: 600; font-size: 0.9rem; margin-bottom: 2px; }
+  .cert-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 16px; flex-wrap: wrap; }
+  .cert-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    <span><em>Anjungan</em></span>
+  </div>
+  <nav class="sidebar-nav">
+    <a class="nav-item"><span class="icon">🖥</span> Servers</a>
+    <a class="nav-item"><span class="icon">📦</span> Registry</a>
+    <a class="nav-item"><span class="icon">🏗</span> Scaffold</a>
+    <a class="nav-item"><span class="icon">🔐</span> Compliance</a>
+    <a class="nav-item"><span class="icon">🚀</span> Deployments</a>
+    <a class="nav-item active"><span class="icon">🌐</span> Domains</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar">ES</div>
+      <div>
+        <div class="user-name">Endang Suwarna</div>
+        <div class="user-role">Platform Engineer</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div>
+        <div class="topbar-title">Domain Management</div>
+        <div class="topbar-breadcrumb">🌐 Domains / Overview</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab1">📋 Domain List</button>
+      <button class="tab-btn" data-tab="tab2">🔍 Domain Detail</button>
+      <button class="tab-btn" data-tab="tab3">🔒 SSL Certificate Monitor</button>
+    </div>
+
+    <!-- ==================== TAB 1: Domain List ==================== -->
+    <div class="tab-content active" id="tab1">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <h2 style="font-size:1.25rem;font-weight:600;">🌐 Domains</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm">🔄 Refresh</button>
+            <button class="btn btn-primary btn-sm">➕ Add Domain</button>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-bar" style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-light);">
+          <select class="filter-select">
+            <option>All Status</option>
+            <option>Active</option>
+            <option>Expiring</option>
+            <option>Expired</option>
+          </select>
+          <select class="filter-select">
+            <option>All Servers</option>
+            <option>peladen-central</option>
+            <option>peladen-ml</option>
+            <option>peladen-cache</option>
+            <option>peladen-backup</option>
+          </select>
+          <select class="filter-select">
+            <option>All Health</option>
+            <option>Healthy</option>
+            <option>Unhealthy</option>
+          </select>
+          <div style="flex:1;"></div>
+          <span style="font-size:0.8rem;color:var(--text-muted);">6 domains total</span>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrap">
+          <table class="domain-table">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Server</th>
+                <th>SSL Status</th>
+                <th>Health</th>
+                <th>Expires</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>whatilearned.xyz</strong></td>
+                <td>peladen-central</td>
+                <td><span class="badge badge-green">✓ Valid</span></td>
+                <td><span class="status-dot green"></span> Up</td>
+                <td style="font-size:0.8rem;">Aug 12, 2026</td>
+                <td><button class="btn btn-ghost btn-sm">👁 View</button></td>
+              </tr>
+              <tr>
+                <td><strong>opsterm.com</strong></td>
+                <td>peladen-central</td>
+                <td><span class="badge badge-green">✓ Valid</span></td>
+                <td><span class="status-dot green"></span> Up</td>
+                <td style="font-size:0.8rem;">Sep 04, 2026</td>
+                <td><button class="btn btn-ghost btn-sm">👁 View</button></td>
+              </tr>
+              <tr>
+                <td><strong>stem-lab.org</strong></td>
+                <td>peladen-ml</td>
+                <td><span class="badge badge-amber">⚠ Expiring</span></td>
+                <td><span class="status-dot green"></span> Up</td>
+                <td style="font-size:0.8rem;color:#92400e;">Jun 22, 2026 (14d)</td>
+                <td><button class="btn btn-ghost btn-sm">👁 View</button></td>
+              </tr>
+              <tr>
+                <td><strong>api.gateway.io</strong></td>
+                <td>peladen-central</td>
+                <td><span class="badge badge-green">✓ Valid</span></td>
+                <td><span class="status-dot green"></span> Up</td>
+                <td style="font-size:0.8rem;">Oct 30, 2026</td>
+                <td><button class="btn btn-ghost btn-sm">👁 View</button></td>
+              </tr>
+              <tr>
+                <td><strong>analytics.dashboard.app</strong></td>
+                <td>peladen-cache</td>
+                <td><span class="badge badge-red">✗ Expired</span></td>
+                <td><span class="status-dot red"></span> Down</td>
+                <td style="font-size:0.8rem;color:#991b1b;">May 01, 2026</td>
+                <td><button class="btn btn-ghost btn-sm">👁 View</button></td>
+              </tr>
+              <tr>
+                <td><strong>backup.storage.internal</strong></td>
+                <td>peladen-backup</td>
+                <td><span class="badge badge-amber">⚠ Expiring</span></td>
+                <td><span class="status-dot amber"></span> Degraded</td>
+                <td style="font-size:0.8rem;color:#92400e;">Jul 01, 2026 (23d)</td>
+                <td><button class="btn btn-ghost btn-sm">👁 View</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-light);">
+          <span style="font-size:0.8rem;color:var(--text-muted);">Showing 6 of 6 domains</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm">← Prev</button>
+            <button class="btn btn-primary btn-sm">1</button>
+            <button class="btn btn-outline btn-sm">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 2: Domain Detail ==================== -->
+    <div class="tab-content" id="tab2">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <div>
+            <h2 style="font-size:1.15rem;font-weight:600;">🔍 Domain Detail</h2>
+            <div style="font-size:0.8rem;color:var(--text-muted);">whatilearned.xyz → peladen-central</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <span class="badge badge-green">✓ SSL Valid</span>
+            <span class="badge badge-green">● Up</span>
+          </div>
+        </div>
+
+        <!-- Endpoints & Config Grid -->
+        <div class="detail-grid">
+          <!-- Left Column -->
+          <div>
+            <!-- Endpoints -->
+            <div class="detail-section">
+              <div class="detail-section-title">📡 Endpoints</div>
+              <div class="endpoint-row">
+                <div>
+                  <div class="endpoint-label">Web (HTTP)</div>
+                  <div class="endpoint-url">https://whatilearned.xyz</div>
+                </div>
+                <span class="endpoint-port">:443</span>
+              </div>
+              <div class="endpoint-row">
+                <div>
+                  <div class="endpoint-label">API (Backend)</div>
+                  <div class="endpoint-url">https://whatilearned.xyz/api</div>
+                </div>
+                <span class="endpoint-port">:8080</span>
+              </div>
+              <div class="endpoint-row">
+                <div>
+                  <div class="endpoint-label">WebSocket</div>
+                  <div class="endpoint-url">wss://whatilearned.xyz/ws</div>
+                </div>
+                <span class="endpoint-port">:8080</span>
+              </div>
+              <div class="endpoint-row">
+                <div>
+                  <div class="endpoint-label">Internal (Docker)</div>
+                  <div class="endpoint-url" style="color:var(--text-secondary);">http://whatilearned:8080</div>
+                </div>
+                <span class="endpoint-port">:8080</span>
+              </div>
+            </div>
+
+            <!-- Proxy Settings -->
+            <div class="detail-section">
+              <div class="detail-section-title">🛡 Proxy Settings</div>
+              <div class="proxy-setting">
+                <div>
+                  <div class="proxy-label">🔄 Middleware Chain</div>
+                  <div class="proxy-desc">rate-limit, compress, secure-headers</div>
+                </div>
+                <select class="filter-select" style="max-width:140px;">
+                  <option>rate-limit</option>
+                  <option>compress</option>
+                  <option>secure-headers</option>
+                  <option>+ Add</option>
+                </select>
+              </div>
+              <div class="proxy-setting">
+                <div>
+                  <div class="proxy-label">⏱ Rate Limit</div>
+                  <div class="proxy-desc">Max 100 req/min per IP</div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="proxy-setting">
+                <div>
+                  <div class="proxy-label">🔑 Basic Auth</div>
+                  <div class="proxy-desc">Protect staging/preview domains</div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="proxy-setting">
+                <div>
+                  <div class="proxy-label">📦 Circuit Breaker</div>
+                  <div class="proxy-desc">Max 5 failures, 30s cooldown</div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column -->
+          <div>
+            <div class="detail-section">
+              <div class="detail-section-title">⚙️ Traefik Configuration</div>
+              <div class="yaml-preview"># Traefik Dynamic Config
+# Generated by Anjungan — whatilearned.xyz
+
+http:
+  routers:
+    whatilearned-https:
+      rule: "Host(`whatilearned.xyz`)"
+      entryPoints:
+        - websecure
+      service: whatilearned-svc
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - rate-limit
+        - compress
+        - secure-headers
+
+  services:
+    whatilearned-svc:
+      loadBalancer:
+        servers:
+          - url: "http://whatilearned:8080"
+        healthCheck:
+          path: /health
+          interval: 15s
+          timeout: 5s
+
+  middlewares:
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+    compress:
+      compress:
+        excludedContentTypes:
+          - text/event-stream
+    secure-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true</div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+              <button class="btn btn-outline btn-sm">📋 Copy Config</button>
+              <button class="btn btn-outline btn-sm">📥 Download YAML</button>
+              <button class="btn btn-primary btn-sm">💾 Save Changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 3: SSL Certificate Monitor ==================== -->
+    <div class="tab-content" id="tab3">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 style="font-size:1.15rem;font-weight:600;">🔒 SSL Certificate Monitor</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm">🔄 Check All</button>
+            <button class="btn btn-primary btn-sm">➕ Add Certificate</button>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--green);">4</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">Valid</div>
+          </div>
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--amber);">2</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">Expiring Soon</div>
+          </div>
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--red);">1</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">Expired</div>
+          </div>
+        </div>
+
+        <!-- Certificate list -->
+        <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <!-- Header -->
+          <div style="display:flex;align-items:center;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border);font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">
+            <div style="flex:2;">Domain</div>
+            <div style="flex:1;">Issuer</div>
+            <div style="flex:1;">Issued</div>
+            <div style="flex:1;">Expiry</div>
+            <div style="flex:1;">Remaining</div>
+            <div style="flex:0.8;">Auto-Renew</div>
+            <div style="flex:0.5;"></div>
+          </div>
+
+          <!-- Cert 1 -->
+          <div class="cert-row">
+            <div class="cert-info" style="flex:2;">
+              <div class="cert-domain">whatilearned.xyz</div>
+              <div class="cert-meta"><span>Let's Encrypt</span></div>
+            </div>
+            <div style="flex:1;font-size:0.8rem;">Let's Encrypt E1</div>
+            <div style="flex:1;font-size:0.8rem;">May 14, 2026</div>
+            <div style="flex:1;font-size:0.8rem;">Aug 12, 2026</div>
+            <div style="flex:1;"><span class="badge badge-green">65 days</span></div>
+            <div style="flex:0.8;"><label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="flex:0.5;"><button class="btn btn-ghost btn-sm">🔄</button></div>
+          </div>
+
+          <!-- Cert 2 -->
+          <div class="cert-row">
+            <div class="cert-info" style="flex:2;">
+              <div class="cert-domain">opsterm.com</div>
+              <div class="cert-meta"><span>Let's Encrypt</span></div>
+            </div>
+            <div style="flex:1;font-size:0.8rem;">Let's Encrypt E1</div>
+            <div style="flex:1;font-size:0.8rem;">Jun 06, 2026</div>
+            <div style="flex:1;font-size:0.8rem;">Sep 04, 2026</div>
+            <div style="flex:1;"><span class="badge badge-green">88 days</span></div>
+            <div style="flex:0.8;"><label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="flex:0.5;"><button class="btn btn-ghost btn-sm">🔄</button></div>
+          </div>
+
+          <!-- Cert 3 -->
+          <div class="cert-row">
+            <div class="cert-info" style="flex:2;">
+              <div class="cert-domain">stem-lab.org</div>
+              <div class="cert-meta"><span>⚠ Expiring</span></div>
+            </div>
+            <div style="flex:1;font-size:0.8rem;">Let's Encrypt E1</div>
+            <div style="flex:1;font-size:0.8rem;">Mar 25, 2026</div>
+            <div style="flex:1;font-size:0.8rem;">Jun 22, 2026</div>
+            <div style="flex:1;"><span class="badge badge-amber">14 days</span></div>
+            <div style="flex:0.8;"><label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="flex:0.5;"><button class="btn btn-ghost btn-sm">🔄</button></div>
+          </div>
+
+          <!-- Cert 4 -->
+          <div class="cert-row">
+            <div class="cert-info" style="flex:2;">
+              <div class="cert-domain">analytics.dashboard.app</div>
+              <div class="cert-meta"><span>✗ Expired</span></div>
+            </div>
+            <div style="flex:1;font-size:0.8rem;">Let's Encrypt E1</div>
+            <div style="flex:1;font-size:0.8rem;">Feb 02, 2026</div>
+            <div style="flex:1;font-size:0.8rem;">May 01, 2026</div>
+            <div style="flex:1;"><span class="badge badge-red">Expired</span></div>
+            <div style="flex:0.8;"><label class="toggle-switch"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+            <div style="flex:0.5;"><button class="btn btn-warning btn-sm" style="font-size:0.75rem;">Force Renew</button></div>
+          </div>
+
+          <!-- Cert 5 -->
+          <div class="cert-row">
+            <div class="cert-info" style="flex:2;">
+              <div class="cert-domain">backup.storage.internal</div>
+              <div class="cert-meta"><span>⚠ Expiring</span></div>
+            </div>
+            <div style="flex:1;font-size:0.8rem;">Let's Encrypt E1</div>
+            <div style="flex:1;font-size:0.8rem;">Apr 02, 2026</div>
+            <div style="flex:1;font-size:0.8rem;">Jul 01, 2026</div>
+            <div style="flex:1;"><span class="badge badge-amber">23 days</span></div>
+            <div style="flex:0.8;"><label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="flex:0.5;"><button class="btn btn-ghost btn-sm">🔄</button></div>
+          </div>
+
+          <!-- Cert 6 -->
+          <div class="cert-row">
+            <div class="cert-info" style="flex:2;">
+              <div class="cert-domain">api.gateway.io</div>
+              <div class="cert-meta"><span>Let's Encrypt</span></div>
+            </div>
+            <div style="flex:1;font-size:0.8rem;">Let's Encrypt E1</div>
+            <div style="flex:1;font-size:0.8rem;">Aug 01, 2026</div>
+            <div style="flex:1;font-size:0.8rem;">Oct 30, 2026</div>
+            <div style="flex:1;"><span class="badge badge-green">152 days</span></div>
+            <div style="flex:0.8;"><label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="flex:0.5;"><button class="btn btn-ghost btn-sm">🔄</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+  // Tab switching
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (btn) btn.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+    document.querySelector('.content').scrollTop = 0;
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      switchTab(this.dataset.tab);
+    });
+  });
+
+  // Theme toggle
+  function toggleTheme() {
+    document.body.classList.toggle('dark');
+    const btn = document.querySelector('.theme-toggle');
+    btn.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      document.activeElement?.blur();
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resource Usage & Cost Tracking — Anjungan</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #10b981;
+    --primary-hover: #059669;
+    --primary-light: #d1fae5;
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface2: #f1f5f9;
+    --text: #0f172a;
+    --text2: #475569;
+    --text3: #94a3b8;
+    --border: #e2e8f0;
+    --sidebar: #1e293b;
+    --sidebar-text: #cbd5e1;
+    --sidebar-active: #10b981;
+    --danger: #ef4444;
+    --warning: #fbbf24;
+    --success: #34d399;
+    --orange: #fb923c;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  body.dark {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --border: #334155;
+    --sidebar: #0f172a;
+    --sidebar-text: #94a3b8;
+    --sidebar-active: #10b981;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --primary-light: #064e3b;
+  }
+  body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; transition: background 0.2s, color 0.2s; }
+  /* Sidebar */
+  .sidebar { width: 256px; min-width: 256px; background: var(--sidebar); display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0; overflow-y: auto; }
+  .sidebar-logo { padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; }
+  .sidebar-logo .logo-icon { width: 32px; height: 32px; background: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 16px; }
+  .sidebar-logo h1 { font-size: 18px; font-weight: 600; color: #fff; }
+  .sidebar-nav { padding: 16px 12px; flex: 1; }
+  .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 8px; color: var(--sidebar-text); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; text-decoration: none; }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  .nav-item.active { background: rgba(16,185,129,0.15); color: var(--sidebar-active); }
+  .nav-item .emoji { font-size: 18px; }
+  .sidebar-footer { padding: 16px 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .theme-toggle { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px; color: var(--sidebar-text); font-size: 13px; cursor: pointer; border: none; background: transparent; width: 100%; font-family: inherit; }
+  .theme-toggle:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  /* Topbar */
+  .topbar { height: 64px; min-height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .topbar h2 { font-size: 20px; font-weight: 600; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .topbar-right .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
+  .topbar-badge { font-size: 13px; color: var(--text2); background: var(--surface2); padding: 6px 12px; border-radius: 20px; }
+  /* Content */
+  .content { padding: 24px 32px; overflow-y: auto; flex: 1; }
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface2); padding: 4px; border-radius: var(--radius-sm); width: fit-content; }
+  .tab-btn { padding: 10px 20px; border-radius: 6px; border: none; background: transparent; color: var(--text2); font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  .card-desc { font-size: 13px; color: var(--text2); margin-bottom: 16px; }
+  /* KPI Grid */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+  .kpi-label { font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+  .kpi-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
+  .kpi-sub { font-size: 13px; color: var(--text3); margin-top: 4px; }
+  .kpi-icon { float: right; font-size: 32px; opacity: 0.7; }
+  /* Progress bars */
+  .progress-bar { height: 10px; background: var(--surface2); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; border-radius: 999px; transition: width 0.3s; }
+  .progress-fill.green { background: var(--success); }
+  .progress-fill.yellow { background: var(--warning); }
+  .progress-fill.red { background: var(--danger); }
+  .progress-fill.orange { background: var(--orange); }
+  .bar-label { display: flex; justify-content: space-between; font-size: 13px; }
+  .bar-label span:last-child { font-weight: 600; }
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 12px 16px; font-weight: 600; color: var(--text2); border-bottom: 2px solid var(--border); font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  /* Status badges */
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-yellow { background: #fef3c7; color: #92400e; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-gray { background: var(--surface2); color: var(--text3); }
+  body.dark .badge-green { background: #064e3b; color: #6ee7b7; }
+  body.dark .badge-yellow { background: #78350f; color: #fbbf24; }
+  body.dark .badge-red { background: #7f1d1d; color: #fca5a5; }
+  /* Utility bars */
+  .mini-bar-wrap { display: flex; align-items: center; gap: 10px; }
+  .mini-bar { flex: 1; height: 8px; background: var(--surface2); border-radius: 999px; overflow: hidden; min-width: 80px; }
+  .mini-fill { height: 100%; border-radius: 999px; }
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { background: var(--surface2); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
+  /* Form elements */
+  .form-group { margin-bottom: 20px; }
+  .form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text2); }
+  .form-input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; }
+  .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16,185,129,0.15); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  /* Slider */
+  .slider-group { display: flex; align-items: center; gap: 12px; }
+  .slider-group input[type="range"] { flex: 1; accent-color: var(--primary); height: 6px; }
+  .slider-value { min-width: 48px; text-align: center; font-weight: 600; font-size: 16px; color: var(--primary); }
+  /* Toggle switch */
+  .toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+  .toggle-track { width: 44px; height: 24px; background: var(--border); border-radius: 999px; position: relative; transition: background 0.2s; }
+  .toggle-track.active { background: var(--primary); }
+  .toggle-thumb { width: 20px; height: 20px; background: #fff; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle-track.active .toggle-thumb { left: 22px; }
+  /* Alert list */
+  .alert-item { padding: 12px 16px; border-left: 3px solid var(--border); margin-bottom: 8px; border-radius: 0 8px 8px 0; background: var(--surface2); }
+  .alert-item.critical { border-left-color: var(--danger); }
+  .alert-item.warning { border-left-color: var(--warning); }
+  .alert-item.info { border-left-color: var(--primary); }
+  .alert-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); margin-top: 4px; }
+  /* Cost trend chart (CSS bars) */
+  .trend-chart { display: flex; align-items: flex-end; gap: 6px; height: 140px; padding: 16px 0; }
+  .trend-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .trend-bar-fill { width: 100%; border-radius: 4px 4px 0 0; min-height: 4px; transition: height 0.3s; background: var(--primary); }
+  .trend-bar-label { font-size: 11px; color: var(--text3); white-space: nowrap; }
+  .trend-bar-value { font-size: 10px; color: var(--text2); font-weight: 600; }
+  /* Pie stacked bar */
+  .pie-bar { display: flex; height: 24px; border-radius: 999px; overflow: hidden; }
+  .pie-segment { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; font-weight: 600; }
+  /* Responsive table wrapper for cost */
+  .cost-table-wrap { overflow-x: auto; }
+  /* Section heading */
+  .section-heading { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  /* Severity dot */
+  .severity-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .severity-dot.green { background: var(--success); }
+  .severity-dot.yellow { background: var(--warning); }
+  .severity-dot.red { background: var(--danger); }
+  .severity-dot.orange { background: var(--orange); }
+  /* Scrollable containers */
+  .scroll-y { overflow-y: auto; }
+  /* Notification options */
+  .notif-options { display: flex; flex-direction: column; gap: 12px; }
+  .notif-option { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface2); border-radius: 8px; }
+  .notif-option .label { font-size: 14px; font-weight: 500; }
+  .notif-option .desc { font-size: 12px; color: var(--text3); }
+  /* Checkbox style */
+  .checkbox-wrap { display: flex; align-items: center; gap: 10px; }
+  .checkbox-wrap input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">A</div>
+    <h1>Anjungan</h1>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-item"><span class="emoji">🖥</span> Servers</div>
+    <div class="nav-item"><span class="emoji">📊</span> Resources</div>
+    <div class="nav-item active"><span class="emoji">💰</span> Costs</div>
+    <div class="nav-item"><span class="emoji">🤖</span> Agents</div>
+    <div class="nav-item"><span class="emoji">⚙️</span> Settings</div>
+  </div>
+  <div class="sidebar-footer">
+    <button class="theme-toggle" onclick="toggleTheme()">
+      <span id="themeIcon">🌙</span> <span id="themeLabel">Dark Mode</span>
+    </button>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+  <div class="topbar">
+    <h2>💰 Resource Usage &amp; Cost</h2>
+    <div class="topbar-right">
+      <span class="topbar-badge">🟢 Collecting from 4/5 servers</span>
+      <div class="avatar">ES</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Tab Buttons -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">📊 Resource Dashboard</button>
+      <button class="tab-btn" data-tab="costs">💰 Cost Breakdown</button>
+      <button class="tab-btn" data-tab="alerts">🔔 Alert Configuration</button>
+    </div>
+
+    <!-- ======= TAB 1: Resource Dashboard ======= -->
+    <div class="tab-panel active" id="tab-dashboard">
+      <!-- KPI Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon">🖥</div>
+          <div class="kpi-label">Total Servers</div>
+          <div class="kpi-value">5</div>
+          <div class="kpi-sub">4 online · 1 offline</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">⚡</div>
+          <div class="kpi-label">Total CPU</div>
+          <div class="kpi-value">34%</div>
+          <div class="kpi-sub">🟢 6.8 / 20 cores</div>
+          <div class="progress-bar"><div class="progress-fill green" style="width:34%"></div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">🧠</div>
+          <div class="kpi-label">Total RAM</div>
+          <div class="kpi-value">52%</div>
+          <div class="kpi-sub">🟡 41.6 / 80 GB</div>
+          <div class="progress-bar"><div class="progress-fill yellow" style="width:52%"></div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">💾</div>
+          <div class="kpi-label">Total Storage</div>
+          <div class="kpi-value">67%</div>
+          <div class="kpi-sub">🟡 335 / 500 GB</div>
+          <div class="progress-bar"><div class="progress-fill yellow" style="width:67%"></div></div>
+        </div>
+      </div>
+
+      <!-- Per-Server Table -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="card-title" style="margin-bottom:0">Servers Overview</div>
+          <button class="btn btn-outline btn-sm">🔄 Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Server Name</th>
+                <th>CPU Usage</th>
+                <th>RAM Usage</th>
+                <th>Disk Usage</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>peladen-central</strong><br><span style="font-size:12px;color:var(--text3)">4C · 8GB · 40GB</span></td>
+                <td>
+                  <div class="bar-label"><span>34%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:34%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>52%</span></div>
+                  <div class="progress-bar"><div class="progress-fill yellow" style="width:52%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>67%</span></div>
+                  <div class="progress-bar"><div class="progress-fill yellow" style="width:67%"></div></div>
+                </td>
+                <td><span class="badge badge-green">🟢 Online</span></td>
+              </tr>
+              <tr>
+                <td><strong>peladen-ml</strong><br><span style="font-size:12px;color:var(--text3)">8C · 32GB · 100GB</span></td>
+                <td>
+                  <div class="bar-label"><span>12%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:12%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>28%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:28%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>41%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:41%"></div></div>
+                </td>
+                <td><span class="badge badge-green">🟢 Online</span></td>
+              </tr>
+              <tr>
+                <td><strong>peladen-web</strong><br><span style="font-size:12px;color:var(--text3)">4C · 16GB · 80GB</span></td>
+                <td>
+                  <div class="bar-label"><span>78%</span></div>
+                  <div class="progress-bar"><div class="progress-fill yellow" style="width:78%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>82%</span></div>
+                  <div class="progress-bar"><div class="progress-fill yellow" style="width:82%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>55%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:55%"></div></div>
+                </td>
+                <td><span class="badge badge-green">🟢 Online</span></td>
+              </tr>
+              <tr>
+                <td><strong>peladen-db</strong><br><span style="font-size:12px;color:var(--text3)">4C · 16GB · 200GB</span></td>
+                <td>
+                  <div class="bar-label"><span>45%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:45%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>63%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:63%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>91%</span></div>
+                  <div class="progress-bar"><div class="progress-fill red" style="width:91%"></div></div>
+                </td>
+                <td><span class="badge badge-green">🟢 Online</span></td>
+              </tr>
+              <tr>
+                <td><strong>peladen-cache</strong><br><span style="font-size:12px;color:var(--text3)">2C · 4GB · 20GB</span></td>
+                <td>
+                  <div class="bar-label"><span>3%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:3%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>8%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:8%"></div></div>
+                </td>
+                <td>
+                  <div class="bar-label"><span>22%</span></div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width:22%"></div></div>
+                </td>
+                <td><span class="badge badge-red">🔴 Offline</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Optimization Suggestions -->
+      <div class="card">
+        <div class="card-title">💡 Optimization Suggestions</div>
+        <div style="padding:12px 16px;background:var(--surface2);border-radius:8px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <span style="font-weight:500">Scale down peladen-cache</span>
+            <span style="font-size:13px;color:var(--text2);margin-left:8px">— CPU &lt; 5% for 7 days</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:13px;color:var(--primary);font-weight:600">Save Rp 50K/month</span>
+            <button class="btn btn-outline btn-sm">✕ Dismiss</button>
+          </div>
+        </div>
+        <div style="padding:12px 16px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <span style="font-weight:500">Clean up disk on peladen-db</span>
+            <span style="font-size:13px;color:var(--text2);margin-left:8px">— Disk usage 91%, &gt; 85% threshold</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:13px;color:var(--orange);font-weight:600">⚠️ High Priority</span>
+            <button class="btn btn-outline btn-sm">✕ Dismiss</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======= TAB 2: Cost Breakdown ======= -->
+    <div class="tab-panel" id="tab-costs">
+      <!-- Monthly Cost Overview -->
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Monthly Cost</div>
+          <div class="kpi-value" style="color:var(--primary)">Rp 847.000</div>
+          <div class="kpi-sub">💰 4 providers</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Most Expensive Server</div>
+          <div class="kpi-value" style="font-size:20px">peladen-ml</div>
+          <div class="kpi-sub">Rp 300.000/month</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Monthly Trend</div>
+          <div class="kpi-value" style="color:var(--orange);font-size:24px">↑ 5.2%</div>
+          <div class="kpi-sub">vs last month (Rp 805K)</div>
+        </div>
+      </div>
+
+      <!-- Cost Trend & Pie side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <!-- Cost Trend Mini Chart -->
+        <div class="card">
+          <div class="card-title">📈 Cost Trend (Last 6 months)</div>
+          <div class="trend-chart">
+            <div class="trend-bar">
+              <div class="trend-bar-value">Rp720K</div>
+              <div class="trend-bar-fill" style="height:72%"></div>
+              <div class="trend-bar-label">Jan</div>
+            </div>
+            <div class="trend-bar">
+              <div class="trend-bar-value">Rp745K</div>
+              <div class="trend-bar-fill" style="height:74%"></div>
+              <div class="trend-bar-label">Feb</div>
+            </div>
+            <div class="trend-bar">
+              <div class="trend-bar-value">Rp780K</div>
+              <div class="trend-bar-fill" style="height:78%"></div>
+              <div class="trend-bar-label">Mar</div>
+            </div>
+            <div class="trend-bar">
+              <div class="trend-bar-value">Rp760K</div>
+              <div class="trend-bar-fill" style="height:76%"></div>
+              <div class="trend-bar-label">Apr</div>
+            </div>
+            <div class="trend-bar">
+              <div class="trend-bar-value">Rp805K</div>
+              <div class="trend-bar-fill" style="height:80%"></div>
+              <div class="trend-bar-label">May</div>
+            </div>
+            <div class="trend-bar">
+              <div class="trend-bar-value">Rp847K</div>
+              <div class="trend-bar-fill" style="height:85%;background:var(--primary)"></div>
+              <div class="trend-bar-label">Jun</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cost by Category (Pie as stacked bar) -->
+        <div class="card">
+          <div class="card-title">🧩 Cost by Provider</div>
+          <div style="margin-bottom:16px">
+            <div class="pie-bar">
+              <div class="pie-segment" style="width:35%;background:#10b981">35%</div>
+              <div class="pie-segment" style="width:28%;background:#3b82f6">28%</div>
+              <div class="pie-segment" style="width:22%;background:#f59e0b">22%</div>
+              <div class="pie-segment" style="width:15%;background:#8b5cf6">15%</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:14px">
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#10b981;margin-right:8px"></span>Vultr</span>
+              <span style="font-weight:600">Rp 296.450</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:14px">
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3b82f6;margin-right:8px"></span>Linode</span>
+              <span style="font-weight:600">Rp 237.160</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:14px">
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b;margin-right:8px"></span>DigitalOcean</span>
+              <span style="font-weight:600">Rp 186.340</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:14px">
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#8b5cf6;margin-right:8px"></span>Hetzner</span>
+              <span style="font-weight:600">Rp 127.050</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-Server Cost Table -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="card-title" style="margin-bottom:0">Per-Server Cost Breakdown</div>
+          <button class="btn btn-primary btn-sm">➕ Add Cost</button>
+        </div>
+        <div class="cost-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Server</th>
+                <th>Provider</th>
+                <th>CPU Cost</th>
+                <th>RAM Cost</th>
+                <th>Storage Cost</th>
+                <th>Total Cost</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>peladen-ml</strong></td>
+                <td>Vultr</td>
+                <td>Rp 145.000</td>
+                <td>Rp 95.000</td>
+                <td>Rp 60.000</td>
+                <td><strong>Rp 300.000</strong></td>
+                <td><span class="badge badge-green">✅ Configured</span></td>
+              </tr>
+              <tr>
+                <td><strong>peladen-central</strong></td>
+                <td>Linode</td>
+                <td>Rp 85.000</td>
+                <td>Rp 70.000</td>
+                <td>Rp 40.000</td>
+                <td><strong>Rp 195.000</strong></td>
+                <td><span class="badge badge-green">✅ Configured</span></td>
+              </tr>
+              <tr>
+                <td><strong>peladen-web</strong></td>
+                <td>DigitalOcean</td>
+                <td>Rp 65.000</td>
+                <td>Rp 55.000</td>
+                <td>Rp 30.000</td>
+                <td><strong>Rp 150.000</strong></td>
+                <td><span class="badge badge-green">✅ Configured</span></td>
+              </tr>
+              <tr>
+                <td><strong>peladen-db</strong></td>
+                <td>Hetzner</td>
+                <td>Rp 58.000</td>
+                <td>Rp 42.000</td>
+                <td>Rp 25.000</td>
+                <td><strong>Rp 125.000</strong></td>
+                <td><span class="badge badge-green">✅ Configured</span></td>
+              </tr>
+              <tr>
+                <td><strong>peladen-cache</strong></td>
+                <td>Vultr</td>
+                <td>Rp 28.000</td>
+                <td>Rp 29.000</td>
+                <td>Rp 20.000</td>
+                <td><strong>Rp 77.000</strong></td>
+                <td><span class="badge badge-yellow">🔶 Not Configured</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px;padding:12px 16px;background:var(--surface2);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:600">Totals</span>
+          <span style="display:flex;gap:32px;font-size:14px">
+            <span>CPU: <strong>Rp 381.000</strong></span>
+            <span>RAM: <strong>Rp 291.000</strong></span>
+            <span>Storage: <strong>Rp 175.000</strong></span>
+            <span style="color:var(--primary);font-size:16px">Total: <strong>Rp 847.000</strong></span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======= TAB 3: Alert Configuration ======= -->
+    <div class="tab-panel" id="tab-alerts">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <!-- Threshold Settings -->
+        <div class="card">
+          <div class="card-title">🔧 Threshold Settings</div>
+          <div class="card-desc">Configure resource usage thresholds for alerting</div>
+
+          <div class="form-group">
+            <div class="form-label">CPU Alert Threshold</div>
+            <div class="slider-group">
+              <input type="range" min="0" max="100" value="80" id="cpuSlider" oninput="document.getElementById('cpuVal').textContent=this.value+'%'">
+              <span class="slider-value" id="cpuVal">80%</span>
+            </div>
+            <div style="margin-top:8px">
+              <input type="number" class="form-input" value="80" min="0" max="100" style="width:100px" oninput="document.getElementById('cpuSlider').value=this.value;document.getElementById('cpuVal').textContent=this.value+'%'">
+              <span style="font-size:12px;color:var(--text3);margin-left:8px">%</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">RAM Alert Threshold</div>
+            <div class="slider-group">
+              <input type="range" min="0" max="100" value="85" id="ramSlider" oninput="document.getElementById('ramVal').textContent=this.value+'%'">
+              <span class="slider-value" id="ramVal">85%</span>
+            </div>
+            <div style="margin-top:8px">
+              <input type="number" class="form-input" value="85" min="0" max="100" style="width:100px" oninput="document.getElementById('ramSlider').value=this.value;document.getElementById('ramVal').textContent=this.value+'%'">
+              <span style="font-size:12px;color:var(--text3);margin-left:8px">%</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label">Disk Alert Threshold</div>
+            <div class="slider-group">
+              <input type="range" min="0" max="100" value="85" id="diskSlider" oninput="document.getElementById('diskVal').textContent=this.value+'%'">
+              <span class="slider-value" id="diskVal">85%</span>
+            </div>
+            <div style="margin-top:8px">
+              <input type="number" class="form-input" value="85" min="0" max="100" style="width:100px" oninput="document.getElementById('diskSlider').value=this.value;document.getElementById('diskVal').textContent=this.value+'%'">
+              <span style="font-size:12px;color:var(--text3);margin-left:8px">%</span>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0">
+            <div class="form-label">Evaluation Period</div>
+            <select class="form-input">
+              <option>5 minutes</option>
+              <option selected>15 minutes</option>
+              <option>30 minutes</option>
+              <option>1 hour</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Notification Settings -->
+        <div class="card">
+          <div class="card-title">🔔 Alert Notification Settings</div>
+          <div class="card-desc">Choose how and when to be notified</div>
+
+          <div class="notif-options">
+            <div class="notif-option">
+              <div>
+                <div class="label">📧 Email Notifications</div>
+                <div class="desc">Send alert to endang@example.com</div>
+              </div>
+              <div class="toggle" onclick="this.querySelector('.toggle-track').classList.toggle('active')">
+                <div class="toggle-track active"><div class="toggle-thumb"></div></div>
+              </div>
+            </div>
+            <div class="notif-option">
+              <div>
+                <div class="label">📱 Telegram Bot</div>
+                <div class="desc">Send alerts to your Telegram</div>
+              </div>
+              <div class="toggle" onclick="this.querySelector('.toggle-track').classList.toggle('active')">
+                <div class="toggle-track active"><div class="toggle-thumb"></div></div>
+              </div>
+            </div>
+            <div class="notif-option">
+              <div>
+                <div class="label">🔗 Webhook</div>
+                <div class="desc">POST to custom URL (Slack, Discord, etc.)</div>
+              </div>
+              <div class="toggle" onclick="this.querySelector('.toggle-track').classList.toggle('active')">
+                <div class="toggle-track"><div class="toggle-thumb"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:20px;margin-bottom:0">
+            <div class="form-label">Webhook URL</div>
+            <input type="text" class="form-input" placeholder="https://hooks.slack.com/..." disabled style="opacity:0.6">
+          </div>
+
+          <div style="margin-top:20px">
+            <div class="form-label" style="margin-bottom:8px">Alert Severity Filter</div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap">
+              <label class="checkbox-wrap"><input type="checkbox" checked> 🔴 Critical</label>
+              <label class="checkbox-wrap"><input type="checkbox" checked> 🟠 Warning</label>
+              <label class="checkbox-wrap"><input type="checkbox" checked> 🟡 Info</label>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;display:flex;gap:8px">
+            <button class="btn btn-primary">💾 Save Settings</button>
+            <button class="btn btn-outline">↺ Reset to Default</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Alerts -->
+      <div class="card">
+        <div class="card-title">🕐 Recent Alerts</div>
+        <div class="card-desc">Last 7 days of triggered alerts</div>
+
+        <div class="alert-item critical">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="severity-dot red"></span>
+            <span style="font-weight:500">Disk usage critical on peladen-db</span>
+            <span class="badge badge-red">Critical</span>
+          </div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">Disk at 91% — exceeds 85% threshold. Immediate cleanup recommended.</div>
+          <div class="alert-meta">
+            <span>🔴 2 hours ago</span>
+            <span>·</span>
+            <span>peladen-db</span>
+            <span>·</span>
+            <span>Disk: 91%</span>
+          </div>
+        </div>
+
+        <div class="alert-item warning">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="severity-dot yellow"></span>
+            <span style="font-weight:500">High RAM usage on peladen-web</span>
+            <span class="badge badge-yellow">Warning</span>
+          </div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">RAM at 82% — approaching 85% threshold.</div>
+          <div class="alert-meta">
+            <span>🟡 6 hours ago</span>
+            <span>·</span>
+            <span>peladen-web</span>
+            <span>·</span>
+            <span>RAM: 82%</span>
+          </div>
+        </div>
+
+        <div class="alert-item warning">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="severity-dot yellow"></span>
+            <span style="font-weight:500">CPU surge on peladen-web</span>
+            <span class="badge badge-yellow">Warning</span>
+          </div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">CPU spiked to 78% during peak traffic.</div>
+          <div class="alert-meta">
+            <span>🟡 Yesterday at 14:32</span>
+            <span>·</span>
+            <span>peladen-web</span>
+            <span>·</span>
+            <span>CPU: 78%</span>
+          </div>
+        </div>
+
+        <div class="alert-item info">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="severity-dot green"></span>
+            <span style="font-weight:500">Server offline: peladen-cache</span>
+            <span class="badge badge-gray">Info</span>
+          </div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">Agent heartbeat timeout — server marked as offline.</div>
+          <div class="alert-meta">
+            <span>🟢 2 days ago</span>
+            <span>·</span>
+            <span>peladen-cache</span>
+            <span>·</span>
+            <span>No heartbeat for &gt;60s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Theme toggle
+  function toggleTheme() {
+    document.body.classList.toggle('dark');
+    const icon = document.getElementById('themeIcon');
+    const label = document.getElementById('themeLabel');
+    if (document.body.classList.contains('dark')) {
+      icon.textContent = '☀️';
+      label.textContent = 'Light Mode';
+    } else {
+      icon.textContent = '🌙';
+      label.textContent = 'Dark Mode';
+    }
+  }
+</script>
+</body>
+</html>

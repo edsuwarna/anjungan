@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -93,13 +94,18 @@ func (r *Repository) ListUsers(ctx context.Context) ([]*model.User, error) {
 // ─── Server repository ────────────────────────────────────────────────────
 
 func (r *Repository) CreateServer(ctx context.Context, s *model.Server) error {
+	// Handle nullable created_by (UUID column in PostgreSQL)
+	// Using NULLIF to convert empty string to NULL before ::uuid cast
 	_, err := r.db.Pool.Exec(ctx,
 		`INSERT INTO servers (id, name, host, port, ssh_user, ssh_auth_type, ssh_key, ssh_key_id, ssh_password,
-		 status, tags, server_group, region, server_type, description, monitoring, created_by, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+		 status, tags, server_group, region, server_type, description, monitoring,
+		 connection_type, is_self, self_hostname, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8, '')::uuid,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+		 NULLIF($20, '')::uuid,
+		 $21,$22)`,
 		s.ID, s.Name, s.Host, s.Port, s.SSHUser, s.SSHAuthType, s.SSHKey, s.SSHKeyID, s.SSHPassword,
 		s.Status, s.Tags, s.ServerGroup, s.Region, s.ServerType, s.Description,
-		s.Monitoring, s.CreatedBy, s.CreatedAt, s.UpdatedAt,
+		s.Monitoring, s.ConnectionType, s.IsSelf, s.SelfHostname, s.CreatedBy, s.CreatedAt, s.UpdatedAt,
 	)
 	return err
 }
@@ -108,7 +114,8 @@ const serverColumns = `id, name, host, port, ssh_user, ssh_auth_type, status, co
 	COALESCE(tags, '{}'), COALESCE(labels, '{}')::text, COALESCE(server_group, ''),
 	COALESCE(region, ''), COALESCE(server_type, ''), COALESCE(description, ''),
 	COALESCE(os_info, ''), COALESCE(cpu_info, ''), last_seen_at, COALESCE(monitoring, false),
-	created_by, created_at, updated_at,	COALESCE(ssh_key_id::text, '')`
+	COALESCE(connection_type, 'ssh'), COALESCE(is_self, false), COALESCE(self_hostname, ''),
+	COALESCE(created_by::text, ''), created_at, updated_at, COALESCE(ssh_key_id::text, '')`
 
 func scanServer(scanner interface {
 	Scan(dest ...interface{}) error
@@ -119,6 +126,7 @@ func scanServer(scanner interface {
 		&s.Status, &s.ContainerCount, &s.Tags, &s.Labels,
 		&s.ServerGroup, &s.Region, &s.ServerType, &s.Description,
 		&s.OSInfo, &s.CPUInfo, &s.LastSeenAt, &s.Monitoring,
+		&s.ConnectionType, &s.IsSelf, &s.SelfHostname,
 		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt, &s.SSHKeyID,
 	)
 	if err != nil {
@@ -136,11 +144,46 @@ func scanServerFull(scanner interface {
 		&s.SSHKey, &s.SSHPassword, &s.SSHKeyID, &s.Status, &s.ContainerCount,
 		&s.Tags, &s.Labels, &s.ServerGroup, &s.Region, &s.ServerType,
 		&s.Description, &s.OSInfo, &s.CPUInfo, &s.LastSeenAt, &s.Monitoring,
+		&s.ConnectionType, &s.IsSelf, &s.SelfHostname,
 		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
+	return s, nil
+}
+
+// serverColumnsWithCompliance extends serverColumns with compliance data from the latest scan
+const serverColumnsWithCompliance = `s.id, s.name, s.host, s.port, s.ssh_user, s.ssh_auth_type, s.status, s.container_count,
+	COALESCE(s.tags, '{}'), COALESCE(s.labels, '{}')::text, COALESCE(s.server_group, ''),
+	COALESCE(s.region, ''), COALESCE(s.server_type, ''), COALESCE(s.description, ''),
+	COALESCE(s.os_info, ''), COALESCE(s.cpu_info, ''), s.last_seen_at, COALESCE(s.monitoring, false),
+	COALESCE(s.connection_type, 'ssh'), COALESCE(s.is_self, false), COALESCE(s.self_hostname, ''),
+	COALESCE(s.created_by::text, ''), s.created_at, s.updated_at, COALESCE(s.ssh_key_id::text, ''),
+	sr.score, COALESCE(sr.criticals, 0), COALESCE(sr.warnings, 0), COALESCE(sr.passed, 0), sr.completed_at`
+
+// scanServerResponseWithCompliance scans rows from a query that joins servers with compliance data
+func scanServerResponseWithCompliance(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*model.ServerResponse, error) {
+	s := &model.ServerResponse{}
+	var score *int
+	var lastScan *time.Time
+	var sshKeyID string
+	err := scanner.Scan(
+		&s.ID, &s.Name, &s.Host, &s.Port, &s.SSHUser, &s.SSHAuthType,
+		&s.Status, &s.ContainerCount, &s.Tags, &s.Labels,
+		&s.ServerGroup, &s.Region, &s.ServerType, &s.Description,
+		&s.OSInfo, &s.CPUInfo, &s.LastSeenAt, &s.Monitoring,
+		&s.ConnectionType, &s.IsSelf, &s.SelfHostname,
+		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt, &sshKeyID,
+		&score, &s.Criticals, &s.Warnings, &s.Passed, &lastScan,
+	)
+	if err != nil {
+		return nil, err
+	}
+	s.Score = score
+	s.LastScan = lastScan
 	return s, nil
 }
 
@@ -248,7 +291,14 @@ func (r *Repository) ListServersPaginated(ctx context.Context, q model.ServerLis
 	offset := (page - 1) * limit
 
 	dataQuery := fmt.Sprintf(
-		`SELECT `+serverColumns+` FROM servers s %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		`SELECT `+serverColumnsWithCompliance+` FROM servers s
+		LEFT JOIN LATERAL (
+		    SELECT score, criticals, warnings, passed, completed_at
+		    FROM scan_results
+		    WHERE server_id = s.id AND status = 'completed'
+		    ORDER BY created_at DESC LIMIT 1
+		) sr ON true
+		%s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
 		whereClause, sortCol, order, argIdx, argIdx+1,
 	)
 	args = append(args, limit, offset)
@@ -261,11 +311,11 @@ func (r *Repository) ListServersPaginated(ctx context.Context, q model.ServerLis
 
 	var servers []model.ServerResponse
 	for rows.Next() {
-		s, err := scanServer(rows)
+		s, err := scanServerResponseWithCompliance(rows)
 		if err != nil {
 			return nil, err
 		}
-		servers = append(servers, s.ToResponse())
+		servers = append(servers, *s)
 	}
 	if servers == nil {
 		servers = []model.ServerResponse{}
@@ -327,21 +377,71 @@ func (r *Repository) GetServerByIDFull(ctx context.Context, id string) (*model.S
 		`SELECT id, name, host, port, ssh_user, ssh_auth_type, ssh_key, ssh_password, COALESCE(ssh_key_id::text, ''), status, container_count,
 		 COALESCE(tags, '{}'), COALESCE(labels, '{}')::text, COALESCE(server_group, ''),
 		 COALESCE(region, ''), COALESCE(server_type, ''), COALESCE(description, ''),
-		 COALESCE(os_info, ''), COALESCE(cpu_info, ''), last_seen_at, COALESCE(monitoring, false), created_by, created_at, updated_at
+		 COALESCE(os_info, ''), COALESCE(cpu_info, ''), last_seen_at, COALESCE(monitoring, false),
+		COALESCE(connection_type, 'ssh'), COALESCE(is_self, false), COALESCE(self_hostname, ''), COALESCE(created_by::text, ''), created_at, updated_at
 		 FROM servers WHERE id = $1`, id,
 	)
 	return scanServerFull(row)
 }
 
+// GetSelfServer returns the server marked as self (the host Anjungan runs on).
+// Returns nil, nil if no self server is registered.
+func (r *Repository) GetSelfServer(ctx context.Context) (*model.Server, error) {
+	row := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, host, port, ssh_user, ssh_auth_type, ssh_key, ssh_password, COALESCE(ssh_key_id::text, ''), status, container_count,
+		 COALESCE(tags, '{}'), COALESCE(labels, '{}')::text, COALESCE(server_group, ''),
+		 COALESCE(region, ''), COALESCE(server_type, ''), COALESCE(description, ''),
+		 COALESCE(os_info, ''), COALESCE(cpu_info, ''), last_seen_at, COALESCE(monitoring, false),
+		 COALESCE(connection_type, 'ssh'), COALESCE(is_self, false), COALESCE(self_hostname, ''), COALESCE(created_by::text, ''), created_at, updated_at
+		 FROM servers WHERE is_self = true LIMIT 1`,
+	)
+	s, err := scanServerFull(row)
+	if err != nil {
+		// pgx.ErrNoRows — no self server registered yet
+		return nil, nil
+	}
+	return s, nil
+}
+
+// FindOrCreateSelfServer finds the existing self server or creates a new one.
+// Returns the server and a boolean indicating if it was newly created.
+func (r *Repository) FindOrCreateSelfServer(ctx context.Context, s *model.Server) (*model.Server, bool, error) {
+	existing, err := r.GetSelfServer(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if existing != nil {
+		// Update OS info, hostname, etc. but keep existing
+		existing.SelfHostname = s.SelfHostname
+		existing.OSInfo = s.OSInfo
+		existing.CPUInfo = s.CPUInfo
+		existing.Host = s.Host
+		existing.Status = "online"
+		existing.ConnectionType = s.ConnectionType
+		if err := r.UpdateServer(ctx, existing); err != nil {
+			log.Printf("[self] failed to update self-server: %v", err)
+			return existing, false, nil
+		}
+		return existing, false, nil
+	}
+	// Create new self server
+	if err := r.CreateServer(ctx, s); err != nil {
+		return nil, false, err
+	}
+	return s, true, nil
+}
+
 func (r *Repository) UpdateServer(ctx context.Context, s *model.Server) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`UPDATE servers SET name=$1, host=$2, port=$3, ssh_user=$4, ssh_auth_type=$5, ssh_key=$6,
-		 ssh_password=$7, ssh_key_id=$8, status=$9, container_count=$10, tags=$11, server_group=$12, region=$13,
-		 server_type=$14, description=$15, os_info=$16, cpu_info=$17, monitoring=$18, updated_at=NOW()
-		 WHERE id=$19`,
+		 ssh_password=$7, ssh_key_id=NULLIF($8, '')::uuid, status=$9, container_count=$10, tags=$11, server_group=$12, region=$13,
+		 server_type=$14, description=$15, os_info=$16, cpu_info=$17, monitoring=$18,
+		 connection_type=$19, is_self=$20, self_hostname=$21, updated_at=NOW()
+		 WHERE id=$22`,
 		s.Name, s.Host, s.Port, s.SSHUser, s.SSHAuthType, s.SSHKey, s.SSHPassword,
 		s.SSHKeyID, s.Status, s.ContainerCount, s.Tags, s.ServerGroup, s.Region,
-		s.ServerType, s.Description, s.OSInfo, s.CPUInfo, s.Monitoring, s.ID,
+		s.ServerType, s.Description, s.OSInfo, s.CPUInfo, s.Monitoring,
+		s.ConnectionType, s.IsSelf, s.SelfHostname, s.ID,
 	)
 	return err
 }
@@ -1683,18 +1783,18 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	var args []interface{}
 	if scanType != "" && scanType != "all" {
 		if scanType == "CIS Docker" {
-			query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
-			       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
-			       sr.started_at, sr.completed_at, sr.created_at
-			 FROM scan_results sr
-			 LEFT JOIN servers s ON sr.server_id = s.id
-			 WHERE sr.scan_type IN ($1, $2)
-			 ORDER BY sr.created_at DESC LIMIT $3 OFFSET $4`
+	query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+		       COALESCE(sr.error_message,''), sr.started_at, sr.completed_at, sr.created_at
+		 FROM scan_results sr
+		 LEFT JOIN servers s ON sr.server_id = s.id
+		 WHERE sr.scan_type IN ($1, $2)
+		 ORDER BY sr.created_at DESC LIMIT $3 OFFSET $4`
 			args = append(args, "CIS Docker", "Container Security", limit, offset)
 		} else {
 			query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
 			       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
-			       sr.started_at, sr.completed_at, sr.created_at
+			       COALESCE(sr.error_message,''), sr.started_at, sr.completed_at, sr.created_at
 			 FROM scan_results sr
 			 LEFT JOIN servers s ON sr.server_id = s.id
 			 WHERE sr.scan_type = $1
@@ -1704,7 +1804,7 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	} else {
 		query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
 		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
-		       sr.started_at, sr.completed_at, sr.created_at
+		       COALESCE(sr.error_message,''), sr.started_at, sr.completed_at, sr.created_at
 		 FROM scan_results sr
 		 LEFT JOIN servers s ON sr.server_id = s.id
 		 ORDER BY sr.created_at DESC LIMIT $1 OFFSET $2`
@@ -1723,7 +1823,7 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 		if err := rows.Scan(&item.ID, &item.ServerID, &item.ServerName, &item.ServerHost,
 			&item.ScanType, &item.Status, &item.Score, &item.TotalChecks,
 			&item.Passed, &item.Warnings, &item.Criticals,
-			&item.StartedAt, &item.CompletedAt, &item.CreatedAt); err != nil {
+			&item.ErrorMessage, &item.StartedAt, &item.CompletedAt, &item.CreatedAt); err != nil {
 			return nil, err
 		}
 		results = append(results, item)

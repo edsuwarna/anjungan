@@ -42,6 +42,9 @@ type Server struct {
 	CPUInfo        string    `json:"cpu_info"`
 	LastSeenAt     *time.Time `json:"last_seen_at"`
 	Monitoring     bool      `json:"monitoring"`
+	ConnectionType string    `json:"connection_type"`
+	IsSelf         bool      `json:"is_self"`
+	SelfHostname   string    `json:"self_hostname"`
 	CreatedBy      string    `json:"created_by"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
@@ -49,27 +52,36 @@ type Server struct {
 
 // ServerResponse is the public-safe version (no credentials exposed)
 type ServerResponse struct {
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	Host           string    `json:"host"`
-	Port           int       `json:"port"`
-	SSHUser        string    `json:"ssh_user"`
-	SSHAuthType    string    `json:"ssh_auth_type"`
-	Status         string    `json:"status"`
-	ContainerCount int       `json:"container_count"`
-	Tags           []string  `json:"tags"`
-	Labels         string    `json:"labels"`
-	ServerGroup    string    `json:"server_group"`
-	Region         string    `json:"region"`
-	ServerType     string    `json:"server_type"`
-	Description    string    `json:"description"`
-	OSInfo         string    `json:"os_info"`
-	CPUInfo        string    `json:"cpu_info"`
+	ID             string     `json:"id"`
+	Name           string     `json:"name"`
+	Host           string     `json:"host"`
+	Port           int        `json:"port"`
+	SSHUser        string     `json:"ssh_user"`
+	SSHAuthType    string     `json:"ssh_auth_type"`
+	Status         string     `json:"status"`
+	ContainerCount int        `json:"container_count"`
+	Tags           []string   `json:"tags"`
+	Labels         string     `json:"labels"`
+	ServerGroup    string     `json:"server_group"`
+	Region         string     `json:"region"`
+	ServerType     string     `json:"server_type"`
+	Description    string     `json:"description"`
+	OSInfo         string     `json:"os_info"`
+	CPUInfo        string     `json:"cpu_info"`
 	LastSeenAt     *time.Time `json:"last_seen_at"`
-	Monitoring     bool      `json:"monitoring"`
-	CreatedBy      string    `json:"created_by"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	Monitoring     bool       `json:"monitoring"`
+	ConnectionType string     `json:"connection_type"`
+	IsSelf         bool       `json:"is_self"`
+	SelfHostname   string     `json:"self_hostname"`
+	CreatedBy      string     `json:"created_by"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	// Compliance fields — populated on list queries, may be nil/zero if unscanned
+	Score     *int       `json:"score"`
+	Criticals int        `json:"criticals"`
+	Warnings  int        `json:"warnings"`
+	Passed    int        `json:"passed"`
+	LastScan  *time.Time `json:"last_scan"`
 }
 
 func (s *Server) ToResponse() ServerResponse {
@@ -92,6 +104,9 @@ func (s *Server) ToResponse() ServerResponse {
 		CPUInfo:        s.CPUInfo,
 		LastSeenAt:     s.LastSeenAt,
 		Monitoring:     s.Monitoring,
+		ConnectionType: s.ConnectionType,
+		IsSelf:         s.IsSelf,
+		SelfHostname:   s.SelfHostname,
 		CreatedBy:      s.CreatedBy,
 		CreatedAt:      s.CreatedAt,
 		UpdatedAt:      s.UpdatedAt,
@@ -100,35 +115,37 @@ func (s *Server) ToResponse() ServerResponse {
 
 // ServerRequest is the input for create/update operations
 type CreateServerRequest struct {
-	Name        string   `json:"name"`
-	Host        string   `json:"host"`
-	Port        int      `json:"port"`
-	SSHUser     string   `json:"ssh_user"`
-	SSHAuthType string   `json:"ssh_auth_type"`
-	SSHKeyID    string   `json:"ssh_key_id,omitempty"`
-	SSHKey      string   `json:"ssh_key,omitempty"`
-	SSHPassword string   `json:"ssh_password,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	ServerGroup string   `json:"server_group,omitempty"`
-	Region      string   `json:"region,omitempty"`
-	ServerType  string   `json:"server_type,omitempty"`
-	Description string   `json:"description,omitempty"`
+	Name           string   `json:"name"`
+	Host           string   `json:"host"`
+	Port           int      `json:"port"`
+	SSHUser        string   `json:"ssh_user"`
+	SSHAuthType    string   `json:"ssh_auth_type"`
+	SSHKeyID       string   `json:"ssh_key_id,omitempty"`
+	SSHKey         string   `json:"ssh_key,omitempty"`
+	SSHPassword    string   `json:"ssh_password,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	ServerGroup    string   `json:"server_group,omitempty"`
+	Region         string   `json:"region,omitempty"`
+	ServerType     string   `json:"server_type,omitempty"`
+	Description    string   `json:"description,omitempty"`
+	ConnectionType string   `json:"connection_type,omitempty"`
 }
 
 type UpdateServerRequest struct {
-	Name        *string   `json:"name,omitempty"`
-	Host        *string   `json:"host,omitempty"`
-	Port        *int      `json:"port,omitempty"`
-	SSHUser     *string   `json:"ssh_user,omitempty"`
-	SSHAuthType *string   `json:"ssh_auth_type,omitempty"`
-	SSHKeyID    *string   `json:"ssh_key_id,omitempty"`
-	SSHKey      *string   `json:"ssh_key,omitempty"`
-	SSHPassword *string   `json:"ssh_password,omitempty"`
-	Tags        *[]string `json:"tags,omitempty"`
-	ServerGroup *string   `json:"server_group,omitempty"`
-	Region      *string   `json:"region,omitempty"`
-	ServerType  *string   `json:"server_type,omitempty"`
-	Description *string   `json:"description,omitempty"`
+	Name           *string   `json:"name,omitempty"`
+	Host           *string   `json:"host,omitempty"`
+	Port           *int      `json:"port,omitempty"`
+	SSHUser        *string   `json:"ssh_user,omitempty"`
+	SSHAuthType    *string   `json:"ssh_auth_type,omitempty"`
+	SSHKeyID       *string   `json:"ssh_key_id,omitempty"`
+	SSHKey         *string   `json:"ssh_key,omitempty"`
+	SSHPassword    *string   `json:"ssh_password,omitempty"`
+	Tags           *[]string `json:"tags,omitempty"`
+	ServerGroup    *string   `json:"server_group,omitempty"`
+	Region         *string   `json:"region,omitempty"`
+	ServerType     *string   `json:"server_type,omitempty"`
+	Description    *string   `json:"description,omitempty"`
+	ConnectionType *string   `json:"connection_type,omitempty"`
 }
 
 type TestConnectionRequest struct {
@@ -379,20 +396,21 @@ type ScanResultsListResponse struct {
 
 // GlobalScanHistoryItem is a scan result with server info for global history view
 type GlobalScanHistoryItem struct {
-	ID          string     `json:"id"`
-	ServerID    string     `json:"server_id"`
-	ServerName  string     `json:"server_name"`
-	ServerHost  string     `json:"server_host"`
-	ScanType    string     `json:"scan_type"`
-	Status      string     `json:"status"`
-	Score       *int       `json:"score"`
-	TotalChecks int        `json:"total_checks"`
-	Passed      int        `json:"passed"`
-	Warnings    int        `json:"warnings"`
-	Criticals   int        `json:"criticals"`
-	StartedAt   *time.Time `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID            string     `json:"id"`
+	ServerID      string     `json:"server_id"`
+	ServerName    string     `json:"server_name"`
+	ServerHost    string     `json:"server_host"`
+	ScanType      string     `json:"scan_type"`
+	Status        string     `json:"status"`
+	Score         *int       `json:"score"`
+	TotalChecks   int        `json:"total_checks"`
+	Passed        int        `json:"passed"`
+	Warnings      int        `json:"warnings"`
+	Criticals     int        `json:"criticals"`
+	ErrorMessage  string     `json:"error_message"`
+	StartedAt     *time.Time `json:"started_at"`
+	CompletedAt   *time.Time `json:"completed_at"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // GlobalHistoryResponse wraps paginated global scan history

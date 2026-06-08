@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registry — Anjungan Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-surface); color: var(--text); min-height: 100vh; }
+  :root {
+    --primary: #10b981;
+    --primary-hover: #059669;
+    --primary-light: #d1fae5;
+    --primary-dark: #065f46;
+    --card: #ffffff;
+    --bg-surface: #f8fafc;
+    --text: #0f172a;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --sidebar-bg: #ffffff;
+    --sidebar-text: #475569;
+    --sidebar-active: #10b981;
+    --topbar-bg: #ffffff;
+    --danger: #ef4444;
+    --warning: #fb923c;
+    --severity-critical: #ef4444;
+    --severity-high: #fb923c;
+    --severity-medium: #fbbf24;
+    --severity-low: #34d399;
+  }
+  [data-theme="dark"] {
+    --card: #1e293b;
+    --bg-surface: #0f172a;
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border: #334155;
+    --sidebar-bg: #1e293b;
+    --sidebar-text: #94a3b8;
+    --sidebar-active: #10b981;
+    --topbar-bg: #1e293b;
+  }
+
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 256px; min-width: 256px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 0; position: fixed; top: 0; left: 0; height: 100vh; z-index: 10; }
+  .sidebar-logo { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .sidebar-logo span { font-size: 20px; font-weight: 700; color: var(--primary); }
+  .sidebar-logo small { font-size: 12px; color: var(--text-secondary); }
+  .sidebar-nav { padding: 12px 0; flex: 1; }
+  .sidebar-nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; color: var(--sidebar-text); text-decoration: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; }
+  .sidebar-nav-item:hover { background: var(--bg-surface); color: var(--text); }
+  .sidebar-nav-item.active { color: var(--sidebar-active); background: var(--primary-light); border-left-color: var(--primary); }
+  .sidebar-nav-item .icon { font-size: 18px; width: 24px; text-align: center; }
+  .sidebar-nav-category { padding: 16px 20px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); }
+  .main-area { margin-left: 256px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar { height: 64px; min-height: 64px; background: var(--topbar-bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .topbar-title { font-size: 18px; font-weight: 600; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .theme-toggle { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 16px; color: var(--text); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
+  .content { padding: 24px; flex: 1; }
+
+  /* Tabs */
+  .mockup-tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--card); border-radius: 12px; padding: 4px; border: 1px solid var(--border); }
+  .mockup-tab { padding: 10px 20px; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .mockup-tab:hover { color: var(--text); background: var(--bg-surface); }
+  .mockup-tab.active { background: var(--primary); color: white; }
+  .mockup-panel { display: none; }
+  .mockup-panel.active { display: block; }
+
+  /* Card */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+
+  /* KPI grid */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .kpi-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+  .kpi-value { font-size: 28px; font-weight: 700; }
+  .kpi-change { font-size: 12px; margin-top: 4px; }
+  .kpi-change.up { color: var(--primary); }
+  .kpi-change.down { color: var(--danger); }
+
+  /* Search/filter bar */
+  .search-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+  .search-input { flex: 1; min-width: 200px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); font-size: 14px; outline: none; }
+  .search-input:focus { border-color: var(--primary); }
+  select.filter-select { padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); font-size: 14px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; text-decoration: none; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { background: var(--bg-surface); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-icon { padding: 8px; line-height: 1; }
+  .btn-success { background: var(--primary); color: white; }
+  .btn-success:hover { background: var(--primary-hover); }
+
+  /* Image cards */
+  .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .image-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.15s; }
+  .image-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1); }
+  .image-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+  .image-name { font-size: 15px; font-weight: 600; color: var(--primary); }
+  .image-namespace { font-size: 12px; color: var(--text-secondary); background: var(--bg-surface); padding: 2px 8px; border-radius: 4px; display: inline-block; margin-top: 2px; }
+  .image-tag-count { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+  .image-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .image-tags-row { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+  .tag-badge { background: var(--primary-light); color: var(--primary-dark); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+  .badge-success { background: #d1fae5; color: #065f46; }
+  .badge-danger { background: #fee2e2; color: #991b1b; }
+  .badge-warning { background: #fef3c7; color: #92400e; }
+  .badge-info { background: #dbeafe; color: #1e40af; }
+  .badge-critical { background: #fee2e2; color: #ef4444; }
+  .badge-high { background: #ffedd5; color: #fb923c; }
+  .badge-medium { background: #fef3c7; color: #fbbf24; }
+  .badge-low { background: #d1fae5; color: #34d399; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 12px 16px; font-weight: 600; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--bg-surface); }
+
+  /* Credential card */
+  .cred-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .cred-field { margin-bottom: 16px; }
+  .cred-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .cred-field .value { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; font-family: monospace; font-size: 14px; }
+  .cred-field .value .masked { color: var(--danger); letter-spacing: 2px; }
+  .cred-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .pull-command { background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 8px; font-family: monospace; font-size: 13px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .pull-command .copy { background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .pull-command .copy:hover { background: rgba(255,255,255,0.2); }
+
+  /* Side panel for detail */
+  .detail-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
+  .side-panel .card { margin-bottom: 16px; }
+  .meta-table { width: 100%; font-size: 13px; }
+  .meta-table td { padding: 6px 0; border: none; }
+  .meta-table td:first-child { color: var(--text-secondary); width: 100px; }
+
+  /* Layer items */
+  .layer-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .layer-item:last-child { border-bottom: none; }
+  .layer-size-bar { height: 6px; background: var(--primary-light); border-radius: 3px; margin-top: 6px; }
+  .layer-size-bar .fill { height: 100%; border-radius: 3px; background: var(--primary); }
+  .layer-command { font-family: monospace; font-size: 12px; color: var(--text-secondary); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Detail tabs */
+  .detail-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .detail-tab-btn { padding: 8px 16px; background: none; border: none; color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .detail-tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .detail-panel { display: none; }
+  .detail-panel.active { display: block; }
+
+  /* Vulnerability badge */
+  .vuln-badge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+  .vuln-critical { background: #fee2e2; color: #991b1b; }
+  .vuln-high { background: #ffedd5; color: #9a3412; }
+
+  /* Severity dot */
+  .sev-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .sev-critical { background: #ef4444; }
+  .sev-high { background: #fb923c; }
+  .sev-medium { background: #fbbf24; }
+  .sev-low { background: #34d399; }
+
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main-area { margin-left: 0; }
+    .detail-layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>Anjungan</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-category">Infrastructure</div>
+      <div class="sidebar-nav-item"><span class="icon">🖥</span> Servers</div>
+      <div class="sidebar-nav-item active"><span class="icon">📦</span> Registry</div>
+      <div class="sidebar-nav-item"><span class="icon">🚀</span> Deployments</div>
+      <div class="sidebar-nav-category">Security</div>
+      <div class="sidebar-nav-item"><span class="icon">🔐</span> Compliance</div>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-area">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title">📦 Registry</span>
+      </div>
+      <div class="topbar-right">
+        <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+        <div class="avatar">ES</div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Tab switcher -->
+      <div class="mockup-tabs">
+        <button class="mockup-tab active" onclick="switchTab('registry', 'dashboard')">📊 Dashboard</button>
+        <button class="mockup-tab" onclick="switchTab('registry', 'detail')">🔍 Image Detail</button>
+        <button class="mockup-tab" onclick="switchTab('registry', 'creds')">🔑 Push Credentials</button>
+      </div>
+
+      <!-- PANEL: Dashboard -->
+      <div id="panel-dashboard" class="mockup-panel active">
+        <!-- KPI cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Images</div>
+            <div class="kpi-value">24</div>
+            <div class="kpi-change up">↑ 3 this week</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Tags</div>
+            <div class="kpi-value">142</div>
+            <div class="kpi-change up">↑ 12 this week</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Registry Size</div>
+            <div class="kpi-value">4.7 GB</div>
+            <div class="kpi-change up">↑ 320 MB this week</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Active Users</div>
+            <div class="kpi-value">8</div>
+            <div class="kpi-change up">↑ 2 this month</div>
+          </div>
+        </div>
+
+        <!-- Search & filter -->
+        <div class="search-bar">
+          <input class="search-input" type="text" placeholder="Search images..." value="nginx">
+          <select class="filter-select">
+            <option>All Namespaces</option>
+            <option>app</option>
+            <option>infra</option>
+            <option>backend</option>
+          </select>
+          <select class="filter-select">
+            <option>Sort: Last pushed</option>
+            <option>Sort: Name A-Z</option>
+            <option>Sort: Most tags</option>
+          </select>
+          <button class="btn btn-primary">🔍 Search</button>
+        </div>
+
+        <!-- Image grid -->
+        <div class="image-grid">
+          <div class="image-card">
+            <div class="image-card-header">
+              <div>
+                <div class="image-name">nginx</div>
+                <span class="image-namespace">infra</span>
+              </div>
+              <span class="image-tag-count">🏷 12 tags</span>
+            </div>
+            <div class="image-tags-row">
+              <span class="tag-badge">latest</span>
+              <span class="tag-badge">1.25.3</span>
+              <span class="tag-badge">1.25.2</span>
+              <span class="tag-badge">1.24.0</span>
+              <span class="tag-badge">+8 more</span>
+            </div>
+            <div class="image-meta">
+              <span>📦 42 MB</span>
+              <span>⏱ 2h ago</span>
+            </div>
+          </div>
+
+          <div class="image-card">
+            <div class="image-card-header">
+              <div>
+                <div class="image-name">anjungan-backend</div>
+                <span class="image-namespace">app</span>
+              </div>
+              <span class="image-tag-count">🏷 24 tags</span>
+            </div>
+            <div class="image-tags-row">
+              <span class="tag-badge">latest</span>
+              <span class="tag-badge">v3.2.1</span>
+              <span class="tag-badge">v3.2.0</span>
+              <span class="tag-badge">v3.1.0</span>
+              <span class="tag-badge">+20 more</span>
+            </div>
+            <div class="image-meta">
+              <span>📦 187 MB</span>
+              <span>⏱ 1d ago</span>
+            </div>
+          </div>
+
+          <div class="image-card">
+            <div class="image-card-header">
+              <div>
+                <div class="image-name">whatilearned</div>
+                <span class="image-namespace">app</span>
+              </div>
+              <span class="image-tag-count">🏷 18 tags</span>
+            </div>
+            <div class="image-tags-row">
+              <span class="tag-badge">latest</span>
+              <span class="tag-badge">v3.2.0</span>
+              <span class="tag-badge">v3.1.0</span>
+              <span class="tag-badge">v3.0.0</span>
+              <span class="tag-badge">+14 more</span>
+            </div>
+            <div class="image-meta">
+              <span>📦 95 MB</span>
+              <span>⏱ 3d ago</span>
+            </div>
+          </div>
+
+          <div class="image-card">
+            <div class="image-card-header">
+              <div>
+                <div class="image-name">opsterm</div>
+                <span class="image-namespace">app</span>
+              </div>
+              <span class="image-tag-count">🏷 6 tags</span>
+            </div>
+            <div class="image-tags-row">
+              <span class="tag-badge">latest</span>
+              <span class="tag-badge">v2.0.1</span>
+              <span class="tag-badge">v2.0.0</span>
+              <span class="tag-badge">v1.1.0</span>
+              <span class="tag-badge">+2 more</span>
+            </div>
+            <div class="image-meta">
+              <span>📦 68 MB</span>
+              <span>⏱ 5d ago</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL: Image Detail -->
+      <div id="panel-detail" class="mockup-panel">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <h2 style="font-size:18px;font-weight:600;">nginx</h2>
+              <span class="image-namespace">infra / nginx</span>
+              <span class="badge badge-success" style="margin-left:8px;">🔵 latest</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline btn-sm">🗑 Delete Tag</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-layout">
+          <div>
+            <!-- Detail tabs -->
+            <div class="card">
+              <div class="detail-tabs" id="detailTabs">
+                <button class="detail-tab-btn active" onclick="switchDetailTab('config')">⚙ Config</button>
+                <button class="detail-tab-btn" onclick="switchDetailTab('layers')">📦 Layers (12)</button>
+                <button class="detail-tab-btn" onclick="switchDetailTab('history')">📜 History</button>
+              </div>
+
+              <div id="detail-config" class="detail-panel active">
+                <table class="meta-table">
+                  <tr><td>Architecture</td><td>amd64</td></tr>
+                  <tr><td>OS</td><td>linux</td></tr>
+                  <tr><td>Created</td><td>2026-06-01 14:23:10 UTC</td></tr>
+                  <tr><td>CMD</td><td><code>nginx -g daemon off;</code></td></tr>
+                  <tr><td>Entrypoint</td><td><code>/docker-entrypoint.sh</code></td></tr>
+                  <tr><td>Exposed Ports</td><td>80/tcp, 443/tcp</td></tr>
+                  <tr><td>Env</td><td><code>NGINX_VERSION=1.25.3</code>, <code>NJS_VERSION=0.8.2</code></td></tr>
+                  <tr><td>Labels</td><td><code>maintainer=NGINX Docker</code></td></tr>
+                  <tr><td>Volumes</td><td><code>/var/cache/nginx</code>, <code>/etc/nginx/conf.d</code></td></tr>
+                </table>
+              </div>
+
+              <div id="detail-layers" class="detail-panel">
+                <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">12 layers · Total compressed size: 42 MB</div>
+                <div class="layer-item">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;">
+                    <span>📦 Layer 1 — Base OS</span>
+                    <span>12.4 MB</span>
+                  </div>
+                  <div class="layer-size-bar"><div class="fill" style="width:30%;"></div></div>
+                  <div class="layer-command">/bin/sh -c apt-get update && apt-get install -y ...</div>
+                </div>
+                <div class="layer-item">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;">
+                    <span>📦 Layer 2 — Nginx install</span>
+                    <span>18.2 MB</span>
+                  </div>
+                  <div class="layer-size-bar"><div class="fill" style="width:43%;"></div></div>
+                  <div class="layer-command">/bin/sh -c apt-get install --no-install-recommends nginx=1.25.3</div>
+                </div>
+                <div class="layer-item">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;">
+                    <span>📦 Layer 3 — Config</span>
+                    <span>2.1 KB</span>
+                  </div>
+                  <div class="layer-size-bar"><div class="fill" style="width:5%;"></div></div>
+                  <div class="layer-command">COPY nginx.conf /etc/nginx/nginx.conf</div>
+                </div>
+                <div class="layer-item">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;">
+                    <span>📦 Layer 4 — Entrypoint</span>
+                    <span>1.8 KB</span>
+                  </div>
+                  <div class="layer-size-bar"><div class="fill" style="width:4%;"></div></div>
+                  <div class="layer-command">COPY docker-entrypoint.sh /docker-entrypoint.sh</div>
+                </div>
+                <div class="layer-item">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;">
+                    <span>📦 Layer 5 — Slimming</span>
+                    <span>8.5 MB</span>
+                  </div>
+                  <div class="layer-size-bar"><div class="fill" style="width:20%;"></div></div>
+                  <div class="layer-command">/bin/sh -c rm -rf /var/lib/apt/lists/* ...</div>
+                </div>
+              </div>
+
+              <div id="detail-history" class="detail-panel">
+                <table>
+                  <thead><tr><th>#</th><th>Created</th><th>Created By</th><th>Comment</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>2026-06-01 14:20</td><td>Builder</td><td>Base OS layer — Debian Bookworm</td></tr>
+                    <tr><td>2</td><td>2026-06-01 14:21</td><td>Builder</td><td>Install nginx 1.25.3</td></tr>
+                    <tr><td>3</td><td>2026-06-01 14:22</td><td>Builder</td><td>Copy configuration files</td></tr>
+                    <tr><td>4</td><td>2026-06-01 14:22</td><td>Builder</td><td>Set up entrypoint script</td></tr>
+                    <tr><td>5</td><td>2026-06-01 14:23</td><td>Builder</td><td>Clean up package cache</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Side panel -->
+          <div class="side-panel">
+            <div class="card">
+              <div class="card-title">Pull Command</div>
+              <div class="pull-command">
+                <span>docker pull registry.edsuwarna.id/infra/nginx:latest</span>
+                <button class="copy" onclick="alert('Copied!')">📋 Copy</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Vulnerability Scan</div>
+              <div class="vuln-badge vuln-critical" style="margin-bottom:8px;">
+                🔴 3 Critical
+              </div>
+              <div class="vuln-badge vuln-high" style="margin-bottom:8px;">
+                🟠 7 High
+              </div>
+              <div style="font-size:13px;color:var(--text-secondary);">
+                <span style="display:flex;align-items:center;gap:4px;margin-bottom:4px;"><span class="sev-dot sev-medium"></span> 12 Medium</span>
+                <span style="display:flex;align-items:center;gap:4px;"><span class="sev-dot sev-low"></span> 24 Low</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Image Info</div>
+              <table class="meta-table">
+                <tr><td>Digest</td><td style="font-family:monospace;font-size:11px;">sha256:a1b2c3d4...</td></tr>
+                <tr><td>Media Type</td><td>application/vnd.docker.distribution.manifest.v2+json</td></tr>
+                <tr><td>OS/Arch</td><td>linux/amd64</td></tr>
+                <tr><td>Pushed</td><td>2 hours ago</td></tr>
+                <tr><td>Pulled</td><td>847 times</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL: Push Credentials -->
+      <div id="panel-creds" class="mockup-panel">
+        <!-- My credentials -->
+        <div class="cred-card" style="margin-bottom:24px;">
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:16px;">🔑 Your Registry Credentials</h3>
+          <div class="cred-field">
+            <label>Username</label>
+            <div class="value">
+              <span>u-a1b2c3d4</span>
+              <button class="btn btn-sm btn-outline" style="margin-left:auto;" onclick="alert('Copied!')">📋 Copy</button>
+            </div>
+          </div>
+          <div class="cred-field">
+            <label>Password</label>
+            <div class="value">
+              <span class="masked">••••••••••••</span>
+              <button class="btn btn-sm btn-outline" style="margin-left:auto;" onclick="alert('Revealed!')">👁 Show</button>
+              <button class="btn btn-sm btn-outline" onclick="alert('Copied!')">📋 Copy</button>
+            </div>
+          </div>
+          <div class="cred-actions">
+            <button class="btn btn-primary btn-sm">🔄 Reset Password</button>
+          </div>
+          <div style="margin-top:16px;padding:12px;background:#fef3c7;border-radius:8px;font-size:13px;color:#92400e;">
+            ⚠️ Save your password — it won't be shown again after page reload.
+          </div>
+          <div style="margin-top:12px;padding:12px;background:var(--bg-surface);border-radius:8px;font-family:monospace;font-size:13px;display:flex;align-items:center;justify-content:space-between;">
+            <span>$ docker login registry.edsuwarna.id -u u-a1b2c3d4</span>
+            <button class="btn btn-sm btn-outline" onclick="alert('Copied!')">📋 Copy Command</button>
+          </div>
+        </div>
+
+        <!-- User credentials table -->
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="font-size:16px;font-weight:600;">👥 Registry Users</h3>
+            <button class="btn btn-primary btn-sm">➕ Create User</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Linked Anjungan User</th>
+                  <th>Created</th>
+                  <th>Last Login</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="font-family:monospace;font-weight:600;">u-a1b2c3d4</td>
+                  <td>endang@edsuwarna.id</td>
+                  <td>2026-05-15</td>
+                  <td>2026-06-07 14:32</td>
+                  <td><span class="badge badge-success">✅ Active</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline">🔄 Reset</button>
+                    <button class="btn btn-sm btn-outline" style="color:var(--danger);">🗑</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-weight:600;">u-e5f6g7h8</td>
+                  <td>devops@edsuwarna.id</td>
+                  <td>2026-05-20</td>
+                  <td>2026-06-06 09:15</td>
+                  <td><span class="badge badge-success">✅ Active</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline">🔄 Reset</button>
+                    <button class="btn btn-sm btn-outline" style="color:var(--danger);">🗑</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-weight:600;">robot-ci-1</td>
+                  <td>— (Robot)</td>
+                  <td>2026-04-01</td>
+                  <td>2026-06-07 08:00</td>
+                  <td><span class="badge badge-success">✅ Active</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline">🔄 Reset</button>
+                    <button class="btn btn-sm btn-outline" style="color:var(--danger);">🗑</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-weight:600;">u-i9j0k1l2</td>
+                  <td>developer@edsuwarna.id</td>
+                  <td>2026-06-01</td>
+                  <td>— (never)</td>
+                  <td><span class="badge badge-warning">⏳ Pending</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline">🔄 Reset</button>
+                    <button class="btn btn-sm btn-outline" style="color:var(--danger);">🗑</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function switchTab(area, tab) {
+    document.querySelectorAll('#panel-dashboard, #panel-detail, #panel-creds').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + tab).classList.add('active');
+    document.querySelectorAll('.mockup-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.mockup-tab').forEach(t => {
+      if (t.textContent.includes('Dashboard') && tab === 'dashboard') t.classList.add('active');
+      if (t.textContent.includes('Image Detail') && tab === 'detail') t.classList.add('active');
+      if (t.textContent.includes('Push Credentials') && tab === 'creds') t.classList.add('active');
+    });
+  }
+
+  function switchDetailTab(tab) {
+    document.querySelectorAll('.detail-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('detail-' + tab).classList.add('active');
+    document.querySelectorAll('.detail-tab-btn').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.detail-tab-btn').forEach(t => {
+      if (t.textContent.includes('Config') && tab === 'config') t.classList.add('active');
+      if (t.textContent.includes('Layers') && tab === 'layers') t.classList.add('active');
+      if (t.textContent.includes('History') && tab === 'history') t.classList.add('active');
+    });
+  }
+
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    document.querySelector('.theme-toggle').textContent = isDark ? '🌙' : '☀️';
+  }
+</script>
+</body>
+</html>

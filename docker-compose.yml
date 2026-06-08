@@ -55,6 +55,10 @@ services:
       ZOT_CONTAINER_NAME: ${ZOT_CONTAINER_NAME:-anjungan-zot}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MIGRATIONS_PATH: /migrations
+      SELF_SERVER_ENABLED: "true"
+      SELF_HOST_NETWORK: "host.docker.internal"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     depends_on:
@@ -62,6 +66,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    group_add:
+      - "988"  # docker group GID — gives anjungan user access to Docker socket
     volumes:
       - sshkeys:/data/ssh
       - ./zot:/data/zot:rw
