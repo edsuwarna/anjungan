@@ -153,6 +153,40 @@ func scanServerFull(scanner interface {
 	return s, nil
 }
 
+// serverColumnsWithCompliance extends serverColumns with compliance data from the latest scan
+const serverColumnsWithCompliance = `s.id, s.name, s.host, s.port, s.ssh_user, s.ssh_auth_type, s.status, s.container_count,
+	COALESCE(s.tags, '{}'), COALESCE(s.labels, '{}')::text, COALESCE(s.server_group, ''),
+	COALESCE(s.region, ''), COALESCE(s.server_type, ''), COALESCE(s.description, ''),
+	COALESCE(s.os_info, ''), COALESCE(s.cpu_info, ''), s.last_seen_at, COALESCE(s.monitoring, false),
+	COALESCE(s.connection_type, 'ssh'), COALESCE(s.is_self, false), COALESCE(s.self_hostname, ''),
+	COALESCE(s.created_by::text, ''), s.created_at, s.updated_at, COALESCE(s.ssh_key_id::text, ''),
+	sr.score, COALESCE(sr.criticals, 0), COALESCE(sr.warnings, 0), COALESCE(sr.passed, 0), sr.completed_at`
+
+// scanServerResponseWithCompliance scans rows from a query that joins servers with compliance data
+func scanServerResponseWithCompliance(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*model.ServerResponse, error) {
+	s := &model.ServerResponse{}
+	var score *int
+	var lastScan *time.Time
+	var sshKeyID string
+	err := scanner.Scan(
+		&s.ID, &s.Name, &s.Host, &s.Port, &s.SSHUser, &s.SSHAuthType,
+		&s.Status, &s.ContainerCount, &s.Tags, &s.Labels,
+		&s.ServerGroup, &s.Region, &s.ServerType, &s.Description,
+		&s.OSInfo, &s.CPUInfo, &s.LastSeenAt, &s.Monitoring,
+		&s.ConnectionType, &s.IsSelf, &s.SelfHostname,
+		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt, &sshKeyID,
+		&score, &s.Criticals, &s.Warnings, &s.Passed, &lastScan,
+	)
+	if err != nil {
+		return nil, err
+	}
+	s.Score = score
+	s.LastScan = lastScan
+	return s, nil
+}
+
 func (r *Repository) ListServers(ctx context.Context) ([]*model.Server, error) {
 	rows, err := r.db.Pool.Query(ctx,
 		`SELECT `+serverColumns+` FROM servers ORDER BY name`,
@@ -257,7 +291,14 @@ func (r *Repository) ListServersPaginated(ctx context.Context, q model.ServerLis
 	offset := (page - 1) * limit
 
 	dataQuery := fmt.Sprintf(
-		`SELECT `+serverColumns+` FROM servers s %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		`SELECT `+serverColumnsWithCompliance+` FROM servers s
+		LEFT JOIN LATERAL (
+		    SELECT score, criticals, warnings, passed, completed_at
+		    FROM scan_results
+		    WHERE server_id = s.id AND status = 'completed'
+		    ORDER BY created_at DESC LIMIT 1
+		) sr ON true
+		%s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
 		whereClause, sortCol, order, argIdx, argIdx+1,
 	)
 	args = append(args, limit, offset)
@@ -270,11 +311,11 @@ func (r *Repository) ListServersPaginated(ctx context.Context, q model.ServerLis
 
 	var servers []model.ServerResponse
 	for rows.Next() {
-		s, err := scanServer(rows)
+		s, err := scanServerResponseWithCompliance(rows)
 		if err != nil {
 			return nil, err
 		}
-		servers = append(servers, s.ToResponse())
+		servers = append(servers, *s)
 	}
 	if servers == nil {
 		servers = []model.ServerResponse{}

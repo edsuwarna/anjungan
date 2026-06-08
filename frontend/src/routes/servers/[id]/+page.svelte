@@ -15,6 +15,10 @@ import { loadThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.j
 	let showEditModal = $state(false);
 	let copyFeedback = $state({ show: false, success: false });
 
+	// ── Compliance overview state ──────────────────────────
+	let overviewCompliance = $state(null);
+	let overviewCompLoading = $state(false);
+
 	// Confirmation modal
 	let confirmModal = $state({ show: false, title: '', message: '', onConfirm: null, danger: false });
 
@@ -115,6 +119,7 @@ let showAllHistory = $state(false);
 		try {
 			server = await api.servers.get($page.params.id);
 			loadMetrics();
+			loadOverviewCompliance();
 			if (pendingTab) {
 				activeTab = pendingTab;
 				if (activeTab === 'compliance') {
@@ -468,6 +473,29 @@ let showAllHistory = $state(false);
 		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
 		const i = Math.floor(Math.log(bytes) / Math.log(1024));
 		return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+	}
+
+	// ── Compliance overview ──────────────────────────────────
+	async function loadOverviewCompliance() {
+		overviewCompLoading = true;
+		try {
+			const data = await api.compliance.latest($page.params.id);
+			if (data && data.score !== null && data.score !== undefined) {
+				overviewCompliance = data;
+			} else {
+				// Try CIS L1 specifically if the generic latest didn't return good data
+				const l1 = await api.compliance.latest($page.params.id, { scan_type: 'CIS Level 1' });
+				if (l1 && l1.score !== null && l1.score !== undefined) {
+					overviewCompliance = l1;
+				} else {
+					overviewCompliance = null;
+				}
+			}
+		} catch (_) {
+			overviewCompliance = null;
+		} finally {
+			overviewCompLoading = false;
+		}
 	}
 
 	function severityColor(severity) {
@@ -899,6 +927,54 @@ let showAllHistory = $state(false);
 				</div>
 			</div>
 
+			<!-- Compliance Overview Card -->
+			{#if overviewCompLoading}
+				<div class="card mt-4 flex items-center gap-3 py-3" style="border-left: 3px solid var(--color-accent);">
+					<Icon icon="solar:spinner-bold" class="h-4 w-4 animate-spin" style="color: var(--color-primary);" />
+					<span class="text-xs" style="color: var(--color-text-muted);">Loading compliance...</span>
+				</div>
+			{:else if overviewCompliance}
+				{@const sc = overviewCompliance.score}
+				{@const sColor = scoreColor(sc)}
+				{@const totalFindings = (overviewCompliance.criticals || 0) + (overviewCompliance.warnings || 0) + (overviewCompliance.passed || 0)}
+				<div class="card mt-4 clickable-card" style="border-left: 3px solid {sColor}; cursor: pointer;"
+					role="button" tabindex="0"
+					onclick={() => switchTab('compliance')}
+					onkeydown={(e) => e.key === 'Enter' && switchTab('compliance')}>
+					<div class="flex items-center justify-between flex-wrap gap-2">
+						<div class="flex items-center gap-2.5">
+							<div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background: {sColor}18;">
+								<Icon icon="solar:shield-check-bold" class="h-5 w-5" style="color: {sColor};" />
+							</div>
+							<div>
+								<h3 class="text-sm font-semibold" style="color: var(--color-text);">Compliance Overview</h3>
+								<p class="text-xs" style="color: var(--color-text-muted);">
+									{overviewCompliance.scan_type || 'CIS Level 1'} · {sc}% {scoreLabel(sc)}
+								</p>
+							</div>
+						</div>
+						<div class="flex items-center gap-3 text-xs">
+							{#if overviewCompliance.passed > 0}<span style="color: var(--color-success);">✓{overviewCompliance.passed}</span>{/if}
+							{#if overviewCompliance.warnings > 0}<span style="color: var(--color-warning);">⚠{overviewCompliance.warnings}</span>{/if}
+							{#if overviewCompliance.criticals > 0}<span style="color: var(--color-danger);">✗{overviewCompliance.criticals}</span>{/if}
+							<Icon icon="solar:alt-arrow-right-bold" class="h-3.5 w-3.5" style="color: var(--color-text-muted);" />
+						</div>
+					</div>
+					{#if totalFindings > 0}
+						<div class="progress-track mt-2">
+							<div class="progress-fill" style="width: {Math.round((overviewCompliance.passed || 0) / totalFindings * 100)}%; background: {sColor};"></div>
+						</div>
+					{/if}
+					{#if overviewCompliance.completed_at || overviewCompliance.created_at}
+						<p class="text-[10px] mt-1.5" style="color: var(--color-text-muted);">
+							<Icon icon="solar:history-bold" class="inline-block h-3 w-3 -mt-0.5" />
+							Last scan: {formatTimeFull(overviewCompliance.completed_at || overviewCompliance.created_at)}
+							{overviewCompliance.total_checks ? ' · ' + overviewCompliance.total_checks + ' checks' : ''}
+						</p>
+					{/if}
+				</div>
+			{/if}
+
 		<!-- ════════════════════════ TAB: METRICS ════════════════════════ -->
 		{:else if activeTab === 'metrics'}
 			<!-- System Metrics -->
@@ -1093,7 +1169,7 @@ let showAllHistory = $state(false);
 
 					{#if isLynisProfile && lynisData}
 						<!-- Lynis Stats -->
-						<div class="grid gap-3 grid-cols-5 mb-4">
+						<div class="grid gap-3 grid-cols-3 sm:grid-cols-5 mb-4">
 							<div class="stat-card !py-4 !px-3 text-center" style="border-top: 3px solid var(--color-accent);">
 								<p class="text-2xl font-bold" style="color: var(--color-accent);">{lynisData.hardening_score || '—'}</p>
 								<p class="text-[10px] uppercase tracking-wider mt-0.5" style="color: var(--color-text-muted);">Hardening Index</p>
@@ -1117,18 +1193,18 @@ let showAllHistory = $state(false);
 						</div>
 
 						<!-- Lynis Warnings & Suggestions -->
-						<div class="grid gap-4 grid-cols-2 mb-4">
+						<div class="grid gap-4 sm:grid-cols-2 mb-4">
 							{#if lynisData.warnings_list?.length > 0}
-								<div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 14px;">
-									<h4 class="text-xs font-semibold" style="color: #d97706; margin-bottom: 8px;">🟡 Warnings</h4>
+								<div class="lynis-panel lynis-warn">
+									<h4 class="lynis-panel-title lynis-warn-title">🟡 Warnings</h4>
 									{#each lynisData.warnings_list.slice(0, 4) as w}
 										<p class="text-xs mb-1.5"><span class="font-mono" style="color: var(--color-accent);">{w.test_id}</span> · {w.description}</p>
 									{/each}
 								</div>
 							{/if}
 							{#if lynisData.suggestions_list?.length > 0}
-								<div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 10px; padding: 14px;">
-									<h4 class="text-xs font-semibold" style="color: #7c3aed; margin-bottom: 8px;">💡 Suggestions</h4>
+								<div class="lynis-panel lynis-suggest">
+									<h4 class="lynis-panel-title lynis-suggest-title">💡 Suggestions</h4>
 									{#each lynisData.suggestions_list.slice(0, 4) as s}
 										<p class="text-xs mb-1.5"><span class="font-mono" style="color: var(--color-accent);">{s.test_id}</span> · {s.description}</p>
 									{/each}
@@ -1139,7 +1215,7 @@ let showAllHistory = $state(false);
 					{:else if !isLynisProfile}
 						<!-- CIS Score + Stats -->
 						{#if scan}
-							<div class="grid gap-3 grid-cols-5 mb-4">
+							<div class="grid gap-3 grid-cols-3 sm:grid-cols-5 mb-4">
 								<div class="stat-card !py-4 !px-3 text-center" style="border-top: 3px solid {scoreColor(score)};">
 									<p class="text-2xl font-bold" style="color: {scoreColor(score)};">{score ?? '—'}</p>
 									<p class="text-[10px] uppercase tracking-wider mt-0.5" style="color: var(--color-text-muted);">Score</p>
@@ -1399,8 +1475,10 @@ let showAllHistory = $state(false);
 		border-color: var(--color-primary);
 		box-shadow: 0 2px 8px rgba(16,185,129,0.08);
 	}
-\t.progress-track { height: 5px; border-radius: 3px; background: var(--color-border); overflow: hidden; }
+	.progress-track { height: 5px; border-radius: 3px; background: var(--color-border); overflow: hidden; }
 	.progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+	.clickable-card { cursor: pointer; transition: all 0.15s; }
+	.clickable-card:hover { border-color: var(--color-primary) !important; box-shadow: 0 2px 8px rgba(16,185,129,0.08); }
 	.whats-scanned summary { user-select: none; }
 	.whats-scanned summary::-webkit-details-marker { display: none; }
 	.whats-scanned summary::marker { display: none; }
@@ -1420,5 +1498,31 @@ let showAllHistory = $state(false);
 		color: #10b981;
 		border: 1px solid rgba(16, 185, 129, 0.3);
 		line-height: 1.2;
+	}
+
+	/* ─── Lynis Panels (dark mode friendly) ───────────────────── */
+	.lynis-panel {
+		border-radius: 10px;
+		padding: 14px;
+	}
+	.lynis-warn {
+		background-color: rgba(245, 158, 11, 0.1);
+		border: 1px solid rgba(245, 158, 11, 0.25);
+	}
+	.lynis-warn-title {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--color-warning);
+		margin-bottom: 8px;
+	}
+	.lynis-suggest {
+		background-color: rgba(139, 92, 246, 0.08);
+		border: 1px solid rgba(139, 92, 246, 0.2);
+	}
+	.lynis-suggest-title {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--color-accent);
+		margin-bottom: 8px;
 	}
 </style>

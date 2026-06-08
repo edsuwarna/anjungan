@@ -4,6 +4,7 @@
 	import AddServerModal from '$lib/components/ui/AddServerModal.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { loadThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.js';
 
 	let servers = $state([]);
 	let loading = $state(true);
@@ -75,6 +76,7 @@
 
 	onMount(() => {
 		window.addEventListener('click', handleWindowClick);
+		loadThresholds();
 		return () => window.removeEventListener('click', handleWindowClick);
 	});
 
@@ -266,6 +268,18 @@
 	function formatDate(dateStr) {
 		if (!dateStr) return '-';
 		return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+	}
+
+	function formatTime(ts) {
+		if (!ts) return '';
+		const d = new Date(ts);
+		const now = new Date();
+		const diff = now - d;
+		if (diff < 60000) return 'Just now';
+		if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+		if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+		if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
+		return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 	}
 
 	function clearFilters() {
@@ -558,6 +572,31 @@
 							{/if}
 						</div>
 
+						<!-- Compliance row -->
+						{#if server.score !== undefined && server.score !== null}
+							{@const sColor = scoreColor(server.score)}
+							{@const pct = Math.min(100, Math.round(((server.passed || 0) / Math.max(1, (server.passed || 0) + (server.warnings || 0) + (server.criticals || 0))) * 100))}
+							<div class="sc-compliance">
+								<div class="sc-comp-score" style="color: {sColor}; background-color: {sColor}18;">
+									{server.score}
+								</div>
+								<div class="sc-comp-bars">
+									<div class="progress-track">
+										<div class="progress-fill" style="width: {pct}%; background: {sColor};"></div>
+									</div>
+									<div class="sc-comp-stats">
+										<span class="sc-comp-pass">✓{server.passed || 0}</span>
+										{#if server.warnings > 0}
+											<span class="sc-comp-warn">⚠{server.warnings}</span>
+										{/if}
+										{#if server.criticals > 0}
+											<span class="sc-comp-fail">✗{server.criticals}</span>
+										{/if}
+									</div>
+								</div>
+							</div>
+						{/if}
+
 						<!-- Bottom: collapsible actions -->
 						<div class="sc-bottom">
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -567,7 +606,18 @@
 									<span>Actions</span>
 								</button>
 							</div>
-							<span class="sc-added">Added {formatDate(server.created_at)}</span>
+							{#if server.score !== undefined && server.score !== null}
+								<div class="sc-bottom-meta">
+									{#if server.last_scan}
+										<span class="sc-last-scan" title={new Date(server.last_scan).toLocaleString()}>
+											<Icon icon="solar:history-bold" class="h-3 w-3" />
+											{formatTime(server.last_scan)}
+										</span>
+									{/if}
+								</div>
+							{:else}
+								<span class="sc-added">Added {formatDate(server.created_at)}</span>
+							{/if}
 						</div>
 
 						<!-- Expanded action panel -->
@@ -974,6 +1024,72 @@
 		color: #10b981;
 		border: 1px solid rgba(16, 185, 129, 0.3);
 		line-height: 1.2;
+	}
+
+	/* ─── Compliance Row ─────────────────────────────────────── */
+	.sc-compliance {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 6px 16px 6px;
+	}
+	.sc-comp-score {
+		width: 32px;
+		height: 22px;
+		border-radius: 6px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 11px;
+		font-weight: 800;
+		flex-shrink: 0;
+		line-height: 1;
+	}
+	.sc-comp-bars {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+	.progress-track {
+		height: 4px;
+		border-radius: 2px;
+		background: var(--color-border);
+		overflow: hidden;
+	}
+	.progress-fill {
+		height: 100%;
+		border-radius: 2px;
+		transition: width 0.3s;
+	}
+	.sc-comp-stats {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.sc-comp-stats span {
+		font-size: 10px;
+		font-weight: 500;
+		line-height: 1;
+	}
+	.sc-comp-pass { color: var(--color-success); }
+	.sc-comp-warn { color: var(--color-warning); }
+	.sc-comp-fail { color: var(--color-danger); }
+
+	/* ─── Bottom meta ─────────────────────────────────────────── */
+	.sc-bottom-meta {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.sc-last-scan {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		font-size: 11px;
+		color: var(--color-text-muted);
+		white-space: nowrap;
 	}
 
 	/* Mobile: single column */

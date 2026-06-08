@@ -52,30 +52,36 @@ type Server struct {
 
 // ServerResponse is the public-safe version (no credentials exposed)
 type ServerResponse struct {
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	Host           string    `json:"host"`
-	Port           int       `json:"port"`
-	SSHUser        string    `json:"ssh_user"`
-	SSHAuthType    string    `json:"ssh_auth_type"`
-	Status         string    `json:"status"`
-	ContainerCount int       `json:"container_count"`
-	Tags           []string  `json:"tags"`
-	Labels         string    `json:"labels"`
-	ServerGroup    string    `json:"server_group"`
-	Region         string    `json:"region"`
-	ServerType     string    `json:"server_type"`
-	Description    string    `json:"description"`
-	OSInfo         string    `json:"os_info"`
-	CPUInfo        string    `json:"cpu_info"`
+	ID             string     `json:"id"`
+	Name           string     `json:"name"`
+	Host           string     `json:"host"`
+	Port           int        `json:"port"`
+	SSHUser        string     `json:"ssh_user"`
+	SSHAuthType    string     `json:"ssh_auth_type"`
+	Status         string     `json:"status"`
+	ContainerCount int        `json:"container_count"`
+	Tags           []string   `json:"tags"`
+	Labels         string     `json:"labels"`
+	ServerGroup    string     `json:"server_group"`
+	Region         string     `json:"region"`
+	ServerType     string     `json:"server_type"`
+	Description    string     `json:"description"`
+	OSInfo         string     `json:"os_info"`
+	CPUInfo        string     `json:"cpu_info"`
 	LastSeenAt     *time.Time `json:"last_seen_at"`
-	Monitoring     bool      `json:"monitoring"`
-	ConnectionType string    `json:"connection_type"`
-	IsSelf         bool      `json:"is_self"`
-	SelfHostname   string    `json:"self_hostname"`
-	CreatedBy      string    `json:"created_by"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	Monitoring     bool       `json:"monitoring"`
+	ConnectionType string     `json:"connection_type"`
+	IsSelf         bool       `json:"is_self"`
+	SelfHostname   string     `json:"self_hostname"`
+	CreatedBy      string     `json:"created_by"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	// Compliance fields — populated on list queries, may be nil/zero if unscanned
+	Score     *int       `json:"score"`
+	Criticals int        `json:"criticals"`
+	Warnings  int        `json:"warnings"`
+	Passed    int        `json:"passed"`
+	LastScan  *time.Time `json:"last_scan"`
 }
 
 func (s *Server) ToResponse() ServerResponse {
