@@ -24,8 +24,8 @@ func RunLynis(ctx context.Context, sshCfg sshtool.Config) (*LynisResult, error) 
 		return nil, fmt.Errorf("lynis is not installed on this server")
 	}
 
-	// Run Lynis audit
-	lynisCmd := `sudo lynis audit system --report-journal --quiet 2>&1 | tail -200 || lynis audit system --report-journal --quiet 2>&1 | tail -200`
+	// Run Lynis audit — no --quiet to ensure summary lines in output
+	lynisCmd := `sudo lynis audit system --no-colors 2>&1 | tail -250 || lynis audit system --no-colors 2>&1 | tail -250`
 	output, err := sshtool.RunCommand(ctx, sshCfg, lynisCmd)
 	if err != nil && output == "" {
 		return nil, fmt.Errorf("lynis audit failed: %w", err)
@@ -42,13 +42,17 @@ func parseLynisOutput(output string) *LynisResult {
 
 	lines := strings.Split(output, "\n")
 
-	// Regex patterns
-	hardeningRe := regexp.MustCompile(`Hardening\s*index\s*[:\[]\s*(\d+)\s*[,\]]?\s*score\s*[:\[]\s*(\d+)`)
-	hardeningSimpleRe := regexp.MustCompile(`\[Hardening Index\]\s*\[\s*(\d+)\s*\]`)
-	testsRe := regexp.MustCompile(`(?:Performed|Tests)\s*:\s*(\d+)`)
-	pluginsRe := regexp.MustCompile(`Plugins\s*:\s*(\d+)`)
-	warningsRe := regexp.MustCompile(`(?:Security|Warnings)\s*(?:warnings|issues)?\s*:\s*(\d+)`)
-	suggestionsRe := regexp.MustCompile(`Suggestions\s*:\s*(\d+)`)
+	// Regex patterns — Lynis 3.x output format
+	//   "Hardening index : 57 [###########         ]"
+	hardeningRe := regexp.MustCompile(`Hardening\s+index\s*:\s*(\d+)`)
+	//   "Tests performed : 266"
+	testsRe := regexp.MustCompile(`Tests\s+performed\s*:\s*(\d+)`)
+	//   "Plugins enabled : 1"
+	pluginsRe := regexp.MustCompile(`Plugins\s+enabled\s*:\s*(\d+)`)
+	//   "Warnings (1):"
+	warningsRe := regexp.MustCompile(`(?i)(?:Security|Warnings)\s*\((\d+)\)\s*:`)
+	//   "Suggestions (51):"
+	suggestionsRe := regexp.MustCompile(`(?i)Suggestions\s*\((\d+)\)\s*:`)
 	osRe := regexp.MustCompile(`(?i)(?:Detected\s*OS|Operating\s*system|OS)\s*:\s*(.+)`)
 	hostnameRe := regexp.MustCompile(`(?i)Hostname\s*:\s*(.+)`)
 
@@ -58,10 +62,8 @@ func parseLynisOutput(output string) *LynisResult {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// Hardening index: multiple formats
-		if m := hardeningRe.FindStringSubmatch(trimmed); len(m) >= 3 {
-			result.HardeningScore, _ = strconv.Atoi(m[1])
-		} else if m := hardeningSimpleRe.FindStringSubmatch(trimmed); len(m) >= 2 {
+		// Hardening index
+		if m := hardeningRe.FindStringSubmatch(trimmed); len(m) >= 2 {
 			result.HardeningScore, _ = strconv.Atoi(m[1])
 		}
 
@@ -115,15 +117,6 @@ func parseLynisOutput(output string) *LynisResult {
 					Description: trimmed,
 				})
 			}
-		}
-	}
-
-	// Lynis reports score out of ~100
-	if result.HardeningScore == 0 {
-		// Try to find any number in brackets near "Hardening"
-		altRe := regexp.MustCompile(`(?i)hardening.*?(\d{2,3})`)
-		if m := altRe.FindStringSubmatch(output); len(m) >= 2 {
-			result.HardeningScore, _ = strconv.Atoi(m[1])
 		}
 	}
 

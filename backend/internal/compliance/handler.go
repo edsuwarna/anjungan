@@ -502,7 +502,7 @@ func (h *Handler) TriggerLynisScan(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			output, err := runner(ctx, `sh -c "sudo lynis audit system --report-journal --quiet 2>&1 | tail -200 || lynis audit system --report-journal --quiet 2>&1 | tail -200"`)
+			output, err := runner(ctx, `sh -c "sudo lynis audit system --no-colors 2>&1 | tail -250 || lynis audit system --no-colors 2>&1 | tail -250"`)
 			if err != nil && output == "" {
 				completedAt := time.Now()
 				zero := 0
@@ -511,6 +511,7 @@ func (h *Handler) TriggerLynisScan(w http.ResponseWriter, r *http.Request) {
 				sr.CompletedAt = &completedAt
 				sr.Score = &zero
 				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("Lynis scan failed: audit error")
 				return
 			}
 
