@@ -80,15 +80,9 @@
 		try {
 			const res = await api.containers.byServer();
 			data = res;
-			// Auto-expand server sections that have containers
+			// Server cards default collapsed — containers visible on expand
 			if (res?.servers) {
-				const next = {};
-				for (const s of res.servers) {
-					if (s.containers?.length > 0) {
-						next[s.server.id] = true;
-					}
-				}
-				expandedServers = next;
+				expandedServers = {};
 			}
 		} catch (e) {
 			error = e.message;
