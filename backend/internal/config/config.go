@@ -17,6 +17,7 @@ type Config struct {
 	Registry       RegistryConfig
 	Log            LogConfig
 	Security       SecurityConfig
+	SelfServer     SelfServerConfig
 	MigrationsPath string
 }
 
@@ -75,6 +76,13 @@ type SecurityConfig struct {
 	RateLimitWindow       time.Duration `json:"rate_limit_window"`
 	RateLimitLockout      time.Duration `json:"rate_limit_lockout"`
 	MinPasswordLength     int           `json:"min_password_length"`
+}
+
+type SelfServerConfig struct {
+	Enabled         bool   // SELF_SERVER_ENABLED — auto-register host server
+	Name            string // SELF_SERVER_NAME — display name for self server
+	DockerSocketPath string // DOCKER_SOCKET_PATH — path to Docker socket
+	HostNetwork     string // SELF_HOST_NETWORK — host IP from inside container (e.g. 172.22.0.1)
 }
 
 type LogConfig struct {
@@ -142,6 +150,12 @@ func Load() *Config {
 			RateLimitLockout:      getDurationEnv("RATE_LIMIT_LOCKOUT", 30*time.Minute),
 			MinPasswordLength:     getEnvInt("MIN_PASSWORD_LENGTH", 8),
 		},
+		SelfServer: SelfServerConfig{
+			Enabled:          getEnvBool("SELF_SERVER_ENABLED", false),
+			Name:             getEnv("SELF_SERVER_NAME", "anjungan-host"),
+			DockerSocketPath: getEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock"),
+			HostNetwork:      getEnv("SELF_HOST_NETWORK", ""),
+		},
 		Log: LogConfig{
 			Level: getEnv("LOG_LEVEL", "info"),
 		},
@@ -163,6 +177,14 @@ func getEnvInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	val := os.Getenv(key)
+	if val == "" {
+		return fallback
+	}
+	return val == "true" || val == "1" || val == "yes"
 }
 
 func getDurationEnv(key string, fallback time.Duration) time.Duration {
