@@ -1,7 +1,6 @@
 package infra
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -1380,50 +1380,33 @@ func (h *Handler) TerminalWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// dockerTerminal runs an interactive host shell via Docker nsenter, connected to the WebSocket.
+// dockerTerminal runs an interactive host shell via Docker nsenter with PTY, connected to the WebSocket.
 func (h *Handler) dockerTerminal(ctx context.Context, conn *websocket.Conn, cancel context.CancelFunc) {
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--pid=host", "--privileged",
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-it", "--pid=host", "--privileged",
 		"--net=host", "-v", "/:/host:ro",
 		"alpine:latest",
 		"nsenter", "-t", "1", "-m", "-u", "-i", "-n",
 		"sh", "-c", "exec bash 2>/dev/null || exec sh")
 
-	cmd.Env = append(cmd.Env, "DOCKER_HOST=unix:///var/run/docker.sock", "TERM=xterm-256color")
+	cmd.Env = append(cmd.Env,
+		"DOCKER_HOST=unix:///var/run/docker.sock",
+		"TERM=xterm-256color")
 
-	stdin, err := cmd.StdinPipe()
+	// Start with a PTY so docker allocates a real TTY (needed for vim, htop, nano, etc.)
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 40, Cols: 120})
 	if err != nil {
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stdin pipe: %v\x1b[0m\r\n", err)))
-		return
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stdout pipe: %v\x1b[0m\r\n", err)))
-		return
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stderr pipe: %v\x1b[0m\r\n", err)))
-		return
-	}
-
-	if err := cmd.Start(); err != nil {
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to start shell: %v\x1b[0m\r\n", err)))
 		return
 	}
+	defer ptmx.Close()
 
-	// Combined reader for stdout+stderr
-	combined := io.MultiReader(stdout, stderr)
-	reader := bufio.NewReader(combined)
-
-	// Process output → WebSocket
+	// PTY output → WebSocket (binary to handle raw terminal sequences safely)
 	go func() {
 		buf := make([]byte, 4096)
 		for {
-			n, err := reader.Read(buf)
+			n, err := ptmx.Read(buf)
 			if n > 0 {
-				conn.WriteMessage(websocket.TextMessage, buf[:n])
+				conn.WriteMessage(websocket.BinaryMessage, buf[:n])
 			}
 			if err != nil {
 				conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[33m[Connection closed]\x1b[0m\r\n")))
@@ -1433,7 +1416,7 @@ func (h *Handler) dockerTerminal(ctx context.Context, conn *websocket.Conn, canc
 		}
 	}()
 
-	// WebSocket → process stdin
+	// WebSocket → PTY input, with resize handling
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -1441,12 +1424,22 @@ func (h *Handler) dockerTerminal(ctx context.Context, conn *websocket.Conn, canc
 		}
 
 		msgStr := strings.TrimSpace(string(msg))
-		// Skip resize messages (no PTY resize for local process)
 		if strings.HasPrefix(msgStr, "{") && strings.Contains(msgStr, "resize") {
+			var resizeReq struct {
+				Resize bool `json:"resize"`
+				Cols   int  `json:"cols"`
+				Rows   int  `json:"rows"`
+			}
+			if err := json.Unmarshal(msg, &resizeReq); err == nil && resizeReq.Resize && resizeReq.Cols > 0 && resizeReq.Rows > 0 {
+				pty.Setsize(ptmx, &pty.Winsize{
+					Rows: uint16(resizeReq.Rows),
+					Cols: uint16(resizeReq.Cols),
+				})
+			}
 			continue
 		}
 
-		if _, err := stdin.Write(msg); err != nil {
+		if _, err := ptmx.Write(msg); err != nil {
 			break
 		}
 	}
@@ -1493,7 +1486,7 @@ func (h *Handler) ContainerExecWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
-		// Docker-socket: exec directly into the container via docker CLI
+		// Docker-socket: exec directly into the container with PTY
 		// Detect shell
 		detectCmd := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.Config.Cmd}}", container)
 		detectCmd.Env = append(detectCmd.Env, "DOCKER_HOST=unix:///var/run/docker.sock")
@@ -1503,42 +1496,26 @@ func (h *Handler) ContainerExecWS(w http.ResponseWriter, r *http.Request) {
 			shell = "bash"
 		}
 
-		cmd := exec.CommandContext(ctx, "docker", "exec", "-i", container, shell)
-		cmd.Env = append(cmd.Env, "DOCKER_HOST=unix:///var/run/docker.sock", "TERM=xterm-256color")
+		cmd := exec.CommandContext(ctx, "docker", "exec", "-it", container, shell)
+		cmd.Env = append(cmd.Env,
+			"DOCKER_HOST=unix:///var/run/docker.sock",
+			"TERM=xterm-256color")
 
-		stdin, err := cmd.StdinPipe()
+		// Start with PTY for full TTY support (vim, nano, htop, etc.)
+		ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 40, Cols: 120})
 		if err != nil {
-			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stdin pipe: %v\x1b[0m\r\n", err)))
-			return
-		}
-
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stdout pipe: %v\x1b[0m\r\n", err)))
-			return
-		}
-
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stderr pipe: %v\x1b[0m\r\n", err)))
-			return
-		}
-
-		if err := cmd.Start(); err != nil {
 			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mContainer exec failed: %v\x1b[0m\r\n", err)))
 			return
 		}
+		defer ptmx.Close()
 
-		combined := io.MultiReader(stdout, stderr)
-		reader := bufio.NewReader(combined)
-
-		// Output → WebSocket
+		// PTY output → WebSocket
 		go func() {
 			buf := make([]byte, 4096)
 			for {
-				n, err := reader.Read(buf)
+				n, err := ptmx.Read(buf)
 				if n > 0 {
-					conn.WriteMessage(websocket.TextMessage, buf[:n])
+					conn.WriteMessage(websocket.BinaryMessage, buf[:n])
 				}
 				if err != nil {
 					conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[33m[Connection closed]\x1b[0m\r\n")))
@@ -1548,17 +1525,30 @@ func (h *Handler) ContainerExecWS(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 
-		// WebSocket → process stdin
+		// WebSocket → PTY input with resize
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
 				break
 			}
+
 			msgStr := strings.TrimSpace(string(msg))
 			if strings.HasPrefix(msgStr, "{") && strings.Contains(msgStr, "resize") {
+				var resizeReq struct {
+					Resize bool `json:"resize"`
+					Cols   int  `json:"cols"`
+					Rows   int  `json:"rows"`
+				}
+				if err := json.Unmarshal(msg, &resizeReq); err == nil && resizeReq.Resize && resizeReq.Cols > 0 && resizeReq.Rows > 0 {
+					pty.Setsize(ptmx, &pty.Winsize{
+						Rows: uint16(resizeReq.Rows),
+						Cols: uint16(resizeReq.Cols),
+					})
+				}
 				continue
 			}
-			if _, err := stdin.Write(msg); err != nil {
+
+			if _, err := ptmx.Write(msg); err != nil {
 				break
 			}
 		}
