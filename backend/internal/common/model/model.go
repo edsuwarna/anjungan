@@ -390,20 +390,21 @@ type ScanResultsListResponse struct {
 
 // GlobalScanHistoryItem is a scan result with server info for global history view
 type GlobalScanHistoryItem struct {
-	ID          string     `json:"id"`
-	ServerID    string     `json:"server_id"`
-	ServerName  string     `json:"server_name"`
-	ServerHost  string     `json:"server_host"`
-	ScanType    string     `json:"scan_type"`
-	Status      string     `json:"status"`
-	Score       *int       `json:"score"`
-	TotalChecks int        `json:"total_checks"`
-	Passed      int        `json:"passed"`
-	Warnings    int        `json:"warnings"`
-	Criticals   int        `json:"criticals"`
-	StartedAt   *time.Time `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID            string     `json:"id"`
+	ServerID      string     `json:"server_id"`
+	ServerName    string     `json:"server_name"`
+	ServerHost    string     `json:"server_host"`
+	ScanType      string     `json:"scan_type"`
+	Status        string     `json:"status"`
+	Score         *int       `json:"score"`
+	TotalChecks   int        `json:"total_checks"`
+	Passed        int        `json:"passed"`
+	Warnings      int        `json:"warnings"`
+	Criticals     int        `json:"criticals"`
+	ErrorMessage  string     `json:"error_message"`
+	StartedAt     *time.Time `json:"started_at"`
+	CompletedAt   *time.Time `json:"completed_at"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // GlobalHistoryResponse wraps paginated global scan history

@@ -396,6 +396,11 @@ import { loadThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.j
 						</div>
 						<div class="text-center text-[11px]" style="color: var(--color-text-muted);">
 							{statusLabel[item.status] || item.status || '—'}
+							{#if item.status === 'failed' && item.error_message}
+								<div class="mt-0.5 text-[10px] max-w-[120px] truncate" title={item.error_message} style="color: var(--color-danger);">
+									{item.error_message}
+								</div>
+							{/if}
 						</div>
 						<div class="text-right text-[11px]" style="color: var(--color-text-muted);">
 							{formatTime(item.completed_at || item.created_at)}

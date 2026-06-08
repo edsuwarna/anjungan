@@ -1742,18 +1742,18 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	var args []interface{}
 	if scanType != "" && scanType != "all" {
 		if scanType == "CIS Docker" {
-			query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
-			       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
-			       sr.started_at, sr.completed_at, sr.created_at
-			 FROM scan_results sr
-			 LEFT JOIN servers s ON sr.server_id = s.id
-			 WHERE sr.scan_type IN ($1, $2)
-			 ORDER BY sr.created_at DESC LIMIT $3 OFFSET $4`
+	query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
+		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
+		       COALESCE(sr.error_message,''), sr.started_at, sr.completed_at, sr.created_at
+		 FROM scan_results sr
+		 LEFT JOIN servers s ON sr.server_id = s.id
+		 WHERE sr.scan_type IN ($1, $2)
+		 ORDER BY sr.created_at DESC LIMIT $3 OFFSET $4`
 			args = append(args, "CIS Docker", "Container Security", limit, offset)
 		} else {
 			query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
 			       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
-			       sr.started_at, sr.completed_at, sr.created_at
+			       COALESCE(sr.error_message,''), sr.started_at, sr.completed_at, sr.created_at
 			 FROM scan_results sr
 			 LEFT JOIN servers s ON sr.server_id = s.id
 			 WHERE sr.scan_type = $1
@@ -1763,7 +1763,7 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	} else {
 		query = `SELECT sr.id, sr.server_id, COALESCE(s.name,''), COALESCE(s.host,''),
 		       sr.scan_type, sr.status, sr.score, sr.total_checks, sr.passed, sr.warnings, sr.criticals,
-		       sr.started_at, sr.completed_at, sr.created_at
+		       COALESCE(sr.error_message,''), sr.started_at, sr.completed_at, sr.created_at
 		 FROM scan_results sr
 		 LEFT JOIN servers s ON sr.server_id = s.id
 		 ORDER BY sr.created_at DESC LIMIT $1 OFFSET $2`
@@ -1782,7 +1782,7 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 		if err := rows.Scan(&item.ID, &item.ServerID, &item.ServerName, &item.ServerHost,
 			&item.ScanType, &item.Status, &item.Score, &item.TotalChecks,
 			&item.Passed, &item.Warnings, &item.Criticals,
-			&item.StartedAt, &item.CompletedAt, &item.CreatedAt); err != nil {
+			&item.ErrorMessage, &item.StartedAt, &item.CompletedAt, &item.CreatedAt); err != nil {
 			return nil, err
 		}
 		results = append(results, item)
