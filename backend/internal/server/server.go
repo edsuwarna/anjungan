@@ -88,7 +88,7 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 		r.Mount("/auth", authRoutes(authH))
 		r.Route("/", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
-			r.Mount("/servers", infra.NewHandler(repo).Routes())
+			r.Mount("/servers", infra.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
 			r.Mount("/ssh-keys", infra.NewSSHKeyHandler(repo).Routes())
 			r.Mount("/containers", container.NewHandler(repo).Routes())
 			r.Mount("/registry", registry.NewHandler(s.cfg.Registry, repo).Routes())

@@ -20,15 +20,17 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/executor"
 	sshtool "github.com/edsuwarna/anjungan/internal/infra/ssh"
 )
 
 type Handler struct {
-	repo     *db.Repository
+	repo            *db.Repository
+	dockerSocketPath string
 }
 
-func NewHandler(repo *db.Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *db.Repository, dockerSocketPath string) *Handler {
+	return &Handler{repo: repo, dockerSocketPath: dockerSocketPath}
 }
 
 // resolveSSHKey ensures a server's SSHKey is populated.
@@ -57,6 +59,16 @@ func (h *Handler) sshConfigForServer(ctx context.Context, srv *model.Server) (ss
 		Key:      srv.SSHKey,
 		Password: srv.SSHPassword,
 	}, nil
+}
+
+// getExecutor creates the appropriate executor for a server.
+// For SSH connections, returns nil (use existing sshConfigForServer path).
+// For docker-socket connections, returns a DockerSocketExecutor.
+func (h *Handler) getExecutor(srv *model.Server) (executor.ServerExecutor, error) {
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		return executor.NewDockerExecutor(h.dockerSocketPath)
+	}
+	return nil, nil // nil means use SSH path
 }
 
 // authorizeView checks if the user can VIEW a server (admin always allowed,
@@ -598,6 +610,38 @@ func (h *Handler) DetectInfo(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	// Docker socket path
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		exec, err := h.getExecutor(srv)
+		if err != nil {
+			common.Error(w, http.StatusInternalServerError, "executor init: "+err.Error())
+			return
+		}
+		defer exec.Close()
+
+		info, err := exec.GetServerInfo(ctx)
+		if err != nil {
+			common.Error(w, http.StatusInternalServerError, "failed to detect server info: "+err.Error())
+			return
+		}
+
+		osInfo := info.OS
+		if info.Kernel != "" {
+			osInfo = info.OS + " (" + info.Kernel + ")"
+		}
+		cpuInfo := info.CPUModel
+		if info.CPUCores > 0 {
+			cpuInfo = fmt.Sprintf("%s (%d cores)", cpuInfo, info.CPUCores)
+		}
+
+		_ = h.repo.UpdateServerInfo(ctx, id, osInfo, cpuInfo)
+		_ = h.repo.UpdateServerStatus(ctx, id, "online")
+
+		common.JSON(w, http.StatusOK, info)
+		return
+	}
+
+	// SSH path (existing)
 	sshCfg, err := h.sshConfigForServer(ctx, srv)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "SSH key resolution: "+err.Error())
@@ -684,6 +728,40 @@ func (h *Handler) TestConnection(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
+	// Docker socket path
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		exec, err := h.getExecutor(srv)
+		if err != nil {
+			_ = h.repo.UpdateServerStatus(r.Context(), id, "offline")
+			common.JSON(w, http.StatusOK, map[string]interface{}{
+				"reachable": false,
+				"hostname":  "",
+				"error":     "executor init: " + err.Error(),
+			})
+			return
+		}
+		defer exec.Close()
+
+		hostname, err := exec.TestConnection(ctx)
+		if err != nil {
+			_ = h.repo.UpdateServerStatus(r.Context(), id, "offline")
+			common.JSON(w, http.StatusOK, map[string]interface{}{
+				"reachable": false,
+				"hostname":  "",
+				"error":     err.Error(),
+			})
+			return
+		}
+		_ = h.repo.UpdateServerStatus(r.Context(), id, "online")
+		common.JSON(w, http.StatusOK, map[string]interface{}{
+			"reachable": true,
+			"hostname":  hostname,
+			"error":     nil,
+		})
+		return
+	}
+
+	// SSH path (existing)
 	sshCfg, err := h.sshConfigForServer(ctx, srv)
 	if err != nil {
 		_ = h.repo.UpdateServerStatus(r.Context(), id, "offline")
@@ -707,7 +785,6 @@ func (h *Handler) TestConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = h.repo.UpdateServerStatus(r.Context(), id, "online")
-
 	common.JSON(w, http.StatusOK, map[string]interface{}{
 		"reachable": true,
 		"hostname":  hostname,
@@ -752,6 +829,66 @@ func (h *Handler) Metrics(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	// Docker socket path
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		exec, err := h.getExecutor(srv)
+		if err != nil {
+			common.Error(w, http.StatusInternalServerError, "executor init: "+err.Error())
+			return
+		}
+		defer exec.Close()
+
+		em, err := exec.GetMetrics(ctx)
+		if err != nil {
+			common.Error(w, http.StatusInternalServerError, "metrics: "+err.Error())
+			return
+		}
+
+		var load1, load5, load15 float64
+		fmt.Sscanf(em.CPULoad1, "%f", &load1)
+		fmt.Sscanf(em.CPULoad5, "%f", &load5)
+		fmt.Sscanf(em.CPULoad15, "%f", &load15)
+
+		metrics := ServerMetrics{
+			Uptime: em.Uptime,
+		}
+		metrics.CPU.Load1 = load1
+		metrics.CPU.Load5 = load5
+		metrics.CPU.Load15 = load15
+		metrics.Memory.Total = int64(em.MemoryTotal)
+		metrics.Memory.Used = int64(em.MemoryUsed)
+		metrics.Memory.Free = int64(em.MemoryFree)
+		metrics.Disk.Total = int64(em.DiskTotal)
+		metrics.Disk.Used = int64(em.DiskUsed)
+		metrics.Disk.Available = int64(em.DiskFree)
+		metrics.Disk.UsedPct = em.DiskUsedPct
+		metrics.Network.RXBytes = em.NetRX
+		metrics.Network.TXBytes = em.NetTX
+
+		if load1 != 0 || load5 != 0 || load15 != 0 {
+			point := &model.ServerMetricsPoint{
+				ServerID:       id,
+				CPULoad1:       load1,
+				CPULoad5:       load5,
+				CPULoad15:      load15,
+				MemUsedBytes:   int64(em.MemoryUsed),
+				MemTotalBytes:  int64(em.MemoryTotal),
+				DiskUsedBytes:  int64(em.DiskUsed),
+				DiskTotalBytes: int64(em.DiskTotal),
+				DiskUsedPct:    em.DiskUsedPct,
+				NetRXBytes:     em.NetRX,
+				NetTXBytes:     em.NetTX,
+				CollectedAt:    time.Now(),
+			}
+			_ = h.repo.SaveMetrics(ctx, point)
+			h.checkThresholds(ctx, id, point)
+		}
+
+		common.JSON(w, http.StatusOK, metrics)
+		return
+	}
+
+	// SSH path (existing)
 	sshCfg, err := h.sshConfigForServer(ctx, srv)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "SSH key resolution: "+err.Error())
@@ -876,6 +1013,27 @@ type DockerContainer struct {
 	Uptime  string `json:"uptime"`
 }
 
+// runDockerOnServer executes a docker command either via SSH or local Docker socket.
+// For SSH connections, it runs "docker <cmd>" on the remote server.
+// For docker-socket connections, it runs docker CLI locally via the mounted socket.
+func (h *Handler) runDockerOnServer(ctx context.Context, srv *model.Server, dockerArgs ...string) (string, error) {
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		exec, err := h.getExecutor(srv)
+		if err != nil {
+			return "", fmt.Errorf("executor init: %w", err)
+		}
+		defer exec.Close()
+		return exec.RunDockerCommand(ctx, dockerArgs...)
+	}
+
+	// SSH path
+	cfg, err := h.sshConfigForServer(ctx, srv)
+	if err != nil {
+		return "", fmt.Errorf("ssh config: %w", err)
+	}
+	return sshtool.RunCommand(ctx, cfg, "docker "+strings.Join(dockerArgs, " "))
+}
+
 func (h *Handler) Containers(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	srv, err := h.authorizeView(r.Context(), id)
@@ -887,14 +1045,8 @@ func (h *Handler) Containers(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	sshCfg, err := h.sshConfigForServer(ctx, srv)
-	if err != nil {
-		common.Error(w, http.StatusInternalServerError, "SSH key resolution: "+err.Error())
-		return
-	}
-
-	out, err := sshtool.RunCommand(ctx, sshCfg,
-		`docker ps -a --format '{"id":"{{.ID}}","name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}","created":"{{.CreatedAt}}"}'`,
+	out, err := h.runDockerOnServer(ctx, srv,
+		"ps", "-a", "--format", `{"id":"{{.ID}}","name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}","created":"{{.CreatedAt}}"}`,
 	)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to list containers: "+err.Error())
@@ -928,16 +1080,7 @@ func (h *Handler) containerSSHExec(ctx context.Context, serverID, containerID, d
 	if err != nil {
 		return "", fmt.Errorf("server not found: %w", err)
 	}
-	sshCfg, err := h.sshConfigForServer(ctx, srv)
-	if err != nil {
-		return "", fmt.Errorf("SSH key: %w", err)
-	}
-	cmd := fmt.Sprintf("docker %s %s", dockerCmd, containerID)
-	out, err := sshtool.RunCommand(ctx, sshCfg, cmd)
-	if err != nil {
-		return "", fmt.Errorf("docker %s: %w", dockerCmd, err)
-	}
-	return out, nil
+	return h.runDockerOnServer(ctx, srv, dockerCmd, containerID)
 }
 
 func (h *Handler) ContainerStart(w http.ResponseWriter, r *http.Request) {
@@ -1091,34 +1234,36 @@ func (h *Handler) ContainerExec(w http.ResponseWriter, r *http.Request) {
 		common.Error(w, http.StatusBadRequest, "command is required")
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	srv, err := h.repo.GetServerByIDFull(ctx, id)
+
+	srv, err := h.repo.GetServerByIDFull(r.Context(), id)
 	if err != nil {
 		common.Error(w, http.StatusNotFound, "server not found")
 		return
 	}
-	sshCfg, err := h.sshConfigForServer(ctx, srv)
-	if err != nil {
-		common.Error(w, http.StatusInternalServerError, "SSH config error")
-		return
-	}
 
-	// Resolve container name for audit log
+	// Resolve container name for audit log (SSH path only, Docker socket skips)
 	containerName := container
-	nameCmd := fmt.Sprintf("docker ps --filter id=%s --format '{{.Names}}'", container)
-	if nameOut, nameErr := sshtool.RunCommand(ctx, sshCfg, nameCmd); nameErr == nil {
-		if n := strings.TrimSpace(nameOut); n != "" {
-			containerName = n
+	if srv.ConnectionType != executor.ConnectionTypeDockerSocket {
+		sshCfg, sshErr := h.sshConfigForServer(r.Context(), srv)
+		if sshErr == nil {
+			nameCmd := fmt.Sprintf("docker ps --filter id=%s --format '{{.Names}}'", container)
+			if nameOut, nameErr := sshtool.RunCommand(r.Context(), sshCfg, nameCmd); nameErr == nil {
+				if n := strings.TrimSpace(nameOut); n != "" {
+					containerName = n
+				}
+			}
 		}
 	}
 
-	cmd := fmt.Sprintf("docker exec %s %s", container, req.Command)
-	out, err := sshtool.RunCommand(ctx, sshCfg, cmd)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	out, err := h.runDockerOnServer(ctx, srv, "exec", container, req.Command)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, fmt.Sprintf("exec error: %v", err))
 		return
 	}
+
 	// Audit log
 	if claims := auth.GetClaims(r.Context()); claims != nil {
 		meta, _ := json.Marshal(map[string]string{
@@ -1132,6 +1277,7 @@ func (h *Handler) ContainerExec(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("Executed command in container %s on %s", containerName, srv.Name),
 			json.RawMessage(meta))
 	}
+
 	common.JSON(w, http.StatusOK, map[string]interface{}{
 		"output": out,
 	})
