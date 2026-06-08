@@ -1,0 +1,3 @@
+ALTER TABLE servers DROP COLUMN IF EXISTS self_hostname;
+ALTER TABLE servers DROP COLUMN IF EXISTS is_self;
+ALTER TABLE servers DROP COLUMN IF EXISTS connection_type;
