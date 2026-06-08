@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Service Templates & Scaffolding</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #10b981;
+    --primary-light: #d1fae5;
+    --primary-dark: #059669;
+    --bg: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-sidebar: #ffffff;
+    --text: #0f172a;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+    --shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px 0 rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+    --sidebar-w: 256px;
+    --topbar-h: 64px;
+    --critical: #ef4444;
+    --high: #fb923c;
+    --medium: #fbbf24;
+    --low: #34d399;
+    --green: #22c55e;
+    --green-bg: #dcfce7;
+    --amber: #f59e0b;
+    --amber-bg: #fef3c7;
+    --red: #ef4444;
+    --red-bg: #fee2e2;
+  }
+  .dark {
+    --bg: #0f172a;
+    --bg-card: #1e293b;
+    --bg-sidebar: #1e293b;
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border: #334155;
+    --border-light: #1e293b;
+    --shadow: 0 1px 3px 0 rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+  }
+  html { font-size: 14px; }
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    transition: background 0.2s, color 0.2s;
+  }
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-w);
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 50;
+    transition: background 0.2s;
+  }
+  .sidebar-logo {
+    height: var(--topbar-h);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    gap: 10px;
+  }
+  .sidebar-logo svg { flex-shrink: 0; }
+  .sidebar-logo span {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .sidebar-logo span em {
+    font-style: normal;
+    color: var(--primary);
+  }
+  .sidebar-nav {
+    flex: 1;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: default;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: var(--primary-light); color: var(--primary-dark); }
+  .dark .nav-item:hover { background: rgba(16,185,129,0.12); color: var(--primary); }
+  .nav-item.active {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: 600;
+  }
+  .dark .nav-item.active { background: rgba(16,185,129,0.15); color: var(--primary); }
+  .nav-item .icon { font-size: 1.2rem; width: 24px; text-align: center; }
+  .nav-item .badge {
+    margin-left: auto;
+    background: var(--primary);
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+  }
+  .sidebar-footer {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+  }
+  .user-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+  .user-name { font-size: 0.85rem; font-weight: 500; }
+  .user-role { font-size: 0.7rem; color: var(--text-muted); }
+
+  /* Main */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Topbar */
+  .topbar {
+    height: var(--topbar-h);
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    transition: background 0.2s;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .topbar-title { font-size: 1.1rem; font-weight: 600; }
+  .topbar-breadcrumb { font-size: 0.8rem; color: var(--text-muted); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .theme-toggle {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 36px; height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.15s;
+    color: var(--text);
+  }
+  .theme-toggle:hover { border-color: var(--primary); }
+
+  /* Content */
+  .content {
+    flex: 1;
+    padding: 28px;
+    overflow-y: auto;
+    max-height: calc(100vh - var(--topbar-h));
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg);
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    padding: 9px 18px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--bg-card); }
+  .tab-btn.active {
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .badge-green { background: var(--green-bg); color: #15803d; }
+  .badge-amber { background: var(--amber-bg); color: #92400e; }
+  .badge-red { background: var(--red-bg); color: #991b1b; }
+  .dark .badge-green { background: rgba(34,197,94,0.15); color: #86efac; }
+  .dark .badge-amber { background: rgba(245,158,11,0.15); color: #fde68a; }
+  .dark .badge-red { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+  .badge-tag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    background: var(--bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    line-height: 1.3;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover { background: var(--bg); color: var(--text); }
+  .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+  .btn-danger { background: #ef4444; color: white; }
+  .btn-danger:hover { background: #dc2626; }
+  .btn-success { background: #22c55e; color: white; }
+  .btn-success:hover { background: #16a34a; }
+
+  /* Form */
+  .form-group { margin-bottom: 18px; }
+  .form-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .form-label .required { color: #ef4444; margin-left: 2px; }
+  .form-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+  .form-input, .form-select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
+  }
+  .form-input::placeholder { color: var(--text-muted); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-select { cursor: pointer; }
+
+  /* Grid */
+  .template-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  /* Search */
+  .search-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .search-input-wrap {
+    flex: 1;
+    position: relative;
+  }
+  .search-input-wrap .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 1rem;
+  }
+  .search-input {
+    width: 100%;
+    padding: 10px 14px 10px 38px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+  .search-input:focus { outline: none; border-color: var(--primary); }
+  .filter-select {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  /* Template card */
+  .template-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s;
+    cursor: default;
+  }
+  .template-card:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-md);
+  }
+  .template-card-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+  .template-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+  }
+  .template-icon.go { background: #dbeafe; }
+  .template-icon.svelte { background: #fce7f3; }
+  .template-icon.fastapi { background: #dcfce7; }
+  .template-icon.static { background: #fef3c7; }
+  .dark .template-icon.go { background: rgba(59,130,246,0.2); }
+  .dark .template-icon.svelte { background: rgba(236,72,153,0.2); }
+  .dark .template-icon.fastapi { background: rgba(16,185,129,0.2); }
+  .dark .template-icon.static { background: rgba(245,158,11,0.2); }
+  .template-icon .emoji { font-size: 1.4rem; }
+  .template-name { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+  .template-desc { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.5; }
+  .template-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .template-actions { display: flex; gap: 8px; align-items: center; }
+
+  /* Wizard steps */
+  .wizard-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 28px;
+    padding: 0;
+  }
+  .wizard-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .wizard-step-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+    background: var(--bg);
+    transition: all 0.2s;
+  }
+  .wizard-step.active .wizard-step-num {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+  .wizard-step.done .wizard-step-num {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+  .wizard-step-label { font-size: 0.85rem; color: var(--text-muted); }
+  .wizard-step.active .wizard-step-label { color: var(--text); font-weight: 600; }
+  .wizard-step.done .wizard-step-label { color: var(--text-secondary); }
+  .wizard-connector {
+    width: 40px;
+    height: 2px;
+    background: var(--border);
+    margin: 0 8px;
+  }
+  .wizard-connector.done { background: var(--primary); }
+
+  /* Env var rows */
+  .env-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .env-table th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  .env-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.85rem;
+    vertical-align: middle;
+  }
+  .env-table tr:last-child td { border-bottom: none; }
+
+  /* Expandable preview */
+  .preview-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-family: inherit;
+    width: 100%;
+    transition: all 0.15s;
+  }
+  .preview-toggle:hover { border-color: var(--primary); color: var(--primary); }
+  .preview-toggle .arrow { transition: transform 0.2s; }
+  .preview-toggle.open .arrow { transform: rotate(90deg); }
+  .preview-content {
+    display: none;
+    margin-top: 12px;
+    border-radius: 8px;
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 16px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .preview-content.open { display: block; }
+
+  /* Summary */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .summary-item {}
+  .summary-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .summary-value { font-size: 0.95rem; font-weight: 500; }
+  .summary-path { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.85rem; color: var(--primary); background: var(--primary-light); padding: 2px 8px; border-radius: 4px; display: inline-block; }
+  .dark .summary-path { background: rgba(16,185,129,0.12); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .template-grid { grid-template-columns: 1fr; }
+    .form-row { grid-template-columns: 1fr; }
+    .summary-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    <span><em>Anjungan</em></span>
+  </div>
+  <nav class="sidebar-nav">
+    <a class="nav-item"><span class="icon">🖥</span> Servers</a>
+    <a class="nav-item"><span class="icon">📦</span> Registry</a>
+    <a class="nav-item active"><span class="icon">🏗</span> Scaffold</a>
+    <a class="nav-item"><span class="icon">🔐</span> Compliance</a>
+    <a class="nav-item"><span class="icon">🚀</span> Deployments</a>
+    <a class="nav-item"><span class="icon">🌐</span> Domains</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar">ES</div>
+      <div>
+        <div class="user-name">Endang Suwarna</div>
+        <div class="user-role">Platform Engineer</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div>
+        <div class="topbar-title">Service Templates & Scaffolding</div>
+        <div class="topbar-breadcrumb">🏗 Scaffold / Templates</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab1">📋 Template Marketplace</button>
+      <button class="tab-btn" data-tab="tab2">1️⃣ Project Config</button>
+      <button class="tab-btn" data-tab="tab3">2️⃣ Env Variables</button>
+      <button class="tab-btn" data-tab="tab4">3️⃣ Review & Deploy</button>
+    </div>
+
+    <!-- ==================== TAB 1: Marketplace ==================== -->
+    <div class="tab-content active" id="tab1">
+      <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 style="font-size:1.25rem;font-weight:600;">Template Marketplace</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm">📤 Import Template</button>
+            <button class="btn btn-primary btn-sm">➕ Create Template</button>
+          </div>
+        </div>
+
+        <!-- Search & Filter -->
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input class="search-input" type="text" placeholder="Search templates..." value="api">
+          </div>
+          <select class="filter-select">
+            <option>All Categories</option>
+            <option>Backend</option>
+            <option>Frontend</option>
+            <option>Full Stack</option>
+            <option>Static</option>
+          </select>
+          <select class="filter-select">
+            <option>All Languages</option>
+            <option>Go</option>
+            <option>Python</option>
+            <option>JavaScript</option>
+            <option>TypeScript</option>
+          </select>
+        </div>
+
+        <!-- Template Grid -->
+        <div class="template-grid">
+          <!-- Template 1 -->
+          <div class="template-card">
+            <div class="template-card-header">
+              <div class="template-icon go">⚡</div>
+              <div>
+                <div class="template-name">Go API + Postgres</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">v2.1.0</div>
+              </div>
+            </div>
+            <div class="template-desc">RESTful API scaffold with Chi router, GORM, PostgreSQL, health checks, and Docker multi-stage build.</div>
+            <div class="template-tags">
+              <span class="badge-tag">Go</span>
+              <span class="badge-tag">PostgreSQL</span>
+              <span class="badge-tag">Docker</span>
+              <span class="badge-tag">REST</span>
+            </div>
+            <div class="template-actions">
+              <button class="btn btn-primary btn-sm">Use Template</button>
+              <button class="btn btn-ghost btn-sm">📋 Details</button>
+            </div>
+          </div>
+          <!-- Template 2 -->
+          <div class="template-card">
+            <div class="template-card-header">
+              <div class="template-icon svelte">🎨</div>
+              <div>
+                <div class="template-name">SvelteKit + Node</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">v1.8.0</div>
+              </div>
+            </div>
+            <div class="template-desc">Full-stack SvelteKit app with Node.js backend, Tailwind CSS, authentication flow, and SSR-ready Docker setup.</div>
+            <div class="template-tags">
+              <span class="badge-tag">SvelteKit</span>
+              <span class="badge-tag">Node.js</span>
+              <span class="badge-tag">Tailwind</span>
+              <span class="badge-tag">SSR</span>
+            </div>
+            <div class="template-actions">
+              <button class="btn btn-primary btn-sm">Use Template</button>
+              <button class="btn btn-ghost btn-sm">📋 Details</button>
+            </div>
+          </div>
+          <!-- Template 3 -->
+          <div class="template-card">
+            <div class="template-card-header">
+              <div class="template-icon fastapi">🐍</div>
+              <div>
+                <div class="template-name">FastAPI + SQLite</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">v1.5.2</div>
+              </div>
+            </div>
+            <div class="template-desc">Async Python API with FastAPI, SQLAlchemy, SQLite, Pydantic validation, auto-generated OpenAPI docs.</div>
+            <div class="template-tags">
+              <span class="badge-tag">Python</span>
+              <span class="badge-tag">FastAPI</span>
+              <span class="badge-tag">SQLite</span>
+              <span class="badge-tag">Async</span>
+            </div>
+            <div class="template-actions">
+              <button class="btn btn-primary btn-sm">Use Template</button>
+              <button class="btn btn-ghost btn-sm">📋 Details</button>
+            </div>
+          </div>
+          <!-- Template 4 -->
+          <div class="template-card">
+            <div class="template-card-header">
+              <div class="template-icon static">📄</div>
+              <div>
+                <div class="template-name">Static HTML SPA</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">v1.0.0</div>
+              </div>
+            </div>
+            <div class="template-desc">Minimal static site with HTML5, CSS3, vanilla JS, Nginx reverse proxy, and Gzip compression.</div>
+            <div class="template-tags">
+              <span class="badge-tag">HTML</span>
+              <span class="badge-tag">CSS</span>
+              <span class="badge-tag">Nginx</span>
+              <span class="badge-tag">Static</span>
+            </div>
+            <div class="template-actions">
+              <button class="btn btn-primary btn-sm">Use Template</button>
+              <button class="btn btn-ghost btn-sm">📋 Details</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pagination / Count -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light);">
+          <span style="font-size:0.8rem;color:var(--text-muted);">Showing 4 of 8 templates</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm">← Prev</button>
+            <button class="btn btn-primary btn-sm">1</button>
+            <button class="btn btn-outline btn-sm">2</button>
+            <button class="btn btn-outline btn-sm">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 2: Wizard Step 1 ==================== -->
+    <div class="tab-content" id="tab2">
+      <div class="card">
+        <!-- Wizard Steps Indicator -->
+        <div class="wizard-steps">
+          <div class="wizard-step active">
+            <div class="wizard-step-num">1</div>
+            <div class="wizard-step-label">Project Config</div>
+          </div>
+          <div class="wizard-connector"></div>
+          <div class="wizard-step">
+            <div class="wizard-step-num">2</div>
+            <div class="wizard-step-label">Env Variables</div>
+          </div>
+          <div class="wizard-connector"></div>
+          <div class="wizard-step">
+            <div class="wizard-step-num">3</div>
+            <div class="wizard-step-label">Review & Deploy</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 style="font-size:1.15rem;font-weight:600;">Step 1: Project Configuration</h2>
+          <span class="badge badge-green">Template: Go API + Postgres v2.1.0</span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Project Name <span class="required">*</span></label>
+            <input class="form-input" type="text" value="my-api-service" placeholder="my-api-service">
+            <div class="form-hint">Lowercase, hyphens only. Used as Docker service name and directory name.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Domain <span class="required">*</span></label>
+            <input class="form-input" type="text" value="api.myservice.com" placeholder="yourdomain.com">
+            <div class="form-hint">Traefik will route this domain to your service.</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Database <span class="required">*</span></label>
+            <select class="form-select">
+              <option>PostgreSQL 16 (Recommended)</option>
+              <option>PostgreSQL 15</option>
+              <option>SQLite (Embedded)</option>
+              <option>MySQL 8</option>
+              <option>None (No database)</option>
+            </select>
+            <div class="form-hint">Auto-generates DB service in docker-compose.yml.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Port</label>
+            <input class="form-input" type="text" value="8080" placeholder="8080">
+            <div class="form-hint">Internal container port. Traefik will map 443 → this port.</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input class="form-input" type="text" value="My Go API service with PostgreSQL backend" placeholder="Brief description of this service">
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+          <button class="btn btn-outline">← Back to Templates</button>
+          <button class="btn btn-primary" onclick="switchTab('tab3')">Next: Env Variables →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 3: Wizard Step 2 ==================== -->
+    <div class="tab-content" id="tab3">
+      <div class="card">
+        <!-- Wizard Steps Indicator -->
+        <div class="wizard-steps">
+          <div class="wizard-step done">
+            <div class="wizard-step-num">✓</div>
+            <div class="wizard-step-label">Project Config</div>
+          </div>
+          <div class="wizard-connector done"></div>
+          <div class="wizard-step active">
+            <div class="wizard-step-num">2</div>
+            <div class="wizard-step-label">Env Variables</div>
+          </div>
+          <div class="wizard-connector"></div>
+          <div class="wizard-step">
+            <div class="wizard-step-num">3</div>
+            <div class="wizard-step-label">Review & Deploy</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 style="font-size:1.15rem;font-weight:600;">Step 2: Environment Variables</h2>
+          <span class="badge badge-green">Auto-generated from template: Go API + Postgres</span>
+        </div>
+
+        <table class="env-table">
+          <thead>
+            <tr>
+              <th>Variable</th>
+              <th>Value</th>
+              <th>Type</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code style="font-size:0.85rem;font-weight:500;">SERVICE_NAME</code></td>
+              <td><input class="form-input" type="text" value="my-api-service" style="padding:7px 10px;font-size:0.85rem;max-width:260px;"></td>
+              <td><span class="badge-tag">auto</span></td>
+              <td style="text-align:right;"><button class="btn btn-ghost btn-sm">↻ Reset</button></td>
+            </tr>
+            <tr>
+              <td><code style="font-size:0.85rem;font-weight:500;">DB_PASSWORD</code></td>
+              <td><input class="form-input" type="text" value="aB3#k9mXpQ7$w2Nv" style="padding:7px 10px;font-size:0.85rem;max-width:260px;font-family:monospace;"></td>
+              <td><span class="badge-tag">auto</span></td>
+              <td style="text-align:right;"><button class="btn btn-ghost btn-sm">🔄 Regenerate</button></td>
+            </tr>
+            <tr>
+              <td><code style="font-size:0.85rem;font-weight:500;">JWT_SECRET</code></td>
+              <td><input class="form-input" type="text" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="padding:7px 10px;font-size:0.85rem;max-width:260px;font-family:monospace;"></td>
+              <td><span class="badge-tag">auto</span></td>
+              <td style="text-align:right;"><button class="btn btn-ghost btn-sm">🔄 Regenerate</button></td>
+            </tr>
+            <tr>
+              <td><code style="font-size:0.85rem;font-weight:500;">DB_HOST</code></td>
+              <td><input class="form-input" type="text" value="postgres" style="padding:7px 10px;font-size:0.85rem;max-width:260px;"></td>
+              <td><span class="badge-tag">auto</span></td>
+              <td style="text-align:right;"><button class="btn btn-ghost btn-sm">↻ Reset</button></td>
+            </tr>
+            <tr>
+              <td><code style="font-size:0.85rem;font-weight:500;">DB_NAME</code></td>
+              <td><input class="form-input" type="text" value="my_api_service" style="padding:7px 10px;font-size:0.85rem;max-width:260px;"></td>
+              <td><span class="badge-tag">auto</span></td>
+              <td style="text-align:right;"><button class="btn btn-ghost btn-sm">↻ Reset</button></td>
+            </tr>
+            <tr>
+              <td><code style="font-size:0.85rem;font-weight:500;">LOG_LEVEL</code></td>
+              <td>
+                <select style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:0.85rem;">
+                  <option>info</option>
+                  <option>debug</option>
+                  <option>warn</option>
+                  <option>error</option>
+                </select>
+              </td>
+              <td><span class="badge-tag">optional</span></td>
+              <td style="text-align:right;"><button class="btn btn-ghost btn-sm">↻ Reset</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Preview docker-compose.yml -->
+        <div style="margin-top:20px;">
+          <button class="preview-toggle" id="previewToggle" onclick="togglePreview()">
+            <span class="arrow">▶</span> Preview docker-compose.yml
+          </button>
+          <div class="preview-content" id="previewContent">
+<pre style="margin:0;">version: '3.8'
+
+services:
+  my-api-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_NAME=my-api-service
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=my_api_service
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=info
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.my-api-service.rule=Host(`api.myservice.com`)"
+      - "traefik.http.services.my-api-service.loadbalancer.server.port=8080"
+    depends_on:
+      - postgres
+    networks:
+      - anjungan
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=my_api_service
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - anjungan
+
+volumes:
+  pgdata:
+
+networks:
+  anjungan:
+    external: true</pre>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+          <button class="btn btn-outline" onclick="switchTab('tab2')">← Back: Project Config</button>
+          <button class="btn btn-primary" onclick="switchTab('tab4')">Next: Review & Deploy →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 4: Wizard Step 3 ==================== -->
+    <div class="tab-content" id="tab4">
+      <div class="card">
+        <!-- Wizard Steps Indicator -->
+        <div class="wizard-steps">
+          <div class="wizard-step done">
+            <div class="wizard-step-num">✓</div>
+            <div class="wizard-step-label">Project Config</div>
+          </div>
+          <div class="wizard-connector done"></div>
+          <div class="wizard-step done">
+            <div class="wizard-step-num">✓</div>
+            <div class="wizard-step-label">Env Variables</div>
+          </div>
+          <div class="wizard-connector done"></div>
+          <div class="wizard-step active">
+            <div class="wizard-step-num">3</div>
+            <div class="wizard-step-label">Review & Deploy</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 style="font-size:1.15rem;font-weight:600;">Step 3: Review & Deploy</h2>
+          <span class="badge badge-green">Ready to scaffold</span>
+        </div>
+
+        <!-- Summary Card -->
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:16px;">📋 Project Summary</h3>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-label">Project Name</div>
+              <div class="summary-value">my-api-service</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Template</div>
+              <div class="summary-value">Go API + Postgres v2.1.0</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Domain</div>
+              <div class="summary-value">api.myservice.com</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Database</div>
+              <div class="summary-value">PostgreSQL 16</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Port</div>
+              <div class="summary-value">8080</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Env Variables</div>
+              <div class="summary-value">6 variables (3 auto-generated)</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+            <div class="summary-label" style="margin-bottom:6px;">Project Path</div>
+            <div class="summary-path">~/projects/anjungan/services/my-api-service/</div>
+          </div>
+        </div>
+
+        <!-- Compose Preview -->
+        <div style="margin-bottom:20px;">
+          <button class="preview-toggle" onclick="togglePreview2()" id="previewToggle2">
+            <span class="arrow">▶</span> Preview docker-compose.yml (Final)
+          </button>
+          <div class="preview-content" id="previewContent2">
+<pre style="margin:0;">version: '3.8'
+
+services:
+  my-api-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_NAME=my-api-service
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=my_api_service
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=info
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.my-api-service.rule=Host(`api.myservice.com`)"
+      - "traefik.http.services.my-api-service.loadbalancer.server.port=8080"
+    depends_on:
+      - postgres
+    networks:
+      - anjungan
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=my_api_service
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - anjungan
+
+volumes:
+  pgdata:
+
+networks:
+  anjungan:
+    external: true</pre>
+          </div>
+        </div>
+
+        <!-- Deploy Status -->
+        <div style="display:flex;gap:12px;align-items:center;padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--green);"></div>
+          <div style="flex:1;">
+            <div style="font-weight:500;font-size:0.9rem;">All checks passed</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">Template valid · Port available · Domain DNS resolved · Traefik labels generated</div>
+          </div>
+          <span class="badge badge-green">Ready</span>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+          <button class="btn btn-outline" onclick="switchTab('tab3')">← Back: Env Variables</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline">💾 Save as Draft</button>
+            <button class="btn btn-success">🚀 Scaffold & Deploy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+  // Tab switching
+  function switchTab(tabId) {
+    // Remove active from all tab buttons and content
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    // Activate target
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (btn) btn.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+    // Scroll to top of content
+    document.querySelector('.content').scrollTop = 0;
+  }
+
+  // Tab button click handlers
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      switchTab(this.dataset.tab);
+    });
+  });
+
+  // Preview toggle 1
+  function togglePreview() {
+    const toggle = document.getElementById('previewToggle');
+    const content = document.getElementById('previewContent');
+    toggle.classList.toggle('open');
+    content.classList.toggle('open');
+  }
+
+  // Preview toggle 2
+  function togglePreview2() {
+    const toggle = document.getElementById('previewToggle2');
+    const content = document.getElementById('previewContent2');
+    toggle.classList.toggle('open');
+    content.classList.toggle('open');
+  }
+
+  // Theme toggle
+  function toggleTheme() {
+    document.body.classList.toggle('dark');
+    const btn = document.querySelector('.theme-toggle');
+    btn.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+  }
+
+  // Keyboard shortcut: Tab to focus search
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      document.activeElement?.blur();
+    }
+  });
+</script>
+
+</body>
+</html>

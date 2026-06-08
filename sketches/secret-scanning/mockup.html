@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Secret Scanning — Anjungan Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-surface); color: var(--text); min-height: 100vh; }
+  :root {
+    --primary: #10b981;
+    --primary-hover: #059669;
+    --primary-light: #d1fae5;
+    --primary-dark: #065f46;
+    --card: #ffffff;
+    --bg-surface: #f8fafc;
+    --text: #0f172a;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --sidebar-bg: #ffffff;
+    --sidebar-text: #475569;
+    --sidebar-active: #10b981;
+    --topbar-bg: #ffffff;
+    --danger: #ef4444;
+    --warning: #fb923c;
+    --severity-critical: #ef4444;
+    --severity-high: #fb923c;
+    --severity-medium: #fbbf24;
+    --severity-low: #34d399;
+  }
+  [data-theme="dark"] {
+    --card: #1e293b;
+    --bg-surface: #0f172a;
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border: #334155;
+    --sidebar-bg: #1e293b;
+    --sidebar-text: #94a3b8;
+    --sidebar-active: #10b981;
+    --topbar-bg: #1e293b;
+  }
+
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 256px; min-width: 256px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 0; position: fixed; top: 0; left: 0; height: 100vh; z-index: 10; }
+  .sidebar-logo { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .sidebar-logo span { font-size: 20px; font-weight: 700; color: var(--primary); }
+  .sidebar-nav { padding: 12px 0; flex: 1; }
+  .sidebar-nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; color: var(--sidebar-text); text-decoration: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; }
+  .sidebar-nav-item:hover { background: var(--bg-surface); color: var(--text); }
+  .sidebar-nav-item.active { color: var(--sidebar-active); background: var(--primary-light); border-left-color: var(--primary); }
+  .sidebar-nav-item .icon { font-size: 18px; width: 24px; text-align: center; }
+  .sidebar-nav-category { padding: 16px 20px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); }
+  .main-area { margin-left: 256px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar { height: 64px; min-height: 64px; background: var(--topbar-bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .topbar-title { font-size: 18px; font-weight: 600; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .theme-toggle { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 16px; color: var(--text); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
+  .content { padding: 24px; flex: 1; }
+
+  /* Tabs */
+  .mockup-tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--card); border-radius: 12px; padding: 4px; border: 1px solid var(--border); }
+  .mockup-tab { padding: 10px 20px; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .mockup-tab:hover { color: var(--text); background: var(--bg-surface); }
+  .mockup-tab.active { background: var(--primary); color: white; }
+  .mockup-panel { display: none; }
+  .mockup-panel.active { display: block; }
+
+  /* Card */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+
+  /* KPI grid */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .kpi-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+  .kpi-value { font-size: 28px; font-weight: 700; }
+  .kpi-change { font-size: 12px; margin-top: 4px; }
+  .kpi-change.up { color: var(--primary); }
+  .kpi-change.down { color: var(--danger); }
+  .kpi-change.warning { color: var(--warning); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { background: var(--bg-surface); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; }
+  .badge-success { background: #d1fae5; color: #065f46; }
+  .badge-danger { background: #fee2e2; color: #991b1b; }
+  .badge-warning { background: #fef3c7; color: #92400e; }
+  .badge-info { background: #dbeafe; color: #1e40af; }
+  .badge-critical { background: #fee2e2; color: #ef4444; }
+  .badge-high { background: #ffedd5; color: #fb923c; }
+  .badge-medium { background: #fef3c7; color: #fbbf24; }
+  .badge-low { background: #d1fae5; color: #34d399; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 12px 16px; font-weight: 600; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--bg-surface); }
+
+  /* Severity dot */
+  .sev-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .sev-critical { background: #ef4444; }
+  .sev-high { background: #fb923c; }
+  .sev-medium { background: #fbbf24; }
+  .sev-low { background: #34d399; }
+
+  /* Finding cards */
+  .finding-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; transition: all 0.15s; }
+  .finding-card:hover { border-color: var(--primary); }
+  .finding-card.critical { border-left: 4px solid #ef4444; }
+  .finding-card.high { border-left: 4px solid #fb923c; }
+  .finding-card.medium { border-left: 4px solid #fbbf24; }
+  .finding-card.low { border-left: 4px solid #34d399; }
+
+  .finding-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+  .finding-detector { font-size: 15px; font-weight: 600; }
+  .finding-path { font-size: 13px; color: var(--text-secondary); font-family: monospace; margin-bottom: 4px; }
+  .finding-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+  .finding-snippet { margin-top: 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-family: monospace; font-size: 12px; color: var(--text-secondary); position: relative; }
+  .finding-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+  /* Detail layout */
+  .detail-section { margin-bottom: 24px; }
+  .detail-section h3 { font-size: 14px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 8px; }
+  .detail-row { display: flex; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { width: 160px; min-width: 160px; color: var(--text-secondary); font-size: 13px; }
+  .detail-value { flex: 1; font-size: 13px; }
+  .detail-value code { background: var(--bg-surface); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+  /* Search bar */
+  .search-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+  .search-input { flex: 1; min-width: 200px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); font-size: 14px; outline: none; }
+  .search-input:focus { border-color: var(--primary); }
+  select.filter-select { padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); font-size: 14px; }
+
+  /* Score */
+  .score { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .score-high { background: #d1fae5; color: #065f46; }
+  .score-med { background: #fef3c7; color: #92400e; }
+  .score-low { background: #fee2e2; color: #991b1b; }
+
+  /* Severity filter chips */
+  .sev-chips { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .sev-chip { padding: 6px 14px; border-radius: 9999px; border: 1px solid var(--border); background: var(--card); color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .sev-chip:hover { border-color: var(--primary); }
+  .sev-chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+  .sev-chip .count { font-weight: 600; margin-left: 4px; }
+
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main-area { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>Anjungan</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-category">Infrastructure</div>
+      <div class="sidebar-nav-item"><span class="icon">🖥</span> Servers</div>
+      <div class="sidebar-nav-item"><span class="icon">📦</span> Registry</div>
+      <div class="sidebar-nav-item"><span class="icon">🚀</span> Deployments</div>
+      <div class="sidebar-nav-category">Security</div>
+      <div class="sidebar-nav-item active"><span class="icon">🔐</span> Compliance</div>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-area">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title">🔐 Secret Scanning</span>
+      </div>
+      <div class="topbar-right">
+        <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+        <div class="avatar">ES</div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Tab switcher -->
+      <div class="mockup-tabs">
+        <button class="mockup-tab active" onclick="switchTab('secrets', 'dashboard')">📊 Dashboard</button>
+        <button class="mockup-tab" onclick="switchTab('secrets', 'findings')">🔍 Findings List</button>
+        <button class="mockup-tab" onclick="switchTab('secrets', 'detail')">📄 Finding Detail</button>
+      </div>
+
+      <!-- PANEL: Dashboard -->
+      <div id="panel-dashboard" class="mockup-panel active">
+        <!-- KPI cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Scans</div>
+            <div class="kpi-value">47</div>
+            <div class="kpi-change up">↑ 12 this week</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Verified (Critical)</div>
+            <div class="kpi-value" style="color:#ef4444;">3</div>
+            <div class="kpi-change down">↑ 1 this week</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Unverified (Medium)</div>
+            <div class="kpi-value" style="color:#fbbf24;">18</div>
+            <div class="kpi-change up">↓ 2 this week</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Resolved</div>
+            <div class="kpi-value" style="color:#34d399;">12</div>
+            <div class="kpi-change up">↑ 5 this week</div>
+          </div>
+        </div>
+
+        <!-- Severity breakdown -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-title">Severity Breakdown</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;">
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:#fee2e2;border-radius:8px;">
+              <span style="font-size:20px;">🔴</span>
+              <div>
+                <div style="font-size:18px;font-weight:700;color:#991b1b;">3</div>
+                <div style="font-size:12px;color:#991b1b;">Critical</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:#ffedd5;border-radius:8px;">
+              <span style="font-size:20px;">🟠</span>
+              <div>
+                <div style="font-size:18px;font-weight:700;color:#9a3412;">5</div>
+                <div style="font-size:12px;color:#9a3412;">High</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:#fef3c7;border-radius:8px;">
+              <span style="font-size:20px;">🟡</span>
+              <div>
+                <div style="font-size:18px;font-weight:700;color:#92400e;">10</div>
+                <div style="font-size:12px;color:#92400e;">Medium</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:#d1fae5;border-radius:8px;">
+              <span style="font-size:20px;">🟢</span>
+              <div>
+                <div style="font-size:18px;font-weight:700;color:#065f46;">3</div>
+                <div style="font-size:12px;color:#065f46;">Low</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scan trigger & history -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="font-size:16px;font-weight:600;">Scan History</h3>
+          <button class="btn btn-primary">🔄 New Scan</button>
+        </div>
+
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Scan ID</th>
+                  <th>Type</th>
+                  <th>Target</th>
+                  <th>Findings</th>
+                  <th>Verified</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="font-family:monospace;font-size:12px;">#scn-3f2a</td>
+                  <td><span class="badge badge-info">📂 Filesystem</span></td>
+                  <td style="font-family:monospace;">anjunan-prod-01</td>
+                  <td>7</td>
+                  <td><span class="badge badge-danger">🔴 2</span></td>
+                  <td><span class="badge badge-success">✅ Completed</span></td>
+                  <td>2026-06-07 14:32</td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-size:12px;">#scn-3e1b</td>
+                  <td><span class="badge badge-info">📂 Git</span></td>
+                  <td style="font-family:monospace;">edsuwarna/anjungan-backend</td>
+                  <td>4</td>
+                  <td><span class="badge badge-danger">🔴 1</span></td>
+                  <td><span class="badge badge-success">✅ Completed</span></td>
+                  <td>2026-06-07 09:15</td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-size:12px;">#scn-3d04</td>
+                  <td><span class="badge badge-info">📂 Git</span></td>
+                  <td style="font-family:monospace;">edsuwarna/whatilearned</td>
+                  <td>2</td>
+                  <td><span class="badge badge-success">🟢 0</span></td>
+                  <td><span class="badge badge-success">✅ Completed</span></td>
+                  <td>2026-06-06 18:00</td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-size:12px;">#scn-3c15</td>
+                  <td><span class="badge badge-info">📂 Webhook</span></td>
+                  <td style="font-family:monospace;">PR #42 — anjungan-backend</td>
+                  <td>3</td>
+                  <td><span class="badge badge-danger">🔴 1</span></td>
+                  <td><span class="badge badge-success">✅ Completed</span></td>
+                  <td>2026-06-06 15:42</td>
+                </tr>
+                <tr>
+                  <td style="font-family:monospace;font-size:12px;">#scn-3b07</td>
+                  <td><span class="badge badge-info">📂 Filesystem</span></td>
+                  <td style="font-family:monospace;">docker://nginx:latest</td>
+                  <td>0</td>
+                  <td><span class="badge badge-success">🟢 0</span></td>
+                  <td><span class="badge badge-success">✅ Completed</span></td>
+                  <td>2026-06-05 11:20</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL: Findings List -->
+      <div id="panel-findings" class="mockup-panel">
+        <!-- Filter chips -->
+        <div class="sev-chips">
+          <span class="sev-chip active" onclick="this.classList.toggle('active')">🔴 Critical <span class="count">3</span></span>
+          <span class="sev-chip" onclick="this.classList.toggle('active')">🟠 High <span class="count">5</span></span>
+          <span class="sev-chip" onclick="this.classList.toggle('active')">🟡 Medium <span class="count">10</span></span>
+          <span class="sev-chip" onclick="this.classList.toggle('active')">🟢 Low <span class="count">3</span></span>
+          <span class="sev-chip" onclick="this.classList.toggle('active')">✅ Verified <span class="count">4</span></span>
+          <span class="sev-chip" onclick="this.classList.toggle('active')">📄 All <span class="count">21</span></span>
+        </div>
+
+        <!-- Search -->
+        <div class="search-bar">
+          <input class="search-input" type="text" placeholder="Search findings...">
+          <select class="filter-select">
+            <option>All Detectors</option>
+            <option>AWS</option>
+            <option>GitHub</option>
+            <option>Slack</option>
+            <option>Generic</option>
+          </select>
+          <select class="filter-select">
+            <option>All Repositories</option>
+            <option>anjungan-backend</option>
+            <option>whatilearned</option>
+            <option>infra</option>
+          </select>
+        </div>
+
+        <!-- Findings list -->
+        <div class="finding-card critical">
+          <div class="finding-header">
+            <div>
+              <div class="finding-detector">🔴 GitHub OAuth Token</div>
+              <div class="finding-path">/internal/config.go:42</div>
+            </div>
+            <span class="badge badge-danger">✅ Verified</span>
+          </div>
+          <div class="finding-meta">
+            <span>📁 edsuwarna/anjungan-backend</span>
+            <span>👤 endang</span>
+            <span>⏱ 2 months ago</span>
+            <span>🔗 a1b2c3d</span>
+          </div>
+          <div class="finding-snippet">
+            <span style="color:#ef4444;">// GitHub OAuth Token</span>
+            <span>GITHUB_TOKEN = "ghp_********************"</span>
+          </div>
+          <div class="finding-actions">
+            <button class="btn btn-sm btn-primary">👁 View Detail</button>
+            <button class="btn btn-sm btn-outline">✅ Mark Resolved</button>
+            <button class="btn btn-sm btn-outline">❌ False Positive</button>
+          </div>
+        </div>
+
+        <div class="finding-card critical">
+          <div class="finding-header">
+            <div>
+              <div class="finding-detector">🔴 AWS Access Key (Verified)</div>
+              <div class="finding-path">/deploy/terraform.tfvars:15</div>
+            </div>
+            <span class="badge badge-danger">✅ Verified</span>
+          </div>
+          <div class="finding-meta">
+            <span>📁 edsuwarna/infra</span>
+            <span>👤 devops-bot</span>
+            <span>⏱ 3 weeks ago</span>
+            <span>🔗 e5f6g7h</span>
+          </div>
+          <div class="finding-snippet">
+            <span style="color:#ef4444;">// AWS Credentials</span>
+            <span>aws_access_key_id = "AKIA****************"</span>
+          </div>
+          <div class="finding-actions">
+            <button class="btn btn-sm btn-primary">👁 View Detail</button>
+            <button class="btn btn-sm btn-outline">✅ Mark Resolved</button>
+            <button class="btn btn-sm btn-outline">❌ False Positive</button>
+          </div>
+        </div>
+
+        <div class="finding-card high">
+          <div class="finding-header">
+            <div>
+              <div class="finding-detector">🟠 Slack API Token</div>
+              <div class="finding-path">/bot/slack.config.json:8</div>
+            </div>
+            <span class="badge badge-warning">⏳ Unverified</span>
+          </div>
+          <div class="finding-meta">
+            <span>📁 edsuwarna/whatilearned</span>
+            <span>👤 endang</span>
+            <span>⏱ 1 week ago</span>
+            <span>🔗 i9j0k1l</span>
+          </div>
+          <div class="finding-snippet">
+            <span style="color:#fb923c;">// Slack Bot Token</span>
+            <span>"token": "xoxb-********************"</span>
+          </div>
+          <div class="finding-actions">
+            <button class="btn btn-sm btn-primary">👁 View Detail</button>
+            <button class="btn btn-sm btn-outline">✅ Mark Resolved</button>
+            <button class="btn btn-sm btn-outline">❌ False Positive</button>
+          </div>
+        </div>
+
+        <div class="finding-card medium">
+          <div class="finding-header">
+            <div>
+              <div class="finding-detector">🟡 Discord Webhook URL</div>
+              <div class="finding-path">/config/notifications.yaml:22</div>
+            </div>
+            <span class="badge badge-warning">⏳ Unverified</span>
+          </div>
+          <div class="finding-meta">
+            <span>📁 edsuwarna/anjungan-backend</span>
+            <span>👤 endang</span>
+            <span>⏱ 5 days ago</span>
+            <span>🔗 m2n3o4p</span>
+          </div>
+          <div class="finding-snippet">
+            <span style="color:#fbbf24;">// Discord Notification</span>
+            <span>webhook_url: "https://discord.com/api/webhooks/****"</span>
+          </div>
+          <div class="finding-actions">
+            <button class="btn btn-sm btn-primary">👁 View Detail</button>
+            <button class="btn btn-sm btn-outline">✅ Mark Resolved</button>
+            <button class="btn btn-sm btn-outline">❌ False Positive</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL: Finding Detail -->
+      <div id="panel-detail" class="mockup-panel">
+        <div class="card" style="margin-bottom:24px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <span class="badge badge-danger" style="font-size:13px;">🔴 Critical</span>
+                <span class="badge badge-danger">✅ Verified</span>
+                <span class="badge badge-warning">⏳ Open</span>
+              </div>
+              <h2 style="font-size:20px;font-weight:600;">GitHub OAuth Token</h2>
+              <div style="font-size:13px;color:var(--text-secondary);">Detected by TruffleHog v3.82 • Scan #scn-3e1b</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-success btn-sm">✅ Mark Resolved</button>
+              <button class="btn btn-outline btn-sm">❌ Ignore</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>📍 Location</h3>
+          <div class="card">
+            <div class="detail-row">
+              <div class="detail-label">File Path</div>
+              <div class="detail-value"><code>/internal/config.go</code></div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Line Number</div>
+              <div class="detail-value">42</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Repository</div>
+              <div class="detail-value">edsuwarna/anjungan-backend</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Commit SHA</div>
+              <div class="detail-value"><code>a1b2c3d4e5f6</code></div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Commit Message</div>
+              <div class="detail-value">"feat: add GitHub OAuth integration"</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Author</div>
+              <div class="detail-value">Endang Suwarna &lt;endang@edsuwarna.id&gt;</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Committed</div>
+              <div class="detail-value">2026-04-01 14:32:10 UTC</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Detected</div>
+              <div class="detail-value">2026-06-07 09:15:00 UTC (in scan #scn-3e1b)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>🔑 Raw Secret</h3>
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span class="badge badge-info">Default: Masked</span>
+              <button class="btn btn-sm btn-outline" onclick="alert('Revealed! Audit logged.')">👁 Click to Reveal</button>
+              <span style="font-size:12px;color:var(--text-secondary);">(Audit logged)</span>
+            </div>
+            <div style="background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;font-family:monospace;font-size:14px;">
+              <div style="color:#6b7280;">1  // GitHub OAuth Token</div>
+              <div style="color:#6b7280;">2  const githubToken = "</div>
+              <div style="color:#ef4444;letter-spacing:4px;">3  ghp_****************************************</div>
+              <div style="color:#6b7280;">4  "</div>
+              <div style="color:#6b7280;">5  </div>
+              <div style="color:#6b7280;">6  // Used for authenticating with GitHub API</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>🛡 Detector Details</h3>
+          <div class="card">
+            <div class="detail-row">
+              <div class="detail-label">Detector</div>
+              <div class="detail-value">GitHub OAuth Token</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Detector Type</div>
+              <div class="detail-value"><span class="badge badge-info">GitHub</span></div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Verification</div>
+              <div class="detail-value"><span class="badge badge-success">✅ Verified</span> — GitHub API confirmed token is active</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Severity</div>
+              <div class="detail-value"><span class="badge badge-danger">🔴 Critical</span> (verified = active credential)</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Score</div>
+              <div class="detail-value">
+                <span class="score score-high">92</span> High confidence (verified + known pattern)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>💡 Remediation</h3>
+          <div class="card" style="border-left:4px solid var(--primary);">
+            <div style="margin-bottom:12px;font-size:14px;font-weight:500;">Recommended actions to fix this finding:</div>
+            <ol style="margin-left:20px;font-size:13px;line-height:1.8;color:var(--text-secondary);">
+              <li><strong>Revoke the token</strong> — Go to GitHub → Settings → Developer settings → Personal access tokens → Revoke this token immediately.</li>
+              <li><strong>Rotate the credential</strong> — Generate a new GitHub OAuth token with the minimum required scopes.</li>
+              <li><strong>Remove from git history</strong> — Use <code>git filter-branch</code> or <code>bfg-repo-cleaner</code> to scrub the secret from commit history.</li>
+              <li><strong>Update dependent services</strong> — Update all references to use the new token via environment variables or a secrets manager.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>📜 History</h3>
+          <div class="card">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div style="display:flex;gap:12px;align-items:flex-start;">
+                <div style="width:32px;height:32px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:14px;">🔴</div>
+                <div>
+                  <div style="font-size:14px;font-weight:500;">Secret introduced</div>
+                  <div style="font-size:12px;color:var(--text-secondary);">Apr 1, 2026 — Commit <code>a1b2c3d</code> by endang</div>
+                  <div style="font-size:12px;color:var(--text-secondary);">File <code>/internal/config.go</code> created with embedded GitHub token</div>
+                </div>
+              </div>
+              <div style="margin-left:16px;border-left:2px solid var(--border);padding-left:28px;display:flex;gap:12px;align-items:flex-start;">
+                <div style="width:32px;height:32px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:14px;">🟡</div>
+                <div>
+                  <div style="font-size:14px;font-weight:500;">Detected by TruffleHog</div>
+                  <div style="font-size:12px;color:var(--text-secondary);">Jun 7, 2026 — Scan #scn-3e1b</div>
+                  <div style="font-size:12px;color:var(--text-secondary);">Verified: ✅ Token is still active</div>
+                </div>
+              </div>
+              <div style="margin-left:16px;border-left:2px dashed var(--border);padding-left:28px;display:flex;gap:12px;align-items:flex-start;">
+                <div style="width:32px;height:32px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:14px;">⏳</div>
+                <div>
+                  <div style="font-size:14px;font-weight:500;">Action required</div>
+                  <div style="font-size:12px;color:var(--text-secondary);">Rotate token and mark as resolved</div>
+                  <div style="margin-top:4px;display:flex;gap:8px;">
+                    <button class="btn btn-sm btn-success">✅ Mark Resolved</button>
+                    <button class="btn btn-sm btn-outline">❌ False Positive</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function switchTab(area, tab) {
+    document.querySelectorAll('#panel-dashboard, #panel-findings, #panel-detail').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + tab).classList.add('active');
+    document.querySelectorAll('.mockup-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.mockup-tab').forEach(t => {
+      if (t.textContent.includes('Dashboard') && tab === 'dashboard') t.classList.add('active');
+      if (t.textContent.includes('Findings List') && tab === 'findings') t.classList.add('active');
+      if (t.textContent.includes('Finding Detail') && tab === 'detail') t.classList.add('active');
+    });
+  }
+
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    document.querySelector('.theme-toggle').textContent = isDark ? '🌙' : '☀️';
+  }
+</script>
+</body>
+</html>

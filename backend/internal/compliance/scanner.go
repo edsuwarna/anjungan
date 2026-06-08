@@ -8,6 +8,10 @@ import (
 	sshtool "github.com/edsuwarna/anjungan/internal/infra/ssh"
 )
 
+// CommandRunner abstracts command execution for compliance checks.
+// Implementations: SSH (remote via ssh), DockerSocket (local via Docker API).
+type CommandRunner func(ctx context.Context, command string) (string, error)
+
 // Scanner runs compliance checks against a remote server over SSH.
 // Supports multiple scan profiles and individual check execution (Prowler-style).
 type Scanner struct {
@@ -114,6 +118,70 @@ func (s *Scanner) RunSingle(ctx context.Context, sshCfg sshtool.Config, checkID 
 // RunLynisButton runs the Lynis scanner helper (wraps the lynis.go functions).
 func (s *Scanner) RunLynis(ctx context.Context, sshCfg sshtool.Config) (*LynisResult, error) {
 	return RunLynis(ctx, sshCfg)
+}
+
+// RunWithRunner executes all checks using a command runner instead of SSH config.
+// Useful for docker-socket and other non-SSH executors.
+func (s *Scanner) RunWithRunner(ctx context.Context, runner CommandRunner, profile ScanProfile) (*ScanSummary, error) {
+	checks := s.registry.GetByProfile(profile)
+	if len(checks) == 0 {
+		return nil, fmt.Errorf("no compliance checks available for profile %s", profile)
+	}
+
+	var findings []CheckResult
+
+	for _, chk := range checks {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		output, err := runner(ctx, chk.Command)
+
+		result := chk.Evaluate(output, err)
+		result.CheckID = chk.ID
+		result.Category = chk.Category
+		result.Title = chk.Title
+		result.CISID = chk.CISID
+		result.CISLevel = chk.CISLevel
+		result.Risk = chk.Risk
+		if len(chk.References) > 0 {
+			result.References = chk.References[0]
+		}
+		if result.Remediation == "" && chk.Remediation != "" {
+			result.Remediation = chk.Remediation
+		}
+		findings = append(findings, result)
+	}
+
+	summary := calculateSummary(findings)
+	return summary, nil
+}
+
+// RunSingleWithRunner executes a single compliance check using a command runner.
+func (s *Scanner) RunSingleWithRunner(ctx context.Context, runner CommandRunner, checkID string) (*CheckResult, error) {
+	chk, ok := s.registry.GetByID(checkID)
+	if !ok {
+		return nil, fmt.Errorf("check %q not found", checkID)
+	}
+
+	output, err := runner(ctx, chk.Command)
+
+	result := chk.Evaluate(output, err)
+	result.CheckID = chk.ID
+	result.Category = chk.Category
+	result.Title = chk.Title
+	result.CISID = chk.CISID
+	result.CISLevel = chk.CISLevel
+	result.Risk = chk.Risk
+	if len(chk.References) > 0 {
+		result.References = chk.References[0]
+	}
+	if result.Remediation == "" && chk.Remediation != "" {
+		result.Remediation = chk.Remediation
+	}
+	return &result, nil
 }
 
 // RunCommand runs an arbitrary command on the remote server and returns output.

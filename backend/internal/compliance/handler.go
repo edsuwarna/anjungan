@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -16,18 +17,20 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/executor"
 	sshtool "github.com/edsuwarna/anjungan/internal/infra/ssh"
 )
 
 // Handler handles HTTP requests for compliance scanning.
 type Handler struct {
-	repo    *db.Repository
-	scanner *Scanner
+	repo            *db.Repository
+	scanner         *Scanner
+	dockerSocketPath string
 }
 
 // NewHandler creates a new compliance Handler.
-func NewHandler(repo *db.Repository) *Handler {
-	return &Handler{repo: repo, scanner: NewScannerWithRegistry(NewCheckRegistry())}
+func NewHandler(repo *db.Repository, dockerSocketPath string) *Handler {
+	return &Handler{repo: repo, scanner: NewScannerWithRegistry(NewCheckRegistry()), dockerSocketPath: dockerSocketPath}
 }
 
 // Routes returns the chi.Router for compliance endpoints.
@@ -107,6 +110,45 @@ func (h *Handler) authorizeView(ctx context.Context, id string) (*model.Server, 
 		}
 	}
 	return nil, fmt.Errorf("forbidden")
+}
+
+// ─── Executor helpers ───────────────────────────────────────────────────────
+
+func (h *Handler) getExecutor(srv *model.Server) (executor.ServerExecutor, error) {
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		return executor.NewDockerExecutor(h.dockerSocketPath)
+	}
+	return nil, nil // nil means use SSH path
+}
+
+// commandRunnerForServer creates a CommandRunner for the server based on its connection type.
+func (h *Handler) commandRunnerForServer(ctx context.Context, srv *model.Server) (CommandRunner, error) {
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		exec, err := h.getExecutor(srv)
+		if err != nil {
+			return nil, fmt.Errorf("executor init: %w", err)
+		}
+		return func(ctx context.Context, cmd string) (string, error) {
+			defer exec.Close()
+			return exec.RunCommand(ctx, cmd)
+		}, nil
+	}
+
+	// SSH path
+	sshCfg, err := h.sshConfigForServer(ctx, srv)
+	if err != nil {
+		return nil, fmt.Errorf("ssh config: %w", err)
+	}
+	return func(ctx context.Context, cmd string) (string, error) {
+		return sshtool.RunCommand(ctx, sshCfg, cmd)
+	}, nil
+}
+
+// sshRunner creates a CommandRunner from an SSH config.
+func sshRunner(sshCfg sshtool.Config) CommandRunner {
+	return func(ctx context.Context, cmd string) (string, error) {
+		return sshtool.RunCommand(ctx, sshCfg, cmd)
+	}
 }
 
 // ─── GET /compliance/checks ───────────────────────────────────────────────
@@ -266,42 +308,71 @@ func (h *Handler) TriggerScan(w http.ResponseWriter, r *http.Request) {
 	go func(sr *model.ScanResult, server *model.Server, prof ScanProfile) {
 		ctx := context.Background()
 
-		if err := h.resolveSSHKey(ctx, server); err != nil {
-			completedAt := time.Now()
-			zero := 0
-			sr.Status = "failed"
-			sr.ErrorMessage = "SSH key error: " + err.Error()
-			sr.CompletedAt = &completedAt
-			sr.Score = &zero
-			_ = h.repo.UpdateScanResult(ctx, sr)
-			log.Err(err).Str("scan_id", sr.ID).Msg("compliance scan failed: resolve SSH key")
-			return
-		}
+		var summary *ScanSummary
 
-		sshCfg, err := h.sshConfigForServer(ctx, server)
-		if err != nil {
-			completedAt := time.Now()
-			zero := 0
-			sr.Status = "failed"
-			sr.ErrorMessage = "SSH config error: " + err.Error()
-			sr.CompletedAt = &completedAt
-			sr.Score = &zero
-			_ = h.repo.UpdateScanResult(ctx, sr)
-			log.Err(err).Str("scan_id", sr.ID).Msg("compliance scan failed: SSH config")
-			return
-		}
+		if server.ConnectionType == executor.ConnectionTypeDockerSocket {
+			runner, err := h.commandRunnerForServer(ctx, server)
+			if err != nil {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "Executor error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("compliance scan failed: executor")
+				return
+			}
+			summary, err = h.scanner.RunWithRunner(ctx, runner, prof)
+			if err != nil {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "Scan error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("compliance scan failed")
+				return
+			}
+		} else {
+			if err := h.resolveSSHKey(ctx, server); err != nil {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "SSH key error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("compliance scan failed: resolve SSH key")
+				return
+			}
 
-		summary, err := h.scanner.Run(ctx, sshCfg, prof)
-		if err != nil {
-			completedAt := time.Now()
-			zero := 0
-			sr.Status = "failed"
-			sr.ErrorMessage = "Scan error: " + err.Error()
-			sr.CompletedAt = &completedAt
-			sr.Score = &zero
-			_ = h.repo.UpdateScanResult(ctx, sr)
-			log.Err(err).Str("scan_id", sr.ID).Msg("compliance scan failed")
-			return
+			sshCfg, err := h.sshConfigForServer(ctx, server)
+			if err != nil {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "SSH config error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("compliance scan failed: SSH config")
+				return
+			}
+
+			summary, err = h.scanner.Run(ctx, sshCfg, prof)
+			if err != nil {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "Scan error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("compliance scan failed")
+				return
+			}
 		}
 
 		completedAt := time.Now()
@@ -394,6 +465,107 @@ func (h *Handler) TriggerLynisScan(w http.ResponseWriter, r *http.Request) {
 
 	go func(sr *model.ScanResult, server *model.Server) {
 		ctx := context.Background()
+
+		if server.ConnectionType == executor.ConnectionTypeDockerSocket {
+			// Lynis runs on the host — use executor's RunCommand via nsenter
+			exec, err := h.getExecutor(server)
+			if err != nil {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "Executor error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("Lynis scan failed: executor")
+				return
+			}
+			defer exec.Close()
+
+			// Run lynis via the executor's RunCommand (nsenter to host)
+			runner := func(ctx context.Context, cmd string) (string, error) {
+				return exec.RunCommand(ctx, cmd)
+			}
+
+			// For docker-socket, run lynis check+result inline
+			checkCmd := `which lynis 2>/dev/null && echo "installed" || (dpkg -l lynis 2>/dev/null | grep -q '^ii' && echo "installed") || echo "not-installed"`
+			checkOut, err := runner(ctx, checkCmd)
+			if err != nil || strings.TrimSpace(checkOut) == "not-installed" {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "Lynis is not installed on this server"
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("Lynis scan failed: not installed")
+				return
+			}
+
+			output, err := runner(ctx, `sh -c "sudo lynis audit system --report-journal --quiet 2>&1 | tail -200 || lynis audit system --report-journal --quiet 2>&1 | tail -200"`)
+			if err != nil && output == "" {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "Lynis audit error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				return
+			}
+
+			lynisResult := parseLynisOutput(output)
+			lynisResult.RawLog = output
+
+			// Save result (same as SSH path)
+			completedAt := time.Now()
+			score := lynisResult.HardeningScore
+			sr.Status = "completed"
+			sr.Score = &score
+			sr.TotalChecks = lynisResult.Tests
+			sr.Warnings = lynisResult.Warnings
+			sr.CompletedAt = &completedAt
+
+			if err := h.repo.UpdateScanResult(ctx, sr); err != nil {
+				log.Err(err).Str("scan_id", sr.ID).Msg("failed to update Lynis scan result")
+			}
+
+			// Save findings
+			var findings []model.ScanFinding
+			now := time.Now()
+			for _, w := range lynisResult.WarningsList {
+				findings = append(findings, model.ScanFinding{
+					ID:          uuid.New().String(),
+					ScanID:      sr.ID,
+					CheckID:     w.TestID,
+					Category:    "lynis",
+					Severity:    "high",
+					Title:       "Lynis Warning: " + w.TestID,
+					Description: w.Description,
+					Status:      "fail",
+					CreatedAt:   now,
+				})
+			}
+			for _, s := range lynisResult.SuggestionsList {
+				findings = append(findings, model.ScanFinding{
+					ID:          uuid.New().String(),
+					ScanID:      sr.ID,
+					CheckID:     s.TestID,
+					Category:    "lynis",
+					Severity:    "medium",
+					Title:       "Lynis Suggestion: " + s.TestID,
+					Description: s.Description,
+					Status:      "warn",
+					CreatedAt:   now,
+				})
+			}
+			if len(findings) > 0 {
+				if err := h.repo.CreateScanFindings(ctx, findings); err != nil {
+					log.Warn().Err(err).Str("scan_id", sr.ID).Msg("failed to save Lynis findings")
+				}
+			}
+			return
+		}
 
 		if err := h.resolveSSHKey(ctx, server); err != nil {
 			completedAt := time.Now()
@@ -542,32 +714,44 @@ func (h *Handler) TriggerContainerScan(w http.ResponseWriter, r *http.Request) {
 	go func(sr *model.ScanResult, server *model.Server) {
 		ctx := context.Background()
 
-		if err := h.resolveSSHKey(ctx, server); err != nil {
-			completedAt := time.Now()
-			zero := 0
-			sr.Status = "failed"
-			sr.ErrorMessage = "SSH key error: " + err.Error()
-			sr.CompletedAt = &completedAt
-			sr.Score = &zero
-			_ = h.repo.UpdateScanResult(ctx, sr)
-			log.Err(err).Str("scan_id", sr.ID).Msg("container scan failed: SSH key")
-			return
+		var runner CommandRunner
+		var err error
+
+		if server.ConnectionType == executor.ConnectionTypeDockerSocket {
+			runner, err = h.commandRunnerForServer(ctx, server)
+		} else {
+			if err := h.resolveSSHKey(ctx, server); err != nil {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "SSH key error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				log.Err(err).Str("scan_id", sr.ID).Msg("container scan failed: SSH key")
+				return
+			}
+
+			var sshCfg sshtool.Config
+			sshCfg, err = h.sshConfigForServer(ctx, server)
+			if err == nil {
+				runner = sshRunner(sshCfg)
+			}
 		}
 
-		sshCfg, err := h.sshConfigForServer(ctx, server)
 		if err != nil {
 			completedAt := time.Now()
 			zero := 0
 			sr.Status = "failed"
-			sr.ErrorMessage = "SSH config error: " + err.Error()
+			sr.ErrorMessage = "Connection error: " + err.Error()
 			sr.CompletedAt = &completedAt
 			sr.Score = &zero
 			_ = h.repo.UpdateScanResult(ctx, sr)
-			log.Err(err).Str("scan_id", sr.ID).Msg("container scan failed: SSH config")
+			log.Err(err).Str("scan_id", sr.ID).Msg("container scan failed: connection")
 			return
 		}
 
-		summary, err := RunContainerScan(ctx, sshCfg)
+		summary, err := RunContainerScan(ctx, runner)
 		if err != nil {
 			completedAt := time.Now()
 			zero := 0
@@ -675,23 +859,35 @@ func (h *Handler) TriggerSingleContainerScan(w http.ResponseWriter, r *http.Requ
 	go func(sr *model.ScanResult, server *model.Server) {
 		ctx := context.Background()
 
-		if err := h.resolveSSHKey(ctx, server); err != nil {
-			completedAt := time.Now()
-			zero := 0
-			sr.Status = "failed"
-			sr.ErrorMessage = "SSH key error: " + err.Error()
-			sr.CompletedAt = &completedAt
-			sr.Score = &zero
-			_ = h.repo.UpdateScanResult(ctx, sr)
-			return
+		var runner CommandRunner
+		var err error
+
+		if server.ConnectionType == executor.ConnectionTypeDockerSocket {
+			runner, err = h.commandRunnerForServer(ctx, server)
+		} else {
+			if err := h.resolveSSHKey(ctx, server); err != nil {
+				completedAt := time.Now()
+				zero := 0
+				sr.Status = "failed"
+				sr.ErrorMessage = "SSH key error: " + err.Error()
+				sr.CompletedAt = &completedAt
+				sr.Score = &zero
+				_ = h.repo.UpdateScanResult(ctx, sr)
+				return
+			}
+
+			var sshCfg sshtool.Config
+			sshCfg, err = h.sshConfigForServer(ctx, server)
+			if err == nil {
+				runner = sshRunner(sshCfg)
+			}
 		}
 
-		sshCfg, err := h.sshConfigForServer(ctx, server)
 		if err != nil {
 			completedAt := time.Now()
 			zero := 0
 			sr.Status = "failed"
-			sr.ErrorMessage = "SSH config error: " + err.Error()
+			sr.ErrorMessage = "Connection error: " + err.Error()
 			sr.CompletedAt = &completedAt
 			sr.Score = &zero
 			_ = h.repo.UpdateScanResult(ctx, sr)
@@ -702,7 +898,7 @@ func (h *Handler) TriggerSingleContainerScan(w http.ResponseWriter, r *http.Requ
 		defer cancel()
 
 		scanner := NewContainerScanner()
-		result, err := scanner.ScanSingleContainer(ctxTimeout, sshCfg, containerID)
+		result, err := scanner.ScanSingleContainer(ctxTimeout, runner, containerID)
 		if err != nil {
 			completedAt := time.Now()
 			zero := 0
@@ -769,16 +965,30 @@ func (h *Handler) TriggerSingleCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sshCfg, err := h.sshConfigForServer(r.Context(), srv)
-	if err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to resolve SSH configuration")
-		return
-	}
+	var result *CheckResult
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		runner, err := h.commandRunnerForServer(r.Context(), srv)
+		if err != nil {
+			common.Error(w, http.StatusInternalServerError, "executor error: "+err.Error())
+			return
+		}
+		result, err = h.scanner.RunSingleWithRunner(r.Context(), runner, checkID)
+		if err != nil {
+			common.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	} else {
+		sshCfg, err := h.sshConfigForServer(r.Context(), srv)
+		if err != nil {
+			common.Error(w, http.StatusInternalServerError, "failed to resolve SSH configuration")
+			return
+		}
 
-	result, err := h.scanner.RunSingle(r.Context(), sshCfg, checkID)
-	if err != nil {
-		common.Error(w, http.StatusBadRequest, err.Error())
-		return
+		result, err = h.scanner.RunSingle(r.Context(), sshCfg, checkID)
+		if err != nil {
+			common.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	common.JSON(w, http.StatusOK, map[string]interface{}{

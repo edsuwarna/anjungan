@@ -1,12 +1,14 @@
 package infra
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -1313,6 +1315,13 @@ func (h *Handler) TerminalWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		// Docker-socket: spawn a host shell via nsenter
+		h.dockerTerminal(ctx, conn, cancel)
+		return
+	}
+
+	// SSH path
 	cfg, err := h.sshConfigForServer(ctx, srv)
 	if err != nil {
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mSSH key resolution failed: %v\x1b[0m\r\n", err)))
@@ -1371,6 +1380,81 @@ func (h *Handler) TerminalWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// dockerTerminal runs an interactive host shell via Docker nsenter, connected to the WebSocket.
+func (h *Handler) dockerTerminal(ctx context.Context, conn *websocket.Conn, cancel context.CancelFunc) {
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", "-i", "--pid=host", "--privileged",
+		"--net=host", "-v", "/:/host:ro",
+		"alpine:latest",
+		"nsenter", "-t", "1", "-m", "-u", "-i", "-n",
+		"sh", "-c", "exec bash 2>/dev/null || exec sh")
+
+	cmd.Env = append(cmd.Env, "DOCKER_HOST=unix:///var/run/docker.sock", "TERM=xterm-256color")
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stdin pipe: %v\x1b[0m\r\n", err)))
+		return
+	}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stdout pipe: %v\x1b[0m\r\n", err)))
+		return
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stderr pipe: %v\x1b[0m\r\n", err)))
+		return
+	}
+
+	if err := cmd.Start(); err != nil {
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to start shell: %v\x1b[0m\r\n", err)))
+		return
+	}
+
+	// Combined reader for stdout+stderr
+	combined := io.MultiReader(stdout, stderr)
+	reader := bufio.NewReader(combined)
+
+	// Process output → WebSocket
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := reader.Read(buf)
+			if n > 0 {
+				conn.WriteMessage(websocket.TextMessage, buf[:n])
+			}
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[33m[Connection closed]\x1b[0m\r\n")))
+				cancel()
+				return
+			}
+		}
+	}()
+
+	// WebSocket → process stdin
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		msgStr := strings.TrimSpace(string(msg))
+		// Skip resize messages (no PTY resize for local process)
+		if strings.HasPrefix(msgStr, "{") && strings.Contains(msgStr, "resize") {
+			continue
+		}
+
+		if _, err := stdin.Write(msg); err != nil {
+			break
+		}
+	}
+
+	cmd.Process.Kill()
+	cmd.Wait()
+}
+
 // ─── WebSocket Container Exec Terminal ────────────────────────────────────
 
 func (h *Handler) ContainerExecWS(w http.ResponseWriter, r *http.Request) {
@@ -1393,22 +1477,8 @@ func (h *Handler) ContainerExecWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	cfg, err := h.sshConfigForServer(ctx, srv)
-	if err != nil {
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mSSH key resolution failed: %v\x1b[0m\r\n", err)))
-		return
-	}
-	cfg.Timeout = 10 * time.Second
-
-	// Resolve container name for audit log
-	containerName := container
-	if nameOut, nameErr := sshtool.RunCommand(ctx, cfg, fmt.Sprintf("docker ps --filter id=%s --format '{{.Names}}'", container)); nameErr == nil {
-		if n := strings.TrimSpace(nameOut); n != "" {
-			containerName = n
-		}
-	}
-
 	// Audit log — call before entering interactive session
+	containerName := container
 	if claims := auth.GetClaims(r.Context()); claims != nil {
 		meta, _ := json.Marshal(map[string]string{
 			"container_id":   container,
@@ -1420,6 +1490,97 @@ func (h *Handler) ContainerExecWS(w http.ResponseWriter, r *http.Request) {
 			"container.exec", "container", containerName,
 			fmt.Sprintf("Opened interactive terminal in container %s on %s", containerName, srv.Name),
 			json.RawMessage(meta))
+	}
+
+	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
+		// Docker-socket: exec directly into the container via docker CLI
+		// Detect shell
+		detectCmd := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.Config.Cmd}}", container)
+		detectCmd.Env = append(detectCmd.Env, "DOCKER_HOST=unix:///var/run/docker.sock")
+		shellOut, _ := detectCmd.Output()
+		shell := "sh"
+		if strings.Contains(string(shellOut), "bash") {
+			shell = "bash"
+		}
+
+		cmd := exec.CommandContext(ctx, "docker", "exec", "-i", container, shell)
+		cmd.Env = append(cmd.Env, "DOCKER_HOST=unix:///var/run/docker.sock", "TERM=xterm-256color")
+
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stdin pipe: %v\x1b[0m\r\n", err)))
+			return
+		}
+
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stdout pipe: %v\x1b[0m\r\n", err)))
+			return
+		}
+
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mFailed to create stderr pipe: %v\x1b[0m\r\n", err)))
+			return
+		}
+
+		if err := cmd.Start(); err != nil {
+			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mContainer exec failed: %v\x1b[0m\r\n", err)))
+			return
+		}
+
+		combined := io.MultiReader(stdout, stderr)
+		reader := bufio.NewReader(combined)
+
+		// Output → WebSocket
+		go func() {
+			buf := make([]byte, 4096)
+			for {
+				n, err := reader.Read(buf)
+				if n > 0 {
+					conn.WriteMessage(websocket.TextMessage, buf[:n])
+				}
+				if err != nil {
+					conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[33m[Connection closed]\x1b[0m\r\n")))
+					cancel()
+					return
+				}
+			}
+		}()
+
+		// WebSocket → process stdin
+		for {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+			msgStr := strings.TrimSpace(string(msg))
+			if strings.HasPrefix(msgStr, "{") && strings.Contains(msgStr, "resize") {
+				continue
+			}
+			if _, err := stdin.Write(msg); err != nil {
+				break
+			}
+		}
+
+		cmd.Process.Kill()
+		cmd.Wait()
+		return
+	}
+
+	// SSH path
+	cfg, err := h.sshConfigForServer(ctx, srv)
+	if err != nil {
+		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\n\x1b[31mSSH key resolution failed: %v\x1b[0m\r\n", err)))
+		return
+	}
+	cfg.Timeout = 10 * time.Second
+
+	// Resolve container name for audit log
+	if nameOut, nameErr := sshtool.RunCommand(ctx, cfg, fmt.Sprintf("docker ps --filter id=%s --format '{{.Names}}'", container)); nameErr == nil {
+		if n := strings.TrimSpace(nameOut); n != "" {
+			containerName = n
+		}
 	}
 
 	// Detect available shell inside container
