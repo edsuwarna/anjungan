@@ -1316,9 +1316,13 @@ func (h *Handler) TerminalWS(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	if srv.ConnectionType == executor.ConnectionTypeDockerSocket {
-		// Docker-socket: spawn a host shell via nsenter
-		h.dockerTerminal(ctx, conn, cancel)
-		return
+		// If server has SSH credentials, prefer SSH over Docker nsenter
+		if srv.SSHUser == "" && srv.SSHKeyID == "" && srv.SSHKey == "" && srv.SSHPassword == "" {
+			// No SSH credentials — use Docker nsenter shell
+			h.dockerTerminal(ctx, conn, cancel)
+			return
+		}
+		// Has SSH credentials — fall through to SSH path below
 	}
 
 	// SSH path

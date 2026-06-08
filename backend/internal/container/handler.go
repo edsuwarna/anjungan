@@ -142,13 +142,45 @@ func (h *Handler) runDockerCommand(ctx context.Context, srv *model.Server, cmd s
 
 		// cmd is like "docker ps -a --format '...'" — strip "docker " prefix
 		trimmed := strings.TrimPrefix(cmd, "docker ")
-		// Parse into args (simple split preserves quoted strings as-is for docker CLI)
-		args := strings.Fields(trimmed)
+		// Use shell-aware parsing to handle --format '...' quoting properly.
+		// strings.Fields doesn't handle shell quoting, so single quotes would be
+		// passed literally to docker CLI and break JSON output parsing.
+		args := shellSplit(trimmed)
 		return exec.RunDockerCommand(ctx, args...)
 	}
 
 	// SSH path
 	return h.runDockerSSH(ctx, srv, cmd)
+}
+
+// shellSplit splits a command string into tokens like a POSIX shell would,
+// respecting single-quote and double-quote quoting. This is needed because
+// the command strings contain shell quoting (e.g. --format '{"id":"{{.ID}}"}').
+func shellSplit(s string) []string {
+	var args []string
+	var cur []byte
+	inSingle := false
+	inDouble := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '\'' && !inDouble:
+			inSingle = !inSingle
+		case c == '"' && !inSingle:
+			inDouble = !inDouble
+		case (c == ' ' || c == '\t') && !inSingle && !inDouble:
+			if len(cur) > 0 {
+				args = append(args, string(cur))
+				cur = nil
+			}
+		default:
+			cur = append(cur, c)
+		}
+	}
+	if len(cur) > 0 {
+		args = append(args, string(cur))
+	}
+	return args
 }
 
 // runDockerSSH runs a docker command on a server via SSH (legacy path)

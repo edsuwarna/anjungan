@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
 	"github.com/edsuwarna/anjungan/internal/config"
@@ -95,6 +97,7 @@ func (d *Detector) DetectAndRegister(ctx context.Context) {
 	// Build self server model
 	now := time.Now()
 	selfServer := &model.Server{
+		ID:             uuid.New().String(),
 		Name:           d.cfg.Name,
 		Host:           hostIP,
 		Port:           22, // default, not used for docker-socket

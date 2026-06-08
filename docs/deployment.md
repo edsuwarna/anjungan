@@ -72,6 +72,11 @@ services:
       ZOT_CONTAINER_NAME: ${ZOT_CONTAINER_NAME:-anjungan-zot}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MIGRATIONS_PATH: /migrations
+      # Self-server — auto-registers the host for container/metrics visibility
+      SELF_SERVER_ENABLED: "true"
+      SELF_HOST_NETWORK: "host.docker.internal"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     depends_on:
@@ -79,6 +84,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    group_add:
+      - "988"  # Docker group GID — gives container access to /var/run/docker.sock
     volumes:
       - sshkeys:/data/ssh
       - ./zot:/data/zot:rw
@@ -245,6 +252,23 @@ docker compose restart backend
 ### 5. Backups
 
 Back up the PostgreSQL volume and `zot/` directory regularly.
+
+### 6. Self-Server (Host Auto-Registration)
+
+On startup, Anjungan can auto-detect and register the host server where it runs — no manual add needed. See [docs/self-server.md](self-server.md) for details.
+
+To enable, ensure your `docker-compose.yml` has:
+
+```yaml
+backend:
+  environment:
+    SELF_SERVER_ENABLED: "true"
+    SELF_HOST_NETWORK: "host.docker.internal"
+  group_add:
+    - "988"  # docker GID — run `getent group docker | cut -d: -f3` to verify
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:rw
+```
 
 ## CI/CD
 
