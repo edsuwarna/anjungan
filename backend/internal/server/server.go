@@ -24,6 +24,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/ratelimit"
 	"github.com/edsuwarna/anjungan/internal/registry"
 	repoapi "github.com/edsuwarna/anjungan/internal/repository"
+	"github.com/edsuwarna/anjungan/internal/self"
 	"github.com/edsuwarna/anjungan/internal/settings"
 )
 
@@ -65,6 +66,13 @@ func New(cfg *config.Config) (*Server, error) {
 
 	srv := &Server{cfg: cfg, db: database}
 	srv.setupRouter(authH, authSvc, repo, rl)
+
+	// ─── Self-server auto-registration ────────────────────────────────────
+	if cfg.SelfServer.Enabled {
+		detector := self.NewDetector(repo, &cfg.SelfServer)
+		go detector.DetectAndRegister(context.Background())
+	}
+
 	return srv, nil
 }
 
