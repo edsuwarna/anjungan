@@ -507,14 +507,22 @@
 						<div class="sc-info">
 							<div class="sc-name-row">
 								<span class="sc-name">{server.name}</span>
+								{#if server.is_self}
+									<span class="self-badge" title="This host">Self</span>
+								{/if}
 								<span class="status-badge {statusClass(server.status)}">
 									<span class="h-1.5 w-1.5 rounded-full currentColor"></span>
 									{server.status || 'unknown'}
 								</span>
 							</div>
 							<div class="sc-host">
-								{server.host}:{server.port || 22}
-								<span class="sc-user">· {server.ssh_user || 'root'}</span>
+								{#if server.connection_type === 'docker-socket'}
+									<span>🐳 Docker Socket</span>
+									<span class="sc-user">· {server.self_hostname || server.host}</span>
+								{:else}
+									{server.host}:{server.port || 22}
+									<span class="sc-user">· {server.ssh_user || 'root'}</span>
+								{/if}
 							</div>
 						</div>
 
@@ -950,6 +958,22 @@
 	.bulk-btn-close:hover {
 		background-color: var(--color-border-light);
 		color: var(--color-text);
+	}
+
+	/* ─── Self Badge ──────────────────────────────────────────── */
+	.self-badge {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px 7px;
+		border-radius: 6px;
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		background-color: rgba(16, 185, 129, 0.12);
+		color: #10b981;
+		border: 1px solid rgba(16, 185, 129, 0.3);
+		line-height: 1.2;
 	}
 
 	/* Mobile: single column */

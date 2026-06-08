@@ -674,12 +674,23 @@ let showAllHistory = $state(false);
 			<div class="flex items-center gap-4">
 				<div>
 					<h1 class="page-title">{server.name}</h1>
-					<p class="page-subtitle">{server.host}:{server.port}</p>
+					<p class="page-subtitle">
+						{#if server.connection_type === 'docker-socket'}
+							🐳 Docker Socket{server.self_hostname ? ' · ' + server.self_hostname : ''}
+						{:else}
+							{server.host}:{server.port}
+						{/if}
+					</p>
 				</div>
-				<span class="status-badge {statusClass(server.status)}">
+				<div class="flex items-center gap-2">
+					{#if server.is_self}
+						<span class="self-badge" title="This host server">Self</span>
+					{/if}
+					<span class="status-badge {statusClass(server.status)}">
 					<span class="h-1.5 w-1.5 rounded-full currentColor"></span>
 					{server.status || 'unknown'}
 				</span>
+				</div>
 			</div>
 			<div class="flex flex-wrap items-center gap-2">
 				<button onclick={() => showEditModal = true} class="btn-secondary flex items-center gap-2">
@@ -1396,4 +1407,18 @@ let showAllHistory = $state(false);
 	.bg-green { background: var(--color-success); }
 	.bg-amber { background: var(--color-warning); }
 	.bg-red { background: var(--color-danger); }
+	.self-badge {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px 7px;
+		border-radius: 6px;
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		background-color: rgba(16, 185, 129, 0.12);
+		color: #10b981;
+		border: 1px solid rgba(16, 185, 129, 0.3);
+		line-height: 1.2;
+	}
 </style>
