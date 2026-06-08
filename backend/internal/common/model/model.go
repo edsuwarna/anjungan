@@ -42,6 +42,9 @@ type Server struct {
 	CPUInfo        string    `json:"cpu_info"`
 	LastSeenAt     *time.Time `json:"last_seen_at"`
 	Monitoring     bool      `json:"monitoring"`
+	ConnectionType string    `json:"connection_type"`
+	IsSelf         bool      `json:"is_self"`
+	SelfHostname   string    `json:"self_hostname"`
 	CreatedBy      string    `json:"created_by"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
@@ -67,6 +70,9 @@ type ServerResponse struct {
 	CPUInfo        string    `json:"cpu_info"`
 	LastSeenAt     *time.Time `json:"last_seen_at"`
 	Monitoring     bool      `json:"monitoring"`
+	ConnectionType string    `json:"connection_type"`
+	IsSelf         bool      `json:"is_self"`
+	SelfHostname   string    `json:"self_hostname"`
 	CreatedBy      string    `json:"created_by"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
@@ -92,6 +98,9 @@ func (s *Server) ToResponse() ServerResponse {
 		CPUInfo:        s.CPUInfo,
 		LastSeenAt:     s.LastSeenAt,
 		Monitoring:     s.Monitoring,
+		ConnectionType: s.ConnectionType,
+		IsSelf:         s.IsSelf,
+		SelfHostname:   s.SelfHostname,
 		CreatedBy:      s.CreatedBy,
 		CreatedAt:      s.CreatedAt,
 		UpdatedAt:      s.UpdatedAt,
@@ -100,35 +109,37 @@ func (s *Server) ToResponse() ServerResponse {
 
 // ServerRequest is the input for create/update operations
 type CreateServerRequest struct {
-	Name        string   `json:"name"`
-	Host        string   `json:"host"`
-	Port        int      `json:"port"`
-	SSHUser     string   `json:"ssh_user"`
-	SSHAuthType string   `json:"ssh_auth_type"`
-	SSHKeyID    string   `json:"ssh_key_id,omitempty"`
-	SSHKey      string   `json:"ssh_key,omitempty"`
-	SSHPassword string   `json:"ssh_password,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	ServerGroup string   `json:"server_group,omitempty"`
-	Region      string   `json:"region,omitempty"`
-	ServerType  string   `json:"server_type,omitempty"`
-	Description string   `json:"description,omitempty"`
+	Name           string   `json:"name"`
+	Host           string   `json:"host"`
+	Port           int      `json:"port"`
+	SSHUser        string   `json:"ssh_user"`
+	SSHAuthType    string   `json:"ssh_auth_type"`
+	SSHKeyID       string   `json:"ssh_key_id,omitempty"`
+	SSHKey         string   `json:"ssh_key,omitempty"`
+	SSHPassword    string   `json:"ssh_password,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	ServerGroup    string   `json:"server_group,omitempty"`
+	Region         string   `json:"region,omitempty"`
+	ServerType     string   `json:"server_type,omitempty"`
+	Description    string   `json:"description,omitempty"`
+	ConnectionType string   `json:"connection_type,omitempty"`
 }
 
 type UpdateServerRequest struct {
-	Name        *string   `json:"name,omitempty"`
-	Host        *string   `json:"host,omitempty"`
-	Port        *int      `json:"port,omitempty"`
-	SSHUser     *string   `json:"ssh_user,omitempty"`
-	SSHAuthType *string   `json:"ssh_auth_type,omitempty"`
-	SSHKeyID    *string   `json:"ssh_key_id,omitempty"`
-	SSHKey      *string   `json:"ssh_key,omitempty"`
-	SSHPassword *string   `json:"ssh_password,omitempty"`
-	Tags        *[]string `json:"tags,omitempty"`
-	ServerGroup *string   `json:"server_group,omitempty"`
-	Region      *string   `json:"region,omitempty"`
-	ServerType  *string   `json:"server_type,omitempty"`
-	Description *string   `json:"description,omitempty"`
+	Name           *string   `json:"name,omitempty"`
+	Host           *string   `json:"host,omitempty"`
+	Port           *int      `json:"port,omitempty"`
+	SSHUser        *string   `json:"ssh_user,omitempty"`
+	SSHAuthType    *string   `json:"ssh_auth_type,omitempty"`
+	SSHKeyID       *string   `json:"ssh_key_id,omitempty"`
+	SSHKey         *string   `json:"ssh_key,omitempty"`
+	SSHPassword    *string   `json:"ssh_password,omitempty"`
+	Tags           *[]string `json:"tags,omitempty"`
+	ServerGroup    *string   `json:"server_group,omitempty"`
+	Region         *string   `json:"region,omitempty"`
+	ServerType     *string   `json:"server_type,omitempty"`
+	Description    *string   `json:"description,omitempty"`
+	ConnectionType *string   `json:"connection_type,omitempty"`
 }
 
 type TestConnectionRequest struct {
