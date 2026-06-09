@@ -67,6 +67,8 @@ export const api = {
 		verifyTOTPSetup: (token) =>
 			request('/auth/verify-totp-setup', { method: 'POST', body: JSON.stringify({ token }) }),
 		disableTOTP: () => request('/auth/disable-totp', { method: 'POST' }),
+		changePassword: (data) => request('/auth/password', { method: 'PUT', body: JSON.stringify(data) }),
+		updateProfile: (data) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
 	},
 
 	dashboard: {
@@ -312,5 +314,7 @@ export const api = {
 	settings: {
 		complianceThresholds: () => request('/settings/compliance-thresholds'),
 		updateComplianceThresholds: (data) => request('/settings/compliance-thresholds', { method: 'PUT', body: JSON.stringify(data) }),
+		registration: () => request('/settings/registration'),
+		updateRegistration: (data) => request('/settings/registration', { method: 'PUT', body: JSON.stringify(data) }),
 	},
 };
