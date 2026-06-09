@@ -567,6 +567,13 @@ let copiedTarget = $state('');
 		}
 	}
 
+	function webhookEventBadgeStyle(type) {
+		if (type === 'push') return 'background-color: rgba(16,185,129,0.12); color: #10b981;';
+		if (type === 'delete') return 'background-color: rgba(239,68,68,0.12); color: #ef4444;';
+		if (type === 'pull') return 'background-color: rgba(59,130,246,0.12); color: #3b82f6;';
+		return 'background-color: rgba(100,116,139,0.12); color: var(--color-text-muted);';
+	}
+
 	// ─── Tag Protection Functions ───────────────────────────────
 
 	async function loadProtections() {
@@ -1242,7 +1249,9 @@ let copiedTarget = $state('');
 		<div class="space-y-1">
 			{#each (showAllEvents ? webhookEvents : webhookEvents.slice(0, 5)) as ev}
 				<div class="flex items-start gap-2 rounded-lg px-3 py-1.5" style="background-color: var(--color-primary-subtle);">
-					<span class="mt-0.5 text-xs">{webhookEventTypeIcon(ev.event_type)}</span>
+					<span class="rounded px-1.5 py-0.5 text-[9px] font-mono uppercase" style="{webhookEventBadgeStyle(ev.event_type)}">
+						{webhookEventTypeIcon(ev.event_type)} {ev.event_type}
+					</span>
 					<div class="min-w-0 flex-1">
 						<div class="flex items-center gap-1.5 flex-wrap">
 							<span class="text-xs font-medium" style="color: var(--color-text);">{ev.repo}</span>
@@ -1256,7 +1265,17 @@ let copiedTarget = $state('');
 								<span class="text-[10px]" style="color: var(--color-text-muted);">by {ev.actor}</span>
 							{/if}
 							<span class="text-[10px]" style="color: var(--color-text-muted);">{formatDate(ev.created_at)}</span>
+							{#if ev.payload}
+								<button
+									class="text-[10px] hover:underline"
+									style="color: var(--color-primary);"
+									onclick={() => { ev._showPayload = !ev._showPayload; }}
+								>{ev._showPayload ? 'Hide' : 'Show'} Payload</button>
+							{/if}
 						</div>
+						{#if ev._showPayload && ev.payload}
+							<pre class="mt-1 rounded p-2 font-mono text-[9px] overflow-auto max-h-28" style="background-color: #0d1117; color: #e6edf3;">{typeof ev.payload === 'string' ? ev.payload : JSON.stringify(ev.payload, null, 2)}</pre>
+						{/if}
 					</div>
 				</div>
 			{/each}
@@ -1564,7 +1583,9 @@ let copiedTarget = $state('');
 		<div class="space-y-1">
 			{#each (showAllEvents ? webhookEvents : webhookEvents.slice(0, 5)) as ev}
 				<div class="flex items-start gap-2 rounded-lg px-3 py-1.5" style="background-color: var(--color-primary-subtle);">
-					<span class="mt-0.5 text-xs">{webhookEventTypeIcon(ev.event_type)}</span>
+					<span class="rounded px-1.5 py-0.5 text-[9px] font-mono uppercase" style="{webhookEventBadgeStyle(ev.event_type)}">
+						{webhookEventTypeIcon(ev.event_type)} {ev.event_type}
+					</span>
 					<div class="min-w-0 flex-1">
 						<div class="flex items-center gap-1.5 flex-wrap">
 							<span class="text-xs font-medium" style="color: var(--color-text);">{ev.repo}</span>
@@ -1578,7 +1599,17 @@ let copiedTarget = $state('');
 								<span class="text-[10px]" style="color: var(--color-text-muted);">by {ev.actor}</span>
 							{/if}
 							<span class="text-[10px]" style="color: var(--color-text-muted);">{formatDate(ev.created_at)}</span>
+							{#if ev.payload}
+								<button
+									class="text-[10px] hover:underline"
+									style="color: var(--color-primary);"
+									onclick={() => { ev._showPayload = !ev._showPayload; }}
+								>{ev._showPayload ? 'Hide' : 'Show'} Payload</button>
+							{/if}
 						</div>
+						{#if ev._showPayload && ev.payload}
+							<pre class="mt-1 rounded p-2 font-mono text-[9px] overflow-auto max-h-28" style="background-color: #0d1117; color: #e6edf3;">{typeof ev.payload === 'string' ? ev.payload : JSON.stringify(ev.payload, null, 2)}</pre>
+						{/if}
 					</div>
 				</div>
 			{/each}
@@ -1604,7 +1635,9 @@ let copiedTarget = $state('');
 			<div class="divide-y" style="border-color: var(--color-border);">
 				{#each webhookEvents as ev}
 					<div class="flex items-start gap-3 px-4 py-2.5">
-						<span class="text-xs">{webhookEventTypeIcon(ev.event_type)}</span>
+						<span class="rounded px-1.5 py-0.5 text-[9px] font-mono uppercase" style="{webhookEventBadgeStyle(ev.event_type)}">
+							{webhookEventTypeIcon(ev.event_type)} {ev.event_type}
+						</span>
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2">
 								<span class="text-xs font-medium" style="color: var(--color-text);">{ev.repo}</span>
@@ -1619,7 +1652,17 @@ let copiedTarget = $state('');
 									<span class="text-[10px]" style="color: var(--color-text-muted);">by {ev.actor}</span>
 								{/if}
 								<span class="text-[10px]" style="color: var(--color-text-muted);">{formatDate(ev.created_at)}</span>
+								{#if ev.payload}
+									<button
+										class="text-[10px] hover:underline"
+										style="color: var(--color-primary);"
+										onclick={() => { ev._showPayload = !ev._showPayload; }}
+									>{ev._showPayload ? 'Hide' : 'Show'} Payload</button>
+								{/if}
 							</div>
+							{#if ev._showPayload && ev.payload}
+								<pre class="mt-1 rounded p-2 font-mono text-[9px] overflow-auto max-h-28" style="background-color: #0d1117; color: #e6edf3;">{typeof ev.payload === 'string' ? ev.payload : JSON.stringify(ev.payload, null, 2)}</pre>
+							{/if}
 						</div>
 						<Icon icon={webhookEventStatusIcon(ev.status)} class="h-3.5 w-3.5 flex-shrink-0" style="color: {webhookEventStatusColor(ev.status)};" />
 					</div>

@@ -75,6 +75,41 @@
 			: 'solar:alt-arrow-down-outline';
 	}
 
+
+	// Bulk selection
+	let selectedTags = $state(new Set());
+	let bulkLoading = $state(false);
+
+	function toggleSelectAll() {
+		if (selectedTags.size === sortedTags.length) {
+			selectedTags = new Set();
+		} else {
+			selectedTags = new Set(sortedTags.map(t => t.name));
+		}
+	}
+
+	async function bulkProtectSelected() {
+		if (selectedTags.size === 0) return;
+		bulkLoading = true;
+		for (const tag of selectedTags) {
+			try { await api.registry.protections.create({ repo: name, tag }); } catch {}
+		}
+		await loadProtections();
+		selectedTags = new Set();
+		bulkLoading = false;
+	}
+
+	async function bulkDeleteSelected() {
+		if (selectedTags.size === 0) return;
+		if (!confirm(`Delete ${selectedTags.size} tags? This cannot be undone.`)) return;
+		bulkLoading = true;
+		for (const tag of selectedTags) {
+			try { await api.registry.deleteTag(name, tag); } catch {}
+		}
+		await loadTags();
+		selectedTags = new Set();
+		bulkLoading = false;
+	}
 	onMount(() => {
 		loadTags();
 		loadProtections();
@@ -329,6 +364,9 @@
 		<div class="card mt-3 overflow-hidden">
 			<!-- Column headers -->
 			<div class="flex items-center gap-3 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted); border-bottom: 1px solid var(--color-border);">
+				<span class="w-8 flex-shrink-0">
+					<input type="checkbox" class="h-3.5 w-3.5" checked={selectedTags.size === sortedTags.length && sortedTags.length > 0} onchange={toggleSelectAll} />
+				</span>
 				<button class="flex min-w-0 flex-1 items-center gap-1 text-left" onclick={() => toggleSort('name')}>
 					TAG
 					{#if sortField === 'name'}
@@ -353,6 +391,13 @@
 
 			{#each sortedTags as tag}
 				<div class="flex items-center gap-3 px-4 py-2.5 transition-colors" style="border-bottom: 1px solid var(--color-border);">
+					<span class="w-8 flex-shrink-0">
+						<input type="checkbox" class="h-3.5 w-3.5" checked={selectedTags.has(tag.name)} onchange={() => {
+							const s = new Set(selectedTags);
+							if (s.has(tag.name)) s.delete(tag.name); else s.add(tag.name);
+							selectedTags = s;
+						}} />
+					</span>
 					<div class="min-w-0 flex-1">
 						<button
 							class="font-mono text-xs hover:underline"
@@ -447,6 +492,44 @@
 			<p class="mt-0.5 text-[10px]" style="color: var(--color-text-muted);">
 				{searchQuery ? 'No tags match your search query.' : 'This repository has no tags.'}
 			</p>
+		</div>
+	{/if}
+
+	<!-- Bulk Action Bar -->
+	{#if selectedTags.size > 0}
+		<div class="sticky bottom-4 z-40 mt-3">
+			<div class="mx-auto flex max-w-lg items-center justify-between gap-3 rounded-xl border px-4 py-3 shadow-lg" style="background-color: var(--color-card); border-color: var(--color-primary);">
+				<div class="flex items-center gap-2">
+					<Icon icon="solar:check-square-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+					<span class="text-xs font-semibold" style="color: var(--color-text);">{selectedTags.size} tag{selectedTags.size !== 1 ? 's' : ''} selected</span>
+				</div>
+				<div class="flex items-center gap-2">
+					<button
+						class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-medium transition-colors"
+						style="color: var(--color-text-secondary); border: 1px solid var(--color-border);"
+						onclick={() => selectedTags = new Set()}
+						disabled={bulkLoading}
+					>Clear</button>
+					<button
+						class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-medium transition-colors"
+						style="background-color: rgba(245,158,11,0.12); color: #f59e0b;"
+						onclick={bulkProtectSelected}
+						disabled={bulkLoading}
+					>
+						<Icon icon="solar:shield-up-bold" class="h-3 w-3" />
+						Protect All
+					</button>
+					<button
+						class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-medium transition-colors"
+						style="background-color: rgba(239,68,68,0.12); color: #ef4444;"
+						onclick={bulkDeleteSelected}
+						disabled={bulkLoading}
+					>
+						<Icon icon="solar:trash-bin-trash-bold" class="h-3 w-3" />
+						Delete All
+					</button>
+				</div>
+			</div>
 		</div>
 	{/if}
 
