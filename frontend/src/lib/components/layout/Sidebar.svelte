@@ -150,6 +150,14 @@
 			<Icon icon={$theme === 'dark' ? 'solar:sun-bold' : 'solar:moon-star-bold'} class="h-5 w-5 shrink-0" />
 			<span>{$theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
 		</button>
+		<a
+			href="/settings"
+			class="nav-link"
+			onclick={() => { if (window.innerWidth < 1024) $sidebarCollapsed = true; }}
+		>
+			<Icon icon="solar:settings-bold" class="h-5 w-5 shrink-0" />
+			<span>Settings</span>
+		</a>
 	</div>
 </aside>
 
