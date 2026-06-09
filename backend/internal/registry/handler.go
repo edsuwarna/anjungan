@@ -1,6 +1,8 @@
 package registry
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -8,7 +10,9 @@ import (
 	"math/big"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -55,17 +59,18 @@ type ImageDetail struct {
 	LayersArr []LayerInfo      `json:"layers_arr"`
 	History   []HistStep       `json:"history"`
 	Platforms []PlatformDetail `json:"platforms,omitempty"`
+	Protected bool             `json:"protected"`
 }
 
 type ImageCfg struct {
-	Cmd           []string        `json:"cmd"`
-	Entrypoint    []string        `json:"entrypoint,omitempty"`
-	Workdir       string          `json:"workdir"`
-	User          string          `json:"user"`
-	ExposedPorts  []string        `json:"exposed_ports"`
-	Env           []EnvVar        `json:"env"`
-	Labels        []EnvVar        `json:"labels"`
-	Volumes       []string        `json:"volumes"`
+	Cmd          []string `json:"cmd"`
+	Entrypoint   []string `json:"entrypoint,omitempty"`
+	Workdir      string   `json:"workdir"`
+	User         string   `json:"user"`
+	ExposedPorts []string `json:"exposed_ports"`
+	Env          []EnvVar `json:"env"`
+	Labels       []EnvVar `json:"labels"`
+	Volumes      []string `json:"volumes"`
 }
 
 type EnvVar struct {
@@ -92,18 +97,21 @@ type PlatformInfo struct {
 }
 
 type PlatformDetail struct {
-	OS     string `json:"os"`
-	Arch   string `json:"arch"`
+	OS      string `json:"os"`
+	Arch    string `json:"arch"`
 	Variant string `json:"variant,omitempty"`
-	Digest string `json:"digest"`
-	Size   int64  `json:"size"`
+	Digest  string `json:"digest"`
+	Size    int64  `json:"size"`
 }
 
 // --- Handler ---
 
 type Handler struct {
-	cfg  config.RegistryConfig
-	repo *db.Repository
+	cfg           config.RegistryConfig
+	repo          *db.Repository
+	cleanupTicker *time.Ticker
+	cleanupDone   chan struct{}
+	cleanupMu     sync.Mutex
 }
 
 func NewHandler(cfg config.RegistryConfig, repo *db.Repository) *Handler {
@@ -112,6 +120,7 @@ func NewHandler(cfg config.RegistryConfig, repo *db.Repository) *Handler {
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/health", h.HealthCheck)
 	r.Get("/config", h.Config)
 	r.Get("/my-credentials", h.MyCredentials)
 	r.Post("/my-credentials/reset-password", h.ResetMyPassword)
@@ -120,6 +129,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/repos/{name}/{tag}", h.ImageDetail)
 	r.Delete("/repos/{name}/manifests/{digest}", h.requireAdmin(h.DeleteManifest))
 	r.Delete("/repos/{name}/tags/{tag}", h.requireAdmin(h.DeleteTag))
+	r.Delete("/repos/{name}", h.requireAdmin(h.DeleteRepo))
 	r.Post("/gc", h.requireAdmin(h.TriggerGC))
 	r.Get("/users", h.requireAdmin(h.ListUsers))
 	r.Post("/users", h.requireAdmin(h.CreateUser))
@@ -127,6 +137,16 @@ func (h *Handler) Routes() chi.Router {
 	r.Delete("/users/{id}", h.requireAdmin(h.DeleteUser))
 	r.Post("/users/{id}/reset-password", h.requireAdmin(h.ResetUserPassword))
 	r.Post("/sync-htpasswd", h.requireAdmin(h.SyncHtpasswd))
+	r.Mount("/webhooks", h.webhookRoutes())
+	r.Mount("/protections", h.tagProtectionRoutes())
+	r.Get("/search/tags", h.SearchTags)
+	r.Get("/cve/check", h.CVECheck)
+	r.Get("/cve/{name}/{tag}", h.CVETagDetail)
+	r.Get("/repos/{name}/{tag}/raw", h.ImageRaw)
+	r.Get("/stats/summary", h.StatsSummary)
+	r.Post("/cleanup/run", h.requireAdmin(h.RunCleanup))
+	r.Get("/cleanup/config", h.GetCleanupConfig)
+	r.Put("/cleanup/config", h.requireAdmin(h.UpdateCleanupConfig))
 	return r
 }
 
@@ -309,6 +329,23 @@ func (h *Handler) zotRequest(path string) (*http.Response, error) {
 		return nil, err
 	}
 	req.SetBasicAuth(h.cfg.AdminUser, h.cfg.AdminPass)
+	req.Header.Set("User-Agent", "anjungan/1.0")
+	return http.DefaultClient.Do(req)
+}
+
+// zotGraphQL sends a GraphQL POST query to the Zot search extension.
+func (h *Handler) zotGraphQL(query string) (*http.Response, error) {
+	body := map[string]string{"query": query}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", h.cfg.URL+"/v2/_zot/ext/search", bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(h.cfg.AdminUser, h.cfg.AdminPass)
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "anjungan/1.0")
 	return http.DefaultClient.Do(req)
 }
@@ -642,6 +679,18 @@ func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
 		return tags[i].Created > tags[j].Created
 	})
 
+	// Filter by search query
+	if q := r.URL.Query().Get("q"); q != "" {
+		qLower := strings.ToLower(q)
+		filtered := make([]TagInfo, 0, len(tags))
+		for _, t := range tags {
+			if strings.Contains(strings.ToLower(t.Name), qLower) {
+				filtered = append(filtered, t)
+			}
+		}
+		tags = filtered
+	}
+
 	// Parse Link header for next cursor
 	nextLast := parseNextLink(resp.Header.Get("Link"))
 
@@ -687,9 +736,9 @@ func (h *Handler) ImageDetail(w http.ResponseWriter, r *http.Request) {
 			Digest    string `json:"digest"`
 		} `json:"config"`
 		Layers []struct {
-			MediaType string `json:"mediaType"`
-			Size      int64  `json:"size"`
-			Digest    string `json:"digest"`
+			MediaType string   `json:"mediaType"`
+			Size      int64    `json:"size"`
+			Digest    string   `json:"digest"`
 			URLs      []string `json:"urls,omitempty"`
 		} `json:"layers"`
 		Annotations map[string]string `json:"annotations,omitempty"`
@@ -704,6 +753,9 @@ func (h *Handler) ImageDetail(w http.ResponseWriter, r *http.Request) {
 		Tag:    tag,
 		Digest: digest,
 	}
+
+	// Check tag protection — needed for BOTH single-arch and index paths
+	detail.Protected, _ = h.repo.IsTagProtected(r.Context(), name, tag)
 
 	// Check if multi-arch index (OCI index or Docker manifest list)
 	if manifest.MediaType == "application/vnd.oci.image.index.v1+json" ||
@@ -823,14 +875,14 @@ func (h *Handler) populateConfig(detail *ImageDetail, name, digest string) {
 		OS           string `json:"os"`
 		Architecture string `json:"architecture"`
 		Config       struct {
-			Cmd           []string              `json:"Cmd"`
-			Entrypoint    []string              `json:"Entrypoint"`
-			WorkingDir    string                `json:"WorkingDir"`
-			User          string                `json:"User"`
-			ExposedPorts  map[string]interface{} `json:"ExposedPorts"`
-			Env           []string              `json:"Env"`
-			Labels        map[string]string     `json:"Labels"`
-			Volumes       map[string]interface{} `json:"Volumes"`
+			Cmd          []string               `json:"Cmd"`
+			Entrypoint   []string               `json:"Entrypoint"`
+			WorkingDir   string                 `json:"WorkingDir"`
+			User         string                 `json:"User"`
+			ExposedPorts map[string]interface{} `json:"ExposedPorts"`
+			Env          []string               `json:"Env"`
+			Labels       map[string]string      `json:"Labels"`
+			Volumes      map[string]interface{} `json:"Volumes"`
 		} `json:"config"`
 		History []struct {
 			Created    string `json:"created"`
@@ -951,6 +1003,11 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check tag protection
+	if !h.checkTagProtectionBeforeDelete(w, r, name, tag) {
+		return
+	}
+
 	// 2. Delete by digest
 	if err := h.zotDelete("/v2/" + name + "/manifests/" + digest); err != nil {
 		common.Errorf(w, http.StatusBadGateway, "delete failed: %v", err)
@@ -958,6 +1015,7 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Audit log
+	actor := ""
 	if claims := auth.GetClaims(r.Context()); claims != nil {
 		meta, _ := json.Marshal(map[string]string{
 			"repo":   name,
@@ -968,12 +1026,111 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 			"registry.delete", "registry_image", name,
 			fmt.Sprintf("Deleted image %s:%s (%s)", name, tag, shortenDigest(digest)),
 			json.RawMessage(meta))
+		actor = claims.Email
 	}
+
+	// 4. Fire webhook event (async)
+	go h.fireDeleteEvent(context.Background(), name, tag, digest, actor)
 
 	common.JSON(w, http.StatusOK, map[string]string{
 		"status": "deleted",
 		"tag":    tag,
 		"digest": digest,
+	})
+}
+
+// DeleteRepo deletes an entire repository including all tags.
+// Admin-only. Lists all tags, deletes each by digest, then triggers GC.
+func (h *Handler) DeleteRepo(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	// 1. List all tags for the repo
+	tagsResp, err := h.zotRequest("/v2/" + name + "/tags/list")
+	if err != nil {
+		common.Errorf(w, http.StatusBadGateway, "registry connection: %v", err)
+		return
+	}
+	defer tagsResp.Body.Close()
+
+	if tagsResp.StatusCode == 404 {
+		common.Error(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	if tagsResp.StatusCode >= 400 {
+		body, _ := io.ReadAll(tagsResp.Body)
+		common.Errorf(w, http.StatusBadGateway, "registry error: %s — %s", tagsResp.Status, string(body))
+		return
+	}
+
+	var tagList struct {
+		Name string   `json:"name"`
+		Tags []string `json:"tags"`
+	}
+	if err := json.NewDecoder(tagsResp.Body).Decode(&tagList); err != nil {
+		common.Errorf(w, http.StatusInternalServerError, "parse tag list: %v", err)
+		return
+	}
+
+	// 2. Delete each tag by digest (skip protected tags)
+	deleted := 0
+	skipped := 0
+	var errors []string
+
+	for _, tag := range tagList.Tags {
+		protected, _ := h.repo.IsTagProtected(r.Context(), name, tag)
+		if protected {
+			skipped++
+			continue
+		}
+
+		mResp, mErr := h.zotRequest("/v2/" + name + "/manifests/" + tag)
+		if mErr != nil {
+			errors = append(errors, fmt.Sprintf("%s: fetch failed: %v", tag, mErr))
+			continue
+		}
+		if mResp.StatusCode >= 400 {
+			mResp.Body.Close()
+			errors = append(errors, fmt.Sprintf("%s: status %d", tag, mResp.StatusCode))
+			continue
+		}
+		digest := mResp.Header.Get("Docker-Content-Digest")
+		mResp.Body.Close()
+		if digest == "" {
+			errors = append(errors, fmt.Sprintf("%s: no digest", tag))
+			continue
+		}
+
+		if dErr := h.zotDelete("/v2/" + name + "/manifests/" + digest); dErr != nil {
+			errors = append(errors, fmt.Sprintf("%s: delete failed: %v", tag, dErr))
+			continue
+		}
+		deleted++
+	}
+
+	// 3. Trigger GC (best effort)
+	_ = h.zotDelete("/v2/_zot/ext/mgmt/gc")
+
+	// 4. Audit log
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		meta, _ := json.Marshal(map[string]interface{}{
+			"repo":       name,
+			"tags_total": len(tagList.Tags),
+			"deleted":    deleted,
+			"skipped":    skipped,
+		})
+		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+			"registry.repo.delete", "registry_repo", name,
+			fmt.Sprintf("Deleted repo %s: %d tags deleted, %d skipped", name, deleted, skipped),
+			json.RawMessage(meta))
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "deleted",
+		"repo":         name,
+		"tags_deleted": deleted,
+		"tags_skipped": skipped,
+		"tags_total":   len(tagList.Tags),
+		"errors":       errors,
 	})
 }
 
@@ -1072,13 +1229,548 @@ func (h *Handler) TriggerGC(w http.ResponseWriter, r *http.Request) {
 
 	// If direct GC is not available, report auto-GC schedule
 	common.JSON(w, http.StatusOK, map[string]interface{}{
-		"status":       "auto_gc",
-		"message":      "Direct GC not available. Zot runs automatic GC every 24h. Restart the zot container to trigger immediate GC.",
-		"gc_interval":  "24h",
-		"gc_delay":     "168h",
-		"restart_cmd":  "docker restart anjungan-zot",
+		"status":      "auto_gc",
+		"message":     "Direct GC not available. Zot runs automatic GC every 24h. Restart the zot container to trigger immediate GC.",
+		"gc_interval": "24h",
+		"gc_delay":    "168h",
+		"restart_cmd": "docker restart anjungan-zot",
 	})
 }
 
-// Ensure used imports
+// ─── CVE/Vulnerability Check ────────────────────────────────────────────────
+
+// CVECheck checks if Zot's CVE extension is available and returns status.
+func (h *Handler) CVECheck(w http.ResponseWriter, r *http.Request) {
+	cveAvailable := false
+
+	// Try GraphQL endpoint — if it responds, CVE extension is available
+	resp, err := h.zotGraphQL("{ __typename }")
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode == 200 {
+			cveAvailable = true
+		}
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"available": cveAvailable,
+	})
+}
+
+// CVETagDetail returns CVE details for a specific image tag.
+func (h *Handler) CVETagDetail(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	tag := chi.URLParam(r, "tag")
+
+	skip := 0
+	if s := r.URL.Query().Get("skip"); s != "" {
+		if parsed, err := strconv.Atoi(s); err == nil && parsed >= 0 {
+			skip = parsed
+		}
+	}
+	// Cap skip at 500 to prevent abusive queries
+	if skip > 500 {
+		skip = 500
+	}
+
+	query := fmt.Sprintf(`{ CVEListForImage(image: "%s:%s", requestedPage: {limit: 50, offset: %d}) {
+		Tag
+		CVEList { Id Title Description Severity PackageList { Name InstalledVersion FixedVersion } }
+		Summary { MaxSeverity Count CriticalCount HighCount MediumCount LowCount UnknownCount }
+		Page { TotalCount }
+	} }`, name, tag, skip)
+
+	resp, err := h.zotGraphQL(query)
+	if err != nil {
+		common.Error(w, http.StatusNotFound, "no CVE extension or image not found")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		common.Errorf(w, http.StatusBadGateway, "CVE error: %s — %s", resp.Status, string(body))
+		return
+	}
+
+	var gqlResp struct {
+		Data struct {
+			CVEListForImage *struct {
+				Tag     string                   `json:"Tag"`
+				CVEList []map[string]interface{} `json:"CVEList"`
+				Summary map[string]interface{}   `json:"Summary"`
+				Page    map[string]interface{}   `json:"Page"`
+			} `json:"CVEListForImage"`
+		} `json:"data"`
+		Errors []map[string]interface{} `json:"errors,omitempty"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&gqlResp); err != nil {
+		common.Errorf(w, http.StatusInternalServerError, "parse CVE data: %v", err)
+		return
+	}
+
+	if len(gqlResp.Errors) > 0 || gqlResp.Data.CVEListForImage == nil {
+		common.JSON(w, http.StatusOK, map[string]interface{}{
+			"repo": name,
+			"tag":  tag,
+			"cve":  nil,
+			"summary": map[string]interface{}{
+				"max_severity": "none",
+				"count":        0,
+				"critical":     0,
+				"high":         0,
+				"medium":       0,
+				"low":          0,
+			},
+		})
+		return
+	}
+
+	// Normalize Zot field names to frontend-expected format
+	summary := normalizeCVESummary(gqlResp.Data.CVEListForImage.Summary)
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"repo":    name,
+		"tag":     tag,
+		"cve":     gqlResp.Data.CVEListForImage.CVEList,
+		"summary": summary,
+		"page":    gqlResp.Data.CVEListForImage.Page,
+		"skip":    skip,
+	})
+}
+
+// normalizeCVESummary maps Zot CVE summary field names to frontend-expected names.
+// Zot returns: Count, CriticalCount, HighCount, MediumCount, LowCount, UnknownCount, MaxSeverity
+// Frontend expects: total, critical, high, medium, low, unknown, max_severity
+func normalizeCVESummary(s map[string]interface{}) map[string]interface{} {
+	fieldMap := map[string]string{
+		"Count":         "total",
+		"CriticalCount": "critical",
+		"HighCount":     "high",
+		"MediumCount":   "medium",
+		"LowCount":      "low",
+		"UnknownCount":  "unknown",
+		"MaxSeverity":   "max_severity",
+	}
+	normalized := make(map[string]interface{}, len(s)+len(fieldMap))
+	for k, v := range s {
+		normalized[k] = v
+	}
+	for zotKey, feKey := range fieldMap {
+		if v, ok := s[zotKey]; ok {
+			normalized[feKey] = v
+		}
+	}
+	return normalized
+}
+
+// cveSummaryForTag fetches CVE summary for a tag (used internally by ListTags enrichment).
+// Returns nil if unavailable or error.
+func (h *Handler) cveSummaryForTag(name, tag string) map[string]interface{} {
+	query := fmt.Sprintf(`{ CVEListForImage(image: "%s:%s", requestedPage: {limit: 1}) {
+		Summary { MaxSeverity Count CriticalCount HighCount MediumCount LowCount }
+	} }`, name, tag)
+
+	resp, err := h.zotGraphQL(query)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return nil
+	}
+
+	var gqlResp struct {
+		Data struct {
+			CVEListForImage *struct {
+				Summary map[string]interface{} `json:"Summary"`
+			} `json:"CVEListForImage"`
+		} `json:"data"`
+		Errors []map[string]interface{} `json:"errors,omitempty"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&gqlResp); err != nil {
+		return nil
+	}
+
+	if len(gqlResp.Errors) > 0 || gqlResp.Data.CVEListForImage == nil {
+		return nil
+	}
+	return gqlResp.Data.CVEListForImage.Summary
+}
+
+// ImageRaw returns the raw manifest JSON for a specific image tag.
+// GET /registry/repos/{name}/{tag}/raw
+func (h *Handler) ImageRaw(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	tag := chi.URLParam(r, "tag")
+
+	resp, err := h.zotRequest("/v2/" + name + "/manifests/" + tag)
+	if err != nil {
+		common.Error(w, http.StatusBadGateway, "failed to fetch manifest")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		common.Errorf(w, resp.StatusCode, "manifest error: %s — %s", resp.Status, string(body))
+		return
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	digest := resp.Header.Get("Docker-Content-Digest")
+	contentType := resp.Header.Get("Content-Type")
+
+	// Pretty-print
+	var pretty bytes.Buffer
+	json.Indent(&pretty, body, "", "  ")
+
+	// Try to fetch config blob too
+	var configBlob []byte
+	var manifest struct {
+		Config struct {
+			Digest string `json:"digest"`
+		} `json:"config"`
+	}
+	if err := json.Unmarshal(body, &manifest); err == nil && manifest.Config.Digest != "" {
+		cResp, cErr := h.zotRequest("/v2/" + name + "/blobs/" + manifest.Config.Digest)
+		if cErr == nil && cResp.StatusCode < 400 {
+			cBody, _ := io.ReadAll(cResp.Body)
+			var cPretty bytes.Buffer
+			json.Indent(&cPretty, cBody, "", "  ")
+			configBlob = cPretty.Bytes()
+			cResp.Body.Close()
+		}
+	}
+
+	var configVal interface{} = nil
+	if configBlob != nil {
+		configVal = string(configBlob)
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"manifest":     pretty.String(),
+		"digest":       digest,
+		"content_type": contentType,
+		"config":       configVal,
+	})
+}
+
+// ─── Stats/Summary ──────────────────────────────────────────────────────────
+
+// StatsSummary returns storage statistics for the registry.
+type repoStats struct {
+	Name      string `json:"name"`
+	TagCount  int    `json:"tag_count"`
+	TotalSize int64  `json:"total_size"`
+}
+
+func (h *Handler) StatsSummary(w http.ResponseWriter, r *http.Request) {
+	// Get all repos
+	path := "/v2/_catalog?n=100"
+	resp, err := h.zotRequest(path)
+	if err != nil {
+		common.Errorf(w, http.StatusBadGateway, "registry connection: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		common.Errorf(w, http.StatusBadGateway, "registry error: %s — %s", resp.Status, string(body))
+		return
+	}
+
+	var catalog struct {
+		Repositories []string `json:"repositories"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&catalog); err != nil {
+		common.Errorf(w, http.StatusInternalServerError, "parse catalog: %v", err)
+		return
+	}
+
+	type sizeResult struct {
+		name      string
+		tagCount  int
+		totalSize int64
+	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 15)
+	var repoResults []sizeResult
+
+	for _, name := range catalog.Repositories {
+		wg.Add(1)
+		go func(repoName string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			// Get tags
+			tagResp, err := h.zotRequest("/v2/" + repoName + "/tags/list")
+			if err != nil {
+				return
+			}
+			defer tagResp.Body.Close()
+
+			var tl struct {
+				Tags []string `json:"tags"`
+			}
+			if err := json.NewDecoder(tagResp.Body).Decode(&tl); err != nil {
+				return
+			}
+
+			tagCount := len(tl.Tags)
+			var totalSize int64
+
+			// Get size for each tag (parallel with semaphore)
+			var tagWg sync.WaitGroup
+			tagSem := make(chan struct{}, 5)
+			for _, tag := range tl.Tags {
+				tagWg.Add(1)
+				go func(t string) {
+					defer tagWg.Done()
+					tagSem <- struct{}{}
+					defer func() { <-tagSem }()
+
+					mResp, err := h.zotRequest("/v2/" + repoName + "/manifests/" + t)
+					if err != nil {
+						return
+					}
+					defer mResp.Body.Close()
+
+					if mResp.StatusCode >= 400 {
+						return
+					}
+
+					mBody, _ := io.ReadAll(mResp.Body)
+					var mtCheck struct {
+						MediaType string `json:"mediaType"`
+					}
+					json.Unmarshal(mBody, &mtCheck)
+
+					if mtCheck.MediaType == "application/vnd.oci.image.index.v1+json" ||
+						mtCheck.MediaType == "application/vnd.docker.distribution.manifest.list.v2+json" {
+						var idx struct {
+							Manifests []struct {
+								Size int64 `json:"size"`
+							} `json:"manifests"`
+						}
+						if err := json.Unmarshal(mBody, &idx); err == nil {
+							for _, m := range idx.Manifests {
+								totalSize += m.Size
+							}
+						}
+					} else {
+						var manifest struct {
+							Config struct {
+								Size int64 `json:"size"`
+							} `json:"config"`
+							Layers []struct {
+								Size int64 `json:"size"`
+							} `json:"layers"`
+						}
+						if err := json.Unmarshal(mBody, &manifest); err == nil {
+							totalSize += manifest.Config.Size
+							for _, l := range manifest.Layers {
+								totalSize += l.Size
+							}
+						}
+					}
+				}(tag)
+			}
+			tagWg.Wait()
+
+			mu.Lock()
+			repoResults = append(repoResults, sizeResult{name: repoName, tagCount: tagCount, totalSize: totalSize})
+			mu.Unlock()
+		}(name)
+	}
+	wg.Wait()
+
+	// Sort by size descending
+	sort.Slice(repoResults, func(i, j int) bool {
+		return repoResults[i].totalSize > repoResults[j].totalSize
+	})
+
+	var totalRepos int64
+	var totalTags int64
+	var totalStorage int64
+	var topRepos []repoStats
+
+	for i, r := range repoResults {
+		totalRepos++
+		totalTags += int64(r.tagCount)
+		totalStorage += r.totalSize
+		if i < 10 {
+			topRepos = append(topRepos, repoStats{
+				Name:      r.name,
+				TagCount:  r.tagCount,
+				TotalSize: r.totalSize,
+			})
+		}
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"total_repos":   totalRepos,
+		"total_tags":    totalTags,
+		"total_storage": totalStorage,
+		"top_repos":     topRepos,
+	})
+}
+
+// SearchTags searches for tags across all repositories that match a query.
+// GET /registry/search/tags?q=myquery
+func (h *Handler) SearchTags(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		common.Error(w, http.StatusBadRequest, "query param 'q' is required")
+		return
+	}
+
+	qLower := strings.ToLower(q)
+
+	// Get all repos from catalog
+	path := "/v2/_catalog?n=100"
+	resp, err := h.zotRequest(path)
+	if err != nil {
+		common.Errorf(w, http.StatusBadGateway, "registry connection: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		common.Errorf(w, http.StatusBadGateway, "registry error: %s — %s", resp.Status, string(body))
+		return
+	}
+
+	var catalog struct {
+		Repositories []string `json:"repositories"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&catalog); err != nil {
+		common.Errorf(w, http.StatusInternalServerError, "parse catalog: %v", err)
+		return
+	}
+
+	type searchResult struct {
+		Repo   string `json:"repo"`
+		Tag    string `json:"tag"`
+		Digest string `json:"digest"`
+		Size   int64  `json:"size"`
+	}
+
+	var results []searchResult
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 10) // limit concurrency
+
+	for _, name := range catalog.Repositories {
+		if !strings.Contains(strings.ToLower(name), qLower) {
+			// Repo name doesn't match, check tags
+			wg.Add(1)
+			go func(repoName string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				tagResp, err := h.zotRequest("/v2/" + repoName + "/tags/list")
+				if err != nil {
+					return
+				}
+				defer tagResp.Body.Close()
+
+				var tl struct {
+					Tags []string `json:"tags"`
+				}
+				if err := json.NewDecoder(tagResp.Body).Decode(&tl); err != nil {
+					return
+				}
+
+				for _, tag := range tl.Tags {
+					if strings.Contains(strings.ToLower(tag), qLower) {
+						// Fetch digest for this tag
+						mResp, mErr := h.zotRequest("/v2/" + repoName + "/manifests/" + tag)
+						if mErr != nil {
+							mu.Lock()
+							results = append(results, searchResult{Repo: repoName, Tag: tag})
+							mu.Unlock()
+							return
+						}
+						defer mResp.Body.Close()
+
+						digest := mResp.Header.Get("Docker-Content-Digest")
+						mu.Lock()
+						results = append(results, searchResult{Repo: repoName, Tag: tag, Digest: digest})
+						mu.Unlock()
+					}
+				}
+			}(name)
+		} else {
+			// Repo name matches — include all tags
+			wg.Add(1)
+			go func(repoName string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				tagResp, err := h.zotRequest("/v2/" + repoName + "/tags/list")
+				if err != nil {
+					return
+				}
+				defer tagResp.Body.Close()
+
+				var tl struct {
+					Tags []string `json:"tags"`
+				}
+				if err := json.NewDecoder(tagResp.Body).Decode(&tl); err != nil {
+					return
+				}
+
+				for _, tag := range tl.Tags {
+					mu.Lock()
+					results = append(results, searchResult{Repo: repoName, Tag: tag})
+					mu.Unlock()
+				}
+			}(name)
+		}
+	}
+
+	wg.Wait()
+
+	// Deduplicate
+	seen := make(map[string]bool)
+	var unique []searchResult
+	for _, r := range results {
+		key := r.Repo + ":" + r.Tag
+		if !seen[key] {
+			seen[key] = true
+			unique = append(unique, r)
+		}
+	}
+
+	// Sort by repo name then tag
+	sort.Slice(unique, func(i, j int) bool {
+		if unique[i].Repo != unique[j].Repo {
+			return unique[i].Repo < unique[j].Repo
+		}
+		return unique[i].Tag < unique[j].Tag
+	})
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"results": unique,
+		"total":   len(unique),
+		"query":   q,
+	})
+}
+
+// Ensure sync import
 var _ = time.Now
+
+// Start starts background services (cleanup scheduler, etc.)
+func (h *Handler) Start(ctx context.Context) {
+	h.StartCleanupScheduler(ctx)
+}

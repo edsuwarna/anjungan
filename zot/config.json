@@ -19,10 +19,6 @@
           "policies": [
             {
               "users": ["**"],
-              "actions": ["read"]
-            },
-            {
-              "users": ["deploy"],
               "actions": ["read", "create"]
             },
             {
@@ -31,6 +27,14 @@
             }
           ]
         }
+      }
+    }
+  },
+  "extensions": {
+    "search": {
+      "enable": true,
+      "cve": {
+        "updateInterval": "24h"
       }
     }
   },

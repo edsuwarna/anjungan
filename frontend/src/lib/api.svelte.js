@@ -126,6 +126,7 @@ export const api = {
 	},
 
 	registry: {
+		health: () => request('/registry/health'),
 		config: () => request('/registry/config'),
 		myCredentials: () => request('/registry/my-credentials'),
 		resetMyPassword: (data) => request('/registry/my-credentials/reset-password', { method: 'POST', body: JSON.stringify(data) }),
@@ -140,6 +141,8 @@ export const api = {
 		detail: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`),
 		delete: (name, digest) => request(`/registry/repos/${encodeURIComponent(name)}/manifests/${encodeURIComponent(digest)}`, { method: 'DELETE' }),
 		deleteTag: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
+		deleteRepo: (name) => request(`/registry/repos/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+		raw: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/${encodeURIComponent(tag)}/raw`),
 		gc: () => request('/registry/gc', { method: 'POST' }),
 		users: () => request('/registry/users'),
 		createUser: (data) => request('/registry/users', { method: 'POST', body: JSON.stringify(data) }),
@@ -147,6 +150,49 @@ export const api = {
 		deleteUser: (id) => request(`/registry/users/${id}`, { method: 'DELETE' }),
 		resetPassword: (id, data) => request(`/registry/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify(data) }),
 		syncHtpasswd: () => request('/registry/sync-htpasswd', { method: 'POST' }),
+		// Webhooks
+		webhooks: {
+			list: () => request('/registry/webhooks'),
+			get: (id) => request(`/registry/webhooks/${id}`),
+			create: (data) => request('/registry/webhooks', { method: 'POST', body: JSON.stringify(data) }),
+			update: (id, data) => request(`/registry/webhooks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+			delete: (id) => request(`/registry/webhooks/${id}`, { method: 'DELETE' }),
+			test: (id) => request(`/registry/webhooks/${id}/test`, { method: 'POST' }),
+			events: (params) => {
+				const q = params ? '?' + new URLSearchParams(params).toString() : '';
+				return request(`/registry/webhooks/events${q}`);
+			},
+		},
+		// Tag Protection
+		protections: {
+			list: (repo) => {
+				const q = repo ? `?repo=${encodeURIComponent(repo)}` : '';
+				return request(`/registry/protections${q}`);
+			},
+			create: (data) => request('/registry/protections', { method: 'POST', body: JSON.stringify(data) }),
+			delete: (id) => request(`/registry/protections/${id}`, { method: 'DELETE' }),
+			deleteByRepoTag: (repo, tag) => request(`/registry/protections/by-repo?repo=${encodeURIComponent(repo)}&tag=${encodeURIComponent(tag)}`, { method: 'DELETE' }),
+			check: (repo, tag) => request(`/registry/protections/check?repo=${encodeURIComponent(repo)}&tag=${encodeURIComponent(tag)}`),
+		},
+		// Tag Search
+		searchTags: (q) => {
+			return request(`/registry/search/tags?q=${encodeURIComponent(q)}`);
+		},
+		// CVE / Vulnerability
+		cve: {
+			check: () => request('/registry/cve/check'),
+			tagDetail: (name, tag, qs) => request(`/registry/cve/${encodeURIComponent(name)}/${encodeURIComponent(tag)}${qs || ''}`),
+		},
+		// Stats
+		stats: {
+			summary: () => request('/registry/stats/summary'),
+		},
+		// Cleanup
+		cleanup: {
+			config: () => request('/registry/cleanup/config'),
+			updateConfig: (data) => request('/registry/cleanup/config', { method: 'PUT', body: JSON.stringify(data) }),
+			run: () => request('/registry/cleanup/run', { method: 'POST' }),
+		},
 	},
 
 	repositories: {

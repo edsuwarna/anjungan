@@ -15,9 +15,45 @@
 	let deleting = $state(false);
 	let deleteConfirm = $state(false);
 	let isAdmin = $derived($user?.role === 'admin');
+	let cveAvailable = $state(false);
+	let cveData = $state(null);
+	let cveLoading = $state(false);
+	let cveLoadingMore = $state(false);
+	let allCveList = $state([]); // accumulated across loads
+	let cveSkip = $state(0);
+	let cveSeverityFilter = $state('');
+
+	let rawData = $state(null);
+	let rawLoading = $state(false);
+
+	// Load raw manifest when raw tab is clicked
+	$effect(() => {
+		if (activeTab === 'raw' && !rawData && !rawLoading) {
+			loadRaw();
+		}
+	});
+
+	async function loadRaw() {
+		if (rawData) return; // already loaded
+		rawLoading = true;
+		try {
+			rawData = await api.registry.raw(name, tag);
+		} catch (e) {
+			rawData = { error: e.message };
+		} finally {
+			rawLoading = false;
+		}
+	}
+
+	let filteredCveList = $derived(
+		cveSeverityFilter
+			? allCveList.filter(c => c.Severity === cveSeverityFilter)
+			: allCveList
+	);
 
 	onMount(() => {
 		loadDetail();
+		checkCveAvailability();
 	});
 
 	async function loadDetail() {
@@ -33,8 +69,79 @@
 		}
 	}
 
+	async function checkCveAvailability() {
+		try {
+			const check = await api.registry.cve.check();
+			if (check?.available) {
+				cveAvailable = true;
+				// Load CVE data for current image
+				await loadCve();
+			}
+		} catch {
+			cveAvailable = false;
+		}
+	}
+
+	async function loadCve(skip = 0) {
+		cveLoading = true;
+		cveSkip = skip;
+		try {
+			const check = await api.registry.cve.check();
+			if (check?.available) {
+				cveAvailable = true;
+				const qs = skip > 0 ? `?skip=${skip}` : '';
+				const data = await api.registry.cve.tagDetail(name, tag, qs);
+				cveData = data || null;
+				if (skip > 0) {
+					allCveList = [...allCveList, ...(data?.cve || [])];
+				} else {
+					allCveList = data?.cve || [];
+				}
+			}
+		} catch (e) {
+			// Tag detail might fail if no CVE data for this image — don't hide tab
+			cveData = null;
+		} finally {
+			cveLoading = false;
+		}
+	}
+
+	async function loadMoreCve() {
+		if (cveLoadingMore || cveLoading) return;
+		cveLoadingMore = true;
+		try {
+			const total = cveData?.page?.TotalCount || cveData?.page?.totalCount || 0;
+			const nextSkip = allCveList.length;
+			if (nextSkip >= total) return;
+			const qs = `?skip=${nextSkip}`;
+			const data = await api.registry.cve.tagDetail(name, tag, qs);
+			if (data) {
+				cveData = { ...cveData, ...data };
+				allCveList = [...allCveList, ...(data?.cve || [])];
+			}
+		} catch (e) {
+			// ignore
+		} finally {
+			cveLoadingMore = false;
+		}
+	}
+
+	function promptDeleteTag() {
+		if (detail?.protected) {
+			error = '⚠️ Tag is protected — unprotect it first from the repo page.';
+			return;
+		}
+		deleteConfirm = true;
+	}
+
 	async function handleDelete() {
 		if (!deleteConfirm) return;
+		// Check tag protection
+		if (detail?.protected) {
+			error = '⚠️ Tag is protected — unprotect it first from the repo page.';
+			deleteConfirm = false;
+			return;
+		}
 		deleting = true;
 		try {
 			await api.registry.deleteTag(name, tag);
@@ -92,12 +199,14 @@
 		}, 2000);
 	}
 
-	const tabs = [
+	const tabs = $derived([
 		{ id: 'info', label: 'Info', icon: 'solar:info-circle-outline' },
 		{ id: 'config', label: 'Configuration', icon: 'solar:settings-outline' },
 		{ id: 'layers', label: 'Layers', icon: 'solar:layers-outline' },
 		{ id: 'history', label: 'History', icon: 'solar:clock-circle-outline' },
-	];
+		...(cveAvailable ? [{ id: 'cve', label: 'Vulnerabilities', icon: 'solar:shield-warning-outline' }] : []),
+		{ id: 'raw', label: 'Raw JSON', icon: 'solar:code-outline' },
+	]);
 
 	let pullCmd = $derived(`docker pull registry.anjungan.io/${name}:${tag}`);
 </script>
@@ -116,7 +225,7 @@
 			<button
 				class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
 				style="color: var(--color-danger); border: 1px solid rgba(239,68,68,0.3);"
-				onclick={() => deleteConfirm = true}
+				onclick={promptDeleteTag}
 			>
 				<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
 				Delete Tag
@@ -220,6 +329,18 @@
 							<span class="text-xs" style="color: var(--color-text-muted);">Layer Count</span>
 							<span class="text-xs font-medium" style="color: var(--color-text);">{detail.layers || 0} layers</span>
 						</div>
+						{#if detail.platforms?.length}
+							<div class="flex items-center justify-between">
+								<span class="text-xs" style="color: var(--color-text-muted);">Platforms</span>
+								<div class="flex flex-wrap gap-1">
+									{#each detail.platforms as p}
+										<span class="rounded px-1.5 py-0.5 text-[9px] font-mono" style="background-color: rgba(6,182,212,0.1); color: #06b6d4;">
+											{p.os}/{p.arch}{p.variant ? "/" + p.variant : ""}
+										</span>
+									{/each}
+								</div>
+							</div>
+						{/if}
 						<div class="flex items-center justify-between">
 							<span class="text-xs" style="color: var(--color-text-muted);">Digest</span>
 							<code class="max-w-[180px] truncate font-mono text-[10px]" style="color: var(--color-text-secondary);">{detail.digest}</code>
@@ -428,9 +549,238 @@
 				{/if}
 			</div>
 		{/if}
+
+		<!-- Tab: Vulnerabilities -->
+		{#if activeTab === 'cve' && cveAvailable}
+			<div class="card p-4">
+				<div class="mb-3 flex items-center justify-between">
+					<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Vulnerability Scan</h3>
+					<span class="text-[10px]" style="color: var(--color-text-muted);">{cveLoading ? 'Loading...' : 'Zot CVE Extension'}</span>
+				</div>
+				{#if cveLoading}
+					<div class="flex items-center justify-center py-8">
+						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
+					</div>
+				{:else if cveData}
+					{@const summary = cveData?.Summary || cveData?.summary || cveData}
+					{@const total = summary?.Total || summary?.total || 0}
+					{@const critical = summary?.Critical || summary?.critical || 0}
+					{@const high = summary?.High || summary?.high || 0}
+					{@const medium = summary?.Medium || summary?.medium || 0}
+					{@const low = summary?.Low || summary?.low || 0}
+					
+					{#if total > 0}
+						<div class="grid grid-cols-2 gap-3 mb-4">
+							<div class="rounded-lg p-4 text-center" style="background-color: rgba(239,68,68,0.1);">
+								<div class="text-2xl font-bold" style="color: #ef4444;">{critical}</div>
+								<div class="text-[10px]" style="color: #ef4444;">Critical</div>
+							</div>
+							<div class="rounded-lg p-4 text-center" style="background-color: rgba(249,115,22,0.1);">
+								<div class="text-2xl font-bold" style="color: #f97316;">{high}</div>
+								<div class="text-[10px]" style="color: #f97316;">High</div>
+							</div>
+							<div class="rounded-lg p-4 text-center" style="background-color: rgba(234,179,8,0.1);">
+								<div class="text-2xl font-bold" style="color: #eab308;">{medium}</div>
+								<div class="text-[10px]" style="color: #eab308;">Medium</div>
+							</div>
+							<div class="rounded-lg p-4 text-center" style="background-color: rgba(34,197,94,0.1);">
+								<div class="text-2xl font-bold" style="color: #22c55e;">{low}</div>
+								<div class="text-[10px]" style="color: #22c55e;">Low</div>
+							</div>
+						</div>
+
+												<!-- Severity filter chips -->
+						{#if allCveList.length > 0}
+							<div class="mb-3 flex flex-wrap items-center gap-1.5">
+								<button
+									class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+									style="background-color: {!cveSeverityFilter ? 'var(--color-primary)' : 'var(--color-primary-subtle)'}; color: {!cveSeverityFilter ? '#fff' : 'var(--color-text-secondary)'};"
+									onclick={() => cveSeverityFilter = ''}
+								>All ({allCveList.length})</button>
+								{#if critical > 0}
+									<button
+										class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+										style="background-color: {cveSeverityFilter === 'CRITICAL' ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)'}; color: #ef4444;"
+										onclick={() => cveSeverityFilter = 'CRITICAL'}
+									>Critical ({critical})</button>
+								{/if}
+								{#if high > 0}
+									<button
+										class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+										style="background-color: {cveSeverityFilter === 'HIGH' ? 'rgba(249,115,22,0.2)' : 'rgba(249,115,22,0.08)'}; color: #f97316;"
+										onclick={() => cveSeverityFilter = 'HIGH'}
+									>High ({high})</button>
+								{/if}
+								{#if medium > 0}
+									<button
+										class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+										style="background-color: {cveSeverityFilter === 'MEDIUM' ? 'rgba(234,179,8,0.2)' : 'rgba(234,179,8,0.08)'}; color: #eab308;"
+										onclick={() => cveSeverityFilter = 'MEDIUM'}
+									>Medium ({medium})</button>
+								{/if}
+								{#if low > 0}
+									<button
+										class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+										style="background-color: {cveSeverityFilter === 'LOW' ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.08)'}; color: #22c55e;"
+										onclick={() => cveSeverityFilter = 'LOW'}
+									>Low ({low})</button>
+								{/if}
+							</div>
+						{/if}
+
+						<!-- CVE Detail List -->
+						{@const shownCveList = filteredCveList}
+						{#if shownCveList.length > 0}
+							<div class="mb-3 flex items-center justify-between">
+								<h4 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">All Vulnerabilities</h4>
+								<span class="text-[10px]" style="color: var(--color-text-muted);">{shownCveList.length} findings</span>
+							</div>
+							<div class="space-y-1">
+								{#each shownCveList as cve}
+									{@const pkgList = cve.PackageList || cve.packageList || cve.Packages || []}
+									{@const mainPkg = Array.isArray(pkgList) && pkgList.length > 0 ? pkgList[0] : null}
+									<div class="flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:opacity-90" style="border-color: var(--color-border);">
+										<span class="severity-pill flex-shrink-0 mt-0.5" style="font-size: 10px; min-width: 52px; text-align: center; {cve.Severity === 'CRITICAL' ? 'background: rgba(239,68,68,0.12); color: #ef4444;' : cve.Severity === 'HIGH' ? 'background: rgba(249,115,22,0.12); color: #f97316;' : cve.Severity === 'MEDIUM' ? 'background: rgba(234,179,8,0.12); color: #eab308;' : 'background: rgba(34,197,94,0.12); color: #22c55e;'}">
+											{cve.Severity || 'UNKNOWN'}
+										</span>
+										<div class="min-w-0 flex-1">
+											<div class="flex items-center gap-2">
+												<a
+													href="https://nvd.nist.gov/vuln/detail/{cve.Id}"
+													target="_blank"
+													rel="noopener noreferrer"
+													class="text-xs font-semibold hover:underline"
+													style="color: var(--color-text);"
+												>{cve.Id}</a>
+												{#if mainPkg}
+													<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">{mainPkg.Name || mainPkg.PackageName || mainPkg.Package || ''}</span>
+												{/if}
+											</div>
+											{#if cve.Title}
+												<p class="mt-0.5 text-[11px] leading-relaxed" style="color: var(--color-text-secondary);">{cve.Title}</p>
+											{/if}
+											{#if mainPkg}
+												<div class="mt-1 flex items-center gap-2 text-[10px] font-mono" style="color: var(--color-text-muted);">
+													<span>installed: <span style="color: var(--color-text);">{mainPkg.InstalledVersion || '—'}</span></span>
+													<span class="opacity-40">|</span>
+													<span>fixed in: <span style="color: var(--color-success);">{mainPkg.FixedVersion || '—'}</span></span>
+												</div>
+											{/if}
+										</div>
+										<button
+											class="flex-shrink-0 rounded-md p-1 transition-colors hover:opacity-80"
+											style="color: var(--color-text-muted);"
+											title="View CVE details"
+											onclick={() => window.open(`https://nvd.nist.gov/vuln/detail/${cve.Id}`, '_blank')}
+										>
+											<Icon icon="solar:export-outline" class="h-3.5 w-3.5" />
+										</button>
+									</div>
+								{/each}
+							</div>
+						{/if}
+
+						<!-- Pagination: Load More -->
+						{@const pageTotal = cveData?.page?.TotalCount ?? cveData?.page?.totalCount ?? null}
+						{#if pageTotal !== null}
+							<div class="mt-3 flex items-center justify-between">
+								<p class="text-xs" style="color: var(--color-text-muted);">
+									Showing <strong style="color: var(--color-text);">{allCveList.length}</strong> of <strong style="color: var(--color-text);">{pageTotal}</strong> vulnerabilities
+								</p>
+								{#if allCveList.length < pageTotal}
+									<button
+										class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+										style="background-color: var(--color-primary-subtle); color: var(--color-primary);"
+										onclick={loadMoreCve}
+										disabled={cveLoadingMore}
+									>
+										{#if cveLoadingMore}
+											<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
+											Loading...
+										{:else}
+											Load More
+										{/if}
+									</button>
+								{/if}
+							</div>
+						{/if}
+					{:else}
+						<div class="rounded-lg p-6 text-center" style="background-color: rgba(16,185,129,0.08);">
+							<Icon icon="solar:shield-check-bold" class="h-8 w-8 mx-auto mb-2" style="color: var(--color-success);" />
+							<p class="text-sm font-medium" style="color: var(--color-success);">No vulnerabilities found</p>
+							<p class="mt-1 text-xs" style="color: var(--color-text-muted);">This image has passed the vulnerability scan.</p>
+						</div>
+					{/if}
+				{:else}
+					<div class="py-6 text-center">
+						<p class="text-xs" style="color: var(--color-text-muted);">No CVE data available for this tag.</p>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Tab: Raw JSON -->
+		{#if activeTab === 'raw'}
+			<div class="card p-4">
+				<div class="mb-3 flex items-center justify-between">
+					<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Raw Manifest</h3>
+					{#if rawData?.content_type}
+						<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">{rawData.content_type}</span>
+					{/if}
+				</div>
+				{#if rawLoading}
+					<div class="flex items-center justify-center py-8">
+						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
+					</div>
+				{:else if rawData?.error}
+					<div class="rounded-lg border p-3 text-xs" style="background-color: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: var(--color-danger);">
+						{rawData.error}
+					</div>
+				{:else if rawData?.manifest}
+					{@const manifestText = rawData.manifest}
+					<div class="mb-3 flex items-center justify-end gap-2">
+						{#if rawData.digest}
+							<code class="text-[10px] font-mono" style="color: var(--color-text-muted);">sha256:{rawData.digest.slice(0, 64)}</code>
+						{/if}
+						<button
+							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
+							style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
+							onclick={() => copyToClipboard(manifestText, 'raw-manifest')}
+						>
+							<Icon icon="solar:copy-outline" class="h-3 w-3" />
+							{copiedTarget === 'raw-manifest' ? 'Copied!' : 'Copy'}
+						</button>
+					</div>
+					<pre class="max-h-96 overflow-auto rounded-lg p-3 font-mono text-[10px] leading-relaxed" style="background-color: #0d1117; color: #e6edf3;">
+						<code>{manifestText}</code>
+					</pre>
+					{#if rawData.config}
+						<div class="mt-4">
+							<div class="mb-2 flex items-center justify-between">
+								<h4 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Config</h4>
+								<button
+									class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
+									style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
+									onclick={() => copyToClipboard(rawData.config, 'raw-config')}
+								>
+									<Icon icon="solar:copy-outline" class="h-3 w-3" />
+									{copiedTarget === 'raw-config' ? 'Copied!' : 'Copy'}
+								</button>
+							</div>
+							<pre class="max-h-96 overflow-auto rounded-lg p-3 font-mono text-[10px] leading-relaxed" style="background-color: #0d1117; color: #e6edf3;">
+								<code>{rawData.config}</code>
+							</pre>
+						</div>
+					{/if}
+				{:else}
+					<div class="flex items-center justify-center py-8">
+						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
+					</div>
+				{/if}
+			</div>
+		{/if}
 	{/if}
 </div>
-
 <!-- Delete Confirmation Modal -->
 {#if deleteConfirm}
 	<div
@@ -451,6 +801,12 @@
 					<div class="min-w-0 flex-1">
 						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Delete Image Tag</h3>
 						<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">Are you sure you want to delete <strong>{name}:{tag}</strong>? This action is irreversible.</p>
+						{#if detail?.protected}
+							<div class="mt-2 flex items-start gap-2 rounded-lg border p-2.5" style="border-color: rgba(245,158,11,0.3); background-color: rgba(245,158,11,0.08);">
+								<Icon icon="solar:shield-warning-bold" class="mt-0.5 h-4 w-4 flex-shrink-0" style="color: #f59e0b;" />
+								<p class="text-[10px] leading-relaxed" style="color: #f59e0b;">This tag is <strong>protected</strong>. Unprotect it first from the repo page before deleting.</p>
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>

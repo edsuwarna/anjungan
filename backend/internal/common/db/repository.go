@@ -2684,3 +2684,198 @@ func (r *Repository) UpsertSetting(ctx context.Context, key, value, description 
 		key, value, description)
 	return err
 }
+
+// ─── Registry Webhook CRUD ──────────────────────────────────────────────────
+
+func (r *Repository) ListRegistryWebhooks(ctx context.Context) ([]*model.RegistryWebhook, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, name, url, platform, events, enabled, created_at, updated_at
+		 FROM registry_webhooks ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var hooks []*model.RegistryWebhook
+	for rows.Next() {
+		h := &model.RegistryWebhook{}
+		if err := rows.Scan(&h.ID, &h.Name, &h.URL, &h.Platform, &h.Events, &h.Enabled, &h.CreatedAt, &h.UpdatedAt); err != nil {
+			return nil, err
+		}
+		hooks = append(hooks, h)
+	}
+	return hooks, nil
+}
+
+func (r *Repository) GetRegistryWebhook(ctx context.Context, id string) (*model.RegistryWebhook, error) {
+	h := &model.RegistryWebhook{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, url, platform, events, enabled, created_at, updated_at
+		 FROM registry_webhooks WHERE id = $1`, id).
+		Scan(&h.ID, &h.Name, &h.URL, &h.Platform, &h.Events, &h.Enabled, &h.CreatedAt, &h.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
+func (r *Repository) CreateRegistryWebhook(ctx context.Context, h *model.RegistryWebhook) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO registry_webhooks (id, name, url, platform, events, enabled, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		h.ID, h.Name, h.URL, h.Platform, h.Events, h.Enabled, h.CreatedAt, h.UpdatedAt)
+	return err
+}
+
+func (r *Repository) UpdateRegistryWebhook(ctx context.Context, h *model.RegistryWebhook) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE registry_webhooks SET name=$1, url=$2, platform=$3, events=$4, enabled=$5, updated_at=NOW()
+		 WHERE id=$6`,
+		h.Name, h.URL, h.Platform, h.Events, h.Enabled, h.ID)
+	return err
+}
+
+func (r *Repository) DeleteRegistryWebhook(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM registry_webhooks WHERE id = $1`, id)
+	return err
+}
+
+// ─── Registry Webhook Events ────────────────────────────────────────────────
+
+func (r *Repository) CreateRegistryWebhookEvent(ctx context.Context, e *model.RegistryWebhookEvent) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO registry_webhook_events (id, webhook_id, event_type, repo, tag, digest, actor, description, payload, status, status_code, response, created_at, delivered_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+		e.ID, e.WebhookID, e.EventType, e.Repo, e.Tag, e.Digest, e.Actor, e.Description, e.Payload, e.Status, e.StatusCode, e.Response, e.CreatedAt, e.DeliveredAt)
+	return err
+}
+
+func (r *Repository) ListRegistryWebhookEvents(ctx context.Context, limit, offset int) ([]*model.RegistryWebhookEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, COALESCE(webhook_id, ''), event_type, repo, tag, digest, actor, description, payload, status, status_code, response, created_at, delivered_at
+		 FROM registry_webhook_events ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*model.RegistryWebhookEvent
+	for rows.Next() {
+		e := &model.RegistryWebhookEvent{}
+		if err := rows.Scan(&e.ID, &e.WebhookID, &e.EventType, &e.Repo, &e.Tag, &e.Digest, &e.Actor, &e.Description, &e.Payload, &e.Status, &e.StatusCode, &e.Response, &e.CreatedAt, &e.DeliveredAt); err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+	return events, nil
+}
+
+func (r *Repository) CountRegistryWebhookEvents(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM registry_webhook_events`).Scan(&count)
+	return count, err
+}
+
+func (r *Repository) UpdateRegistryWebhookEventDelivery(ctx context.Context, id, status string, statusCode int, response string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE registry_webhook_events SET status=$1, status_code=$2, response=$3, delivered_at=NOW()
+		 WHERE id=$4`, status, statusCode, response, id)
+	return err
+}
+
+// ─── Enabled webhooks for dispatch ──────────────────────────────────────────
+func (r *Repository) ListEnabledRegistryWebhooks(ctx context.Context) ([]*model.RegistryWebhook, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, name, url, platform, events, enabled, created_at, updated_at
+		 FROM registry_webhooks WHERE enabled = TRUE ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var hooks []*model.RegistryWebhook
+	for rows.Next() {
+		h := &model.RegistryWebhook{}
+		if err := rows.Scan(&h.ID, &h.Name, &h.URL, &h.Platform, &h.Events, &h.Enabled, &h.CreatedAt, &h.UpdatedAt); err != nil {
+			return nil, err
+		}
+		hooks = append(hooks, h)
+	}
+	return hooks, nil
+}
+
+// ─── Registry Tag Protection ────────────────────────────────────────────────
+
+func (r *Repository) ListTagProtections(ctx context.Context, repo string) ([]*model.RegistryTagProtection, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, repo, tag, created_by, created_at
+		 FROM registry_tag_protections WHERE repo = $1 ORDER BY tag`, repo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var protections []*model.RegistryTagProtection
+	for rows.Next() {
+		p := &model.RegistryTagProtection{}
+		if err := rows.Scan(&p.ID, &p.Repo, &p.Tag, &p.CreatedBy, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		protections = append(protections, p)
+	}
+	return protections, nil
+}
+
+func (r *Repository) ListAllTagProtections(ctx context.Context) ([]*model.RegistryTagProtection, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, repo, tag, created_by, created_at
+		 FROM registry_tag_protections ORDER BY repo, tag`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var protections []*model.RegistryTagProtection
+	for rows.Next() {
+		p := &model.RegistryTagProtection{}
+		if err := rows.Scan(&p.ID, &p.Repo, &p.Tag, &p.CreatedBy, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		protections = append(protections, p)
+	}
+	return protections, nil
+}
+
+func (r *Repository) IsTagProtected(ctx context.Context, repo, tag string) (bool, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM registry_tag_protections WHERE repo = $1 AND tag = $2`,
+		repo, tag).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *Repository) CreateTagProtection(ctx context.Context, p *model.RegistryTagProtection) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO registry_tag_protections (id, repo, tag, created_by, created_at)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (repo, tag) DO NOTHING`,
+		p.ID, p.Repo, p.Tag, p.CreatedBy, p.CreatedAt)
+	return err
+}
+
+func (r *Repository) DeleteTagProtection(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM registry_tag_protections WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) DeleteTagProtectionByRepoTag(ctx context.Context, repo, tag string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM registry_tag_protections WHERE repo = $1 AND tag = $2`, repo, tag)
+	return err
+}
