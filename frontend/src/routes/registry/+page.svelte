@@ -22,10 +22,6 @@
 	let resetPwError = $state('');
 
 	let searchQuery = $state('');
-	let expandedRepo = $state(null);
-	let repoTags = $state({}); // { [repoName]: [...tags] }
-	let repoTagsNext = $state({}); // { [repoName]: next_last cursor }
-	let tagsLoading = $state({}); // { [repoName]: true|false }
 
 	let pageLoading = $state(false);
 	let gcRunning = $state(false);
@@ -230,27 +226,6 @@ let copiedTarget = $state('');
 			error = e.message || 'Failed to load more';
 		} finally {
 			loadingMore = false;
-		}
-	}
-
-	async function toggleRepo(name) {
-		if (expandedRepo === name) {
-			expandedRepo = null;
-			return;
-		}
-		expandedRepo = name;
-		if (!repoTags[name]) {
-			tagsLoading[name] = true;
-			try {
-				const data = await api.registry.listTags(name, { n: 50 });
-				repoTags[name] = data?.tags || [];
-				repoTagsNext[name] = data?.next_last || '';
-			} catch (e) {
-				repoTags[name] = [];
-				repoTagsNext[name] = '';
-			} finally {
-				tagsLoading[name] = false;
-			}
 		}
 	}
 
@@ -1514,151 +1489,34 @@ let copiedTarget = $state('');
 		<!-- Repo List -->
 		<div class="space-y-1.5">
 			{#each filteredRepos as repo}
-				<div class="overflow-hidden rounded-lg border" style="background-color: var(--color-card); border-color: var(--color-border);">
-					<!-- Repo Header (clickable) -->
-					<button
-						class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:opacity-80"
-						onclick={() => toggleRepo(repo.name)}
-					>
-						<Icon
-							icon={expandedRepo === repo.name ? 'solar:box-bold' : 'solar:archive-down-minimlistic-bold'}
-							class="h-5 w-5 flex-shrink-0"
-							style="color: {expandedRepo === repo.name ? 'var(--color-primary)' : 'var(--color-text-muted)'};"
-						/>
-						<div class="min-w-0 flex-1">
-							<div class="flex items-center justify-between gap-2">
-								<span class="text-sm font-medium truncate" style="color: var(--color-text);">{repo.name}</span>
-								<div class="flex items-center gap-1 flex-shrink-0">
-									{#if isAdmin}
-										<button
-											class="rounded-md p-1 transition-colors hover:opacity-80"
-											style="color: var(--color-text-muted);"
-											onclick={(e) => { e.stopPropagation(); confirmDeleteRepo(repo.name); }}
-											title="Delete repository and all its tags"
-										>
-											<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
-										</button>
-									{/if}
-								</div>
-							</div>
-							<div class="mt-0.5 flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
-								<span>{repo.tags_count || 0} tags</span>
-							</div>
-						</div>
-						<Icon
-							icon="solar:alt-arrow-down-outline"
-							class="h-4 w-4 flex-shrink-0 transition-transform"
-							style="color: var(--color-text-muted); transform: {expandedRepo === repo.name ? 'rotate(180deg)' : ''};"
-						/>
-					</button>
-
-					<!-- Expanded Tags -->
-					{#if expandedRepo === repo.name}
-						<div class="border-t" style="border-color: var(--color-border);">
-							{#if tagsLoading[repo.name]}
-								<div class="flex items-center justify-center py-8">
-									<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
-								</div>
-							{:else if repoTags[repo.name]?.length}
-								<!-- Column headers -->
-								<div class="flex items-center gap-3 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">
-									<span class="min-w-0 flex-1">TAG</span>
-									<span class="w-20 flex-shrink-0 text-right">SIZE</span>
-									<span class="w-24 flex-shrink-0 text-right">CREATED</span>
-									<span class="w-28 flex-shrink-0 text-right">DIGEST</span>
-									<span class="w-28 flex-shrink-0 text-right">ACTIONS</span>
-								</div>
-								{#each repoTags[repo.name] as tag}
-									<div class="flex items-center gap-3 border-t px-4 py-2.5 transition-colors" style="border-color: var(--color-border);">
-										<div class="min-w-0 flex-1">
-											<button
-												class="font-mono text-xs hover:underline"
-												style="color: var(--color-primary);"
-												onclick={() => goto(`/registry/${repo.name}/${tag.name}`)}
-											>
-												{#if isTagProtected(repo.name, tag.name)}
-													<Icon icon="solar:lock-bold" class="mr-1 inline h-3 w-3" style="color: var(--color-warning);" />
-												{/if}
-												{tag.name}
-											</button>
-											{#if tag.name === 'latest'}
-												<span class="ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-medium" style="background-color: var(--color-primary-subtle); color: var(--color-primary);">latest</span>
-											{/if}
-											{#if isTagProtected(repo.name, tag.name)}
-												<span class="ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-medium" style="background-color: rgba(245,158,11,0.15); color: var(--color-warning);">Protected</span>
-											{/if}
-										</div>
-										<span class="w-20 flex-shrink-0 text-right font-mono text-xs" style="color: var(--color-text-muted);">{formatSize(tag.layer_size || tag.size)}</span>
-										<span class="w-24 flex-shrink-0 text-right text-xs" style="color: var(--color-text-muted);">{formatDate(tag.created)}</span>
-										<span class="w-28 flex-shrink-0 truncate text-right font-mono text-[10px]" style="color: var(--color-text-muted);">{shortDigest(tag.digest)}</span>
-										<div class="flex w-28 flex-shrink-0 items-center justify-end gap-1">
-											{#if isAdmin && !isTagProtected(repo.name, tag.name)}
-												<button
-													class="rounded-md p-1.5 transition-colors"
-													style="color: var(--color-text-muted);"
-													onclick={() => protectTag(repo.name, tag.name)}
-													title="Protect tag"
-												>
-													<Icon icon="solar:shield-up-bold" class="h-3.5 w-3.5" />
-												</button>
-											{/if}
-											{#if isAdmin && isTagProtected(repo.name, tag.name)}
-												<button
-													class="rounded-md p-1.5 transition-colors"
-													style="color: var(--color-warning);"
-													onclick={() => unprotectTag(repo.name, tag.name)}
-													title="Unprotect tag"
-												>
-													<Icon icon="solar:shield-minus-bold" class="h-3.5 w-3.5" />
-												</button>
-											{/if}
-											<button
-												class="rounded-md p-1.5 transition-colors"
-												style="color: var(--color-text-muted);"
-												onclick={() => copyToClipboard(`docker pull registry.anjungan.io/${repo.name}:${tag.name}`, `pull-${repo.name}-${tag.name}`)}
-												title="Copy pull command"
-											>
-												<Icon icon="solar:copy-outline" class="h-3.5 w-3.5" />
-											</button>
-											{#if copiedTarget === `pull-${repo.name}-${tag.name}`}
-												<span class="text-[10px]" style="color: var(--color-success);">✓</span>
-											{/if}
-										{#if isAdmin}
-											<button
-												class="rounded-md p-1.5 transition-colors hover:opacity-80"
-												style="color: {isTagProtected(repo.name, tag.name) ? 'var(--color-warning)' : 'var(--color-text-muted)'};"
-												onclick={() => handleDelete(repo.name, tag.name, tag.digest)}
-												title={isTagProtected(repo.name, tag.name) ? 'Protected \u2014 unprotect first' : 'Delete tag'}
-											>
-												<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
-											</button>
-										{/if}
-										</div>
-									</div>
-							{/each}
-							{#if repoTagsNext[repo.name]}
-								<div class="flex justify-center border-t py-3" style="border-color: var(--color-border);">
+				<button
+					class="flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:opacity-80"
+					style="background-color: var(--color-card); border-color: var(--color-border);"
+					onclick={() => goto(`/registry/${repo.name}`)}
+				>
+					<Icon icon="solar:archive-down-minimlistic-bold" class="h-5 w-5 flex-shrink-0" style="color: var(--color-primary);" />
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center justify-between gap-2">
+							<span class="text-sm font-medium truncate" style="color: var(--color-text);">{repo.name}</span>
+							<div class="flex items-center gap-2 flex-shrink-0">
+								<span class="rounded px-1.5 py-0.5 text-[10px] font-medium" style="background-color: var(--color-primary-subtle); color: var(--color-primary);">
+									{repo.tags_count || 0} tag{(repo.tags_count || 0) !== 1 ? 's' : ''}
+								</span>
+								{#if isAdmin}
 									<button
-										class="text-xs font-medium transition-colors hover:opacity-80"
-										style="color: var(--color-primary);"
-										onclick={() => loadMoreTags(repo.name)}
+										class="rounded-md p-1 transition-colors hover:opacity-80"
+										style="color: var(--color-text-muted);"
+										onclick={(e) => { e.stopPropagation(); confirmDeleteRepo(repo.name); }}
+										title="Delete repository and all its tags"
 									>
-										{#if tagsLoading[repo.name]}
-											Loading...
-										{:else}
-											Load More Tags
-										{/if}
+										<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
 									</button>
-								</div>
-							{/if}
-						{:else}
-								<div class="py-6 text-center text-xs" style="color: var(--color-text-muted);">
-									No tags found
-								</div>
-							{/if}
+								{/if}
+							</div>
 						</div>
-					{/if}
-				</div>
+					</div>
+					<Icon icon="solar:alt-arrow-right-outline" class="h-4 w-4 flex-shrink-0" style="color: var(--color-text-muted);" />
+				</button>
 			{/each}
 		</div>
 
