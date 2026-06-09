@@ -126,6 +126,7 @@ export const api = {
 	},
 
 	registry: {
+		health: () => request('/registry/health'),
 		config: () => request('/registry/config'),
 		myCredentials: () => request('/registry/my-credentials'),
 		resetMyPassword: (data) => request('/registry/my-credentials/reset-password', { method: 'POST', body: JSON.stringify(data) }),

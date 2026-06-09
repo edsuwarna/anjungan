@@ -80,6 +80,10 @@ let copiedTarget = $state('');
 	let cveAvailable = $state(false);
 	let cveChecking = $state(false);
 
+	// ─── Health State ───────────────────────────────────────────
+	let registryHealth = $state(null);
+	let healthLoading = $state(true);
+
 	// ─── Stats State ────────────────────────────────────────────
 	let statsSummary = $state(null);
 	let statsLoading = $state(false);
@@ -105,6 +109,7 @@ let copiedTarget = $state('');
 	onMount(() => {
 		loadConfig();
 		loadCredentials();
+		loadHealth();
 		loadRepos();
 		loadUsers();
 		loadWebhooks();
@@ -597,6 +602,18 @@ let copiedTarget = $state('');
 		}
 	}
 
+	async function loadHealth() {
+		healthLoading = true;
+		try {
+			const data = await api.registry.health();
+			registryHealth = data;
+		} catch (e) {
+			registryHealth = { status: 'down', message: e.message };
+		} finally {
+			healthLoading = false;
+		}
+	}
+
 	// ─── Stats Functions ────────────────────────────────────────
 
 	async function loadStatsSummary() {
@@ -764,6 +781,22 @@ let copiedTarget = $state('');
 				<div class="flex items-center gap-2 mb-0.5">
 					<Icon icon="solar:key-minimalistic-bold" class="h-4 w-4" style="color: var(--color-primary);" />
 					<h3 class="text-sm font-semibold" style="color: var(--color-text);">Registry Connection</h3>
+					{#if healthLoading}
+						<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]" style="background-color: rgba(148,163,184,0.1); color: var(--color-text-muted);">
+							<Icon icon="solar:spinner-bold" class="h-2.5 w-2.5 animate-spin" />
+							Check...
+						</span>
+					{:else if registryHealth?.status === 'up'}
+						<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]" style="background-color: rgba(16,185,129,0.1); color: #10b981;">
+							<Icon icon="solar:shield-check-bold" class="h-2.5 w-2.5" />
+							Online
+						</span>
+					{:else}
+						<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]" style="background-color: rgba(239,68,68,0.1); color: #ef4444;" title={registryHealth?.message}>
+							<Icon icon="solar:shield-warning-bold" class="h-2.5 w-2.5" />
+							Offline
+						</span>
+					{/if}
 				</div>
 				<p class="text-xs" style="color: var(--color-text-secondary);">Your personal credentials for Docker CLI and CI/CD pipelines.</p>
 			</div>

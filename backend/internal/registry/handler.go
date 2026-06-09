@@ -115,6 +115,7 @@ func NewHandler(cfg config.RegistryConfig, repo *db.Repository) *Handler {
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/health", h.HealthCheck)
 	r.Get("/config", h.Config)
 	r.Get("/my-credentials", h.MyCredentials)
 	r.Post("/my-credentials/reset-password", h.ResetMyPassword)
