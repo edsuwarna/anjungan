@@ -167,7 +167,7 @@
 
 	function sortIcon(field) {
 		if (sortField !== field) return 'solar:sort-vertical-bold';
-		return sortOrder === 'asc' ? 'solar:sort-from-top-bold' : 'solar:sort-from-bottom-bold';
+		return sortOrder === 'asc' ? 'solar:sort-from-bottom-to-top-bold' : 'solar:sort-from-top-to-bottom-bold';
 	}
 
 	function confirmDelete(server) {

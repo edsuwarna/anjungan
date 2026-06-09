@@ -94,6 +94,11 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 	// API v1
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Mount("/auth", authRoutes(authH))
+
+		// Public: registration status check (login page needs this without auth)
+		settingsH := settings.NewHandler(repo)
+		r.Get("/settings/registration", settingsH.GetRegistration)
+
 		r.Route("/", func(r chi.Router) {
 			r.Use(authSvc.Middleware)
 			r.Mount("/servers", infra.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
@@ -103,9 +108,9 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			r.Mount("/repositories", repoapi.NewHandler(repo).Routes())
 			r.Mount("/deployments", deployment.NewHandler(repo).Routes())
 			r.Mount("/compliance", compliance.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
-		r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
-		r.Mount("/settings", settings.NewHandler(repo).Routes())
-		r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
+			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
+			r.Mount("/settings", settingsH.Routes())
+			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
 		})
 	})
 
@@ -118,8 +123,14 @@ func authRoutes(h *auth.Handler) chi.Router {
 	r.Post("/register", h.Register)
 	r.Post("/refresh", h.Refresh)
 	r.Post("/verify-2fa", h.Verify2FA)
+	r.Post("/verify-totp", h.Verify2FA)
+	r.Post("/setup-totp", h.SetupTOTP)
+	r.Post("/verify-totp-setup", h.VerifyTOTPSetup)
+	r.Post("/disable-totp", h.DisableTOTP)
 	r.Get("/me", h.Me)
 	r.Post("/logout", h.Logout)
+	r.Put("/password", h.ChangePassword)
+	r.Put("/profile", h.UpdateProfile)
 	return r
 }
 

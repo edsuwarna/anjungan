@@ -208,6 +208,31 @@ func (r *Repository) ListServers(ctx context.Context) ([]*model.Server, error) {
 }
 
 func (r *Repository) ListServersPaginated(ctx context.Context, q model.ServerListQuery, allowedGroups []string) (*model.ServerListResponse, error) {
+	// nil allowedGroups = admin/unrestricted → no group filter
+	// non-nil empty = restricted user with no groups → return empty
+	// non-nil non-empty = filter by groups
+	if allowedGroups != nil && len(allowedGroups) == 0 {
+		page := q.Page
+		if page < 1 {
+			page = 1
+		}
+		limit := q.Limit
+		if limit < 1 {
+			limit = 50
+		}
+		if limit > 200 {
+			limit = 200
+		}
+		totalPages := 1
+		return &model.ServerListResponse{
+			Servers:    []model.ServerResponse{},
+			Total:      0,
+			Page:       page,
+			Limit:      limit,
+			TotalPages: totalPages,
+		}, nil
+	}
+
 	// Build WHERE clauses
 	var conditions []string
 	var args []interface{}
@@ -336,6 +361,13 @@ func (r *Repository) ListServersPaginated(ctx context.Context, q model.ServerLis
 }
 
 func (r *Repository) ListServersByGroups(ctx context.Context, allowedGroups []string) ([]*model.Server, error) {
+	// nil allowedGroups = admin/unrestricted → return all servers
+	// non-nil empty = restricted user with no groups → return empty
+	// non-nil non-empty = filter by groups
+	if allowedGroups != nil && len(allowedGroups) == 0 {
+		return []*model.Server{}, nil
+	}
+
 	var query string
 	var args []interface{}
 	if len(allowedGroups) > 0 {
@@ -520,6 +552,61 @@ func (r *Repository) CountServersByStatus(ctx context.Context) (map[string]int, 
 		result[status] = count
 	}
 	return result, nil
+}
+
+func (r *Repository) CountServersByGroups(ctx context.Context, allowedGroups []string) (int, error) {
+	if allowedGroups == nil {
+		return r.CountServers(ctx)
+	}
+	if len(allowedGroups) == 0 {
+		return 0, nil
+	}
+	var count int
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM servers WHERE server_group = ANY($1)`, allowedGroups,
+	).Scan(&count)
+	return count, err
+}
+
+func (r *Repository) CountServersByStatusByGroups(ctx context.Context, allowedGroups []string) (map[string]int, error) {
+	if allowedGroups == nil {
+		return r.CountServersByStatus(ctx)
+	}
+	if len(allowedGroups) == 0 {
+		return map[string]int{}, nil
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		"SELECT status, COUNT(*) FROM servers WHERE server_group = ANY($1) GROUP BY status", allowedGroups,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		result[status] = count
+	}
+	return result, nil
+}
+
+func (r *Repository) SumContainerCountByGroups(ctx context.Context, allowedGroups []string) (int, error) {
+	if allowedGroups == nil {
+		return r.SumContainerCount(ctx)
+	}
+	if len(allowedGroups) == 0 {
+		return 0, nil
+	}
+	var count int
+	err := r.db.Pool.QueryRow(ctx,
+		"SELECT COALESCE(SUM(container_count), 0) FROM servers WHERE server_group = ANY($1)", allowedGroups,
+	).Scan(&count)
+	return count, err
 }
 
 func (r *Repository) CountUsers(ctx context.Context) (int, error) {
@@ -923,8 +1010,9 @@ func (r *Repository) SetUserServerGroups(ctx context.Context, userID string, gro
 		return err
 	}
 
-	// Insert new
+	// Insert new (trimmed)
 	for _, g := range groups {
+		g = strings.TrimSpace(g)
 		if g == "" {
 			continue
 		}
@@ -981,6 +1069,22 @@ func (r *Repository) UpdateUserPassword(ctx context.Context, id, passwordHash st
 	_, err := r.db.Pool.Exec(ctx,
 		`UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2`,
 		passwordHash, id,
+	)
+	return err
+}
+
+func (r *Repository) UpdateUserTOTPSecret(ctx context.Context, id, secret string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET totp_secret=$1, updated_at=NOW() WHERE id=$2`,
+		secret, id,
+	)
+	return err
+}
+
+func (r *Repository) UpdateUserTOTPEnabled(ctx context.Context, id string, enabled bool) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET totp_enabled=$1, updated_at=NOW() WHERE id=$2`,
+		enabled, id,
 	)
 	return err
 }
@@ -1843,19 +1947,49 @@ func (r *Repository) ListGlobalScanHistory(ctx context.Context, scanType string,
 	}, nil
 }
 
-func (r *Repository) GetComplianceSummary(ctx context.Context) (*model.ComplianceSummary, error) {
+func (r *Repository) GetComplianceSummary(ctx context.Context, allowedGroups []string) (*model.ComplianceSummary, error) {
 	summary := &model.ComplianceSummary{
 		ByStatus: make(map[string]int),
 	}
 
+	// Build group filter clause
+	var groupFilter string
+	var args []interface{}
+	argIdx := 1
+
+	if allowedGroups != nil && len(allowedGroups) == 0 {
+		// Non-admin with no groups → return empty summary
+		summary.TotalServers = 0
+		summary.Servers = []model.ComplianceServerSummary{}
+		summary.TopFindings = []model.ComplianceTopFinding{}
+		return summary, nil
+	}
+	if len(allowedGroups) > 0 {
+		placeholders := make([]string, len(allowedGroups))
+		for i, g := range allowedGroups {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, g)
+			argIdx++
+		}
+		groupFilter = "WHERE s.server_group IN (" + strings.Join(placeholders, ",") + ") "
+	}
+
 	// Total servers
-	err := r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM servers`).Scan(&summary.TotalServers)
+	countQuery := "SELECT COUNT(*) FROM servers " + groupFilter
+	var countArgs []interface{}
+	countArgs = append(countArgs, args...)
+	err := r.db.Pool.QueryRow(ctx, countQuery, countArgs...).Scan(&summary.TotalServers)
 	if err != nil {
 		return nil, err
 	}
+	if summary.TotalServers == 0 {
+		summary.Servers = []model.ComplianceServerSummary{}
+		summary.TopFindings = []model.ComplianceTopFinding{}
+		return summary, nil
+	}
 
 	// Latest scan per server
-	rows, err := r.db.Pool.Query(ctx, `
+	query := `
 		SELECT s.id, s.name, s.host,
 		       sr.score, COALESCE(sr.criticals,0), COALESCE(sr.warnings,0), COALESCE(sr.passed,0), sr.completed_at
 		FROM servers s
@@ -1865,8 +1999,10 @@ func (r *Repository) GetComplianceSummary(ctx context.Context) (*model.Complianc
 		    WHERE server_id = s.id AND status = 'completed'
 		    ORDER BY created_at DESC LIMIT 1
 		) sr ON true
+		` + groupFilter + `
 		ORDER BY s.name
-	`)
+	`
+	rows, err := r.db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1903,22 +2039,53 @@ func (r *Repository) GetComplianceSummary(ctx context.Context) (*model.Complianc
 	}
 	summary.ScannedServers = scoreCount
 
-	// Top findings across all servers
-	topRows, err := r.db.Pool.Query(ctx, `
-		SELECT f.check_id, f.title, f.severity, COUNT(DISTINCT sr.server_id) as affected
-		FROM scan_findings f
-		JOIN scan_results sr ON f.scan_id = sr.id
-		WHERE f.status = 'fail' AND sr.id IN (
-		    SELECT id FROM (
-		        SELECT id, ROW_NUMBER() OVER (PARTITION BY server_id ORDER BY created_at DESC) as rn
-		        FROM scan_results WHERE status = 'completed'
-		    ) sub WHERE rn = 1
-		)
-		GROUP BY f.check_id, f.title, f.severity
-		ORDER BY affected DESC, CASE f.severity
-		    WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END
-		LIMIT 10
-	`)
+	// Top findings across all servers (filtered by group if applicable)
+	var topFindingsQuery string
+	var topFindingsArgs []interface{}
+
+	if len(allowedGroups) > 0 {
+		// Build group placeholders for the subquery
+		gp := make([]string, len(allowedGroups))
+		gi := 1
+		for i, g := range allowedGroups {
+			gp[i] = fmt.Sprintf("$%d", gi)
+			topFindingsArgs = append(topFindingsArgs, g)
+			gi++
+		}
+		topFindingsQuery = fmt.Sprintf(`
+			SELECT f.check_id, f.title, f.severity, COUNT(DISTINCT sr.server_id) as affected
+			FROM scan_findings f
+			JOIN scan_results sr ON f.scan_id = sr.id
+			JOIN servers s ON sr.server_id = s.id
+			WHERE f.status = 'fail' AND s.server_group IN (%s) AND sr.id IN (
+			    SELECT id FROM (
+			        SELECT id, ROW_NUMBER() OVER (PARTITION BY server_id ORDER BY created_at DESC) as rn
+			        FROM scan_results WHERE status = 'completed'
+			    ) sub WHERE rn = 1
+			)
+			GROUP BY f.check_id, f.title, f.severity
+			ORDER BY affected DESC, CASE f.severity
+			    WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END
+			LIMIT 10
+		`, strings.Join(gp, ","))
+	} else {
+		topFindingsQuery = `
+			SELECT f.check_id, f.title, f.severity, COUNT(DISTINCT sr.server_id) as affected
+			FROM scan_findings f
+			JOIN scan_results sr ON f.scan_id = sr.id
+			WHERE f.status = 'fail' AND sr.id IN (
+			    SELECT id FROM (
+			        SELECT id, ROW_NUMBER() OVER (PARTITION BY server_id ORDER BY created_at DESC) as rn
+			        FROM scan_results WHERE status = 'completed'
+			    ) sub WHERE rn = 1
+			)
+			GROUP BY f.check_id, f.title, f.severity
+			ORDER BY affected DESC, CASE f.severity
+			    WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END
+			LIMIT 10
+		`
+	}
+	topRows, err := r.db.Pool.Query(ctx, topFindingsQuery, topFindingsArgs...)
 	if err != nil {
 		return nil, err
 	}

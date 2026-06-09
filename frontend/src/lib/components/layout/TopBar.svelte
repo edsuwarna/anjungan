@@ -2,6 +2,7 @@
 	import { user, sidebarCollapsed } from '$lib/stores/auth.js';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import Icon from '@iconify/svelte';
 
 	let dropdownOpen = $state(false);
 
@@ -115,6 +116,20 @@
 						{$user?.role || 'member'}
 					</span>
 				</div>
+
+				<!-- Divider -->
+				<div class="border-t" style="border-color: var(--color-border-light);"></div>
+
+				<!-- Settings -->
+				<a
+					href="/settings"
+					onclick={() => dropdownOpen = false}
+					class="flex w-full items-center gap-2 px-4 py-2.5 text-sm transition-colors hover:opacity-80"
+					style="color: var(--color-text);"
+				>
+					<Icon icon="solar:settings-bold" class="h-4 w-4" />
+					Settings
+				</a>
 
 				<!-- Divider -->
 				<div class="border-t" style="border-color: var(--color-border-light);"></div>

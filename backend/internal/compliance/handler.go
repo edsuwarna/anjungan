@@ -169,7 +169,21 @@ func (h *Handler) ListChecks(w http.ResponseWriter, r *http.Request) {
 // ─── GET /compliance/summary ──────────────────────────────────────────────
 
 func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
-	summary, err := h.repo.GetComplianceSummary(r.Context())
+	// Determine user's allowed groups for filtered summary
+	var allowedGroups []string
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		if claims.Role != model.RoleAdmin {
+			var err error
+			allowedGroups, err = h.repo.GetUserServerGroups(r.Context(), claims.UserID)
+			if err != nil {
+				allowedGroups = []string{}
+			}
+		}
+	}
+	// Admin → allowedGroups stays nil → no filter
+	// Non-admin → filter by groups
+
+	summary, err := h.repo.GetComplianceSummary(r.Context(), allowedGroups)
 	if err != nil {
 		log.Err(err).Msg("failed to get compliance summary")
 		common.Error(w, http.StatusInternalServerError, "failed to get compliance summary")

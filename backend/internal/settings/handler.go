@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/edsuwarna/anjungan/internal/auth"
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
@@ -26,6 +27,8 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/compliance-thresholds", h.GetComplianceThresholds)
 	r.Put("/compliance-thresholds", h.UpdateComplianceThresholds)
+	r.Get("/registration", h.GetRegistration)
+	r.Put("/registration", h.UpdateRegistration)
 	return r
 }
 
@@ -67,4 +70,44 @@ func (h *Handler) UpdateComplianceThresholds(w http.ResponseWriter, r *http.Requ
 		"thresholds": input,
 		"message":    "Thresholds updated",
 	})
+}
+
+type RegistrationSetting struct {
+	Enabled bool `json:"enabled"`
+}
+
+func (h *Handler) GetRegistration(w http.ResponseWriter, r *http.Request) {
+	setting, err := h.repo.GetSetting(r.Context(), "registration.enabled")
+	enabled := false
+	if err == nil {
+		enabled = setting.Value == "true"
+	}
+	common.JSON(w, http.StatusOK, RegistrationSetting{Enabled: enabled})
+}
+
+func (h *Handler) UpdateRegistration(w http.ResponseWriter, r *http.Request) {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil || claims.Role != "admin" {
+		common.Error(w, http.StatusForbidden, "admin access required")
+		return
+	}
+
+	var req RegistrationSetting
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	value := "false"
+	if req.Enabled {
+		value = "true"
+	}
+
+	if err := h.repo.UpsertSetting(r.Context(), "registration.enabled", value,
+		"Allow new users to self-register via the registration form. When disabled, only admins can create users."); err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to update registration setting")
+		return
+	}
+
+	common.JSON(w, http.StatusOK, RegistrationSetting{Enabled: req.Enabled})
 }

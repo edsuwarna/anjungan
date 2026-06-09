@@ -1,13 +1,18 @@
 package auth
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 	"github.com/redis/go-redis/v9"
+	"github.com/skip2/go-qrcode"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/edsuwarna/anjungan/internal/common/model"
@@ -19,7 +24,13 @@ import (
 
 type UserRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
+	GetUserByID(ctx context.Context, id string) (*model.User, error)
 	CreateUser(ctx context.Context, user *model.User) error
+	UpdateUser(ctx context.Context, user *model.User) error
+	UpdateUserPassword(ctx context.Context, id, passwordHash string) error
+	UpdateUserTOTPSecret(ctx context.Context, id, secret string) error
+	UpdateUserTOTPEnabled(ctx context.Context, id string, enabled bool) error
+	GetSetting(ctx context.Context, key string) (*model.Settings, error)
 }
 
 // ─── Service ───────────────────────────────────────────────────────────────
@@ -101,6 +112,160 @@ func (s *Service) Register(ctx context.Context, email, name, password string) (*
 		return nil, err
 	}
 	return user, nil
+}
+
+func (s *Service) ChangePassword(ctx context.Context, email, currentPassword, newPassword string) error {
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if len(newPassword) < s.securityCfg.MinPasswordLength {
+		return ErrPasswordTooShort
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	return s.users.UpdateUserPassword(ctx, user.ID, string(hash))
+}
+
+func (s *Service) UpdateProfile(ctx context.Context, email, newName, newEmail string) (*model.User, error) {
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+	if newName != "" && newName != user.Name {
+		user.Name = strings.TrimSpace(newName)
+	}
+	if newEmail != "" && newEmail != user.Email {
+		newEmail = strings.TrimSpace(strings.ToLower(newEmail))
+		existing, _ := s.users.GetUserByEmail(ctx, newEmail)
+		if existing != nil && existing.ID != user.ID {
+			return nil, errors.New("email already in use")
+		}
+		user.Email = newEmail
+	}
+	if err := s.users.UpdateUser(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *Service) IsRegistrationEnabled(ctx context.Context) bool {
+	setting, err := s.users.GetSetting(ctx, "registration.enabled")
+	if err != nil {
+		return false
+	}
+	return setting.Value == "true"
+}
+
+// ─── TOTP 2FA ──────────────────────────────────────────────────────────────
+
+// TOTPSetupResponse contains the provisioning info for setting up TOTP.
+type TOTPSetupResponse struct {
+	Secret          string `json:"secret"`
+	ProvisioningURI string `json:"provisioning_uri"`
+	QRCodeBase64    string `json:"qr_code_base64"`
+}
+
+// SetupTOTP generates a new TOTP secret and returns provisioning URI + QR code.
+// Does NOT enable 2FA yet — user must verify first.
+func (s *Service) SetupTOTP(ctx context.Context, email string) (*TOTPSetupResponse, error) {
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Anjungan",
+		AccountName: user.Email,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Save secret immediately so it persists across page refresh
+	if err := s.users.UpdateUserTOTPSecret(ctx, user.ID, key.Secret()); err != nil {
+		return nil, err
+	}
+
+	// Generate QR code as base64 PNG
+	var buf bytes.Buffer
+	qr, err := qrcode.New(key.URL(), qrcode.Medium)
+	if err != nil {
+		return nil, err
+	}
+	if err := qr.Write(256, &buf); err != nil {
+		return nil, err
+	}
+
+	return &TOTPSetupResponse{
+		Secret:          key.Secret(),
+		ProvisioningURI: key.URL(),
+		QRCodeBase64:    base64.StdEncoding.EncodeToString(buf.Bytes()),
+	}, nil
+}
+
+// VerifyTOTPSetup confirms the user set up 2FA correctly by validating a code.
+// On success, enables TOTP for the user.
+func (s *Service) VerifyTOTPSetup(ctx context.Context, email, token string) error {
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if user.TOTPSecret == "" {
+		return errors.New("2FA not initialized — run setup first")
+	}
+
+	if !totp.Validate(token, user.TOTPSecret) {
+		return errors.New("invalid verification code")
+	}
+
+	return s.users.UpdateUserTOTPEnabled(ctx, user.ID, true)
+}
+
+// DisableTOTP disables 2FA for the user after password confirmation.
+func (s *Service) DisableTOTP(ctx context.Context, email, password string) error {
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if err := s.users.UpdateUserTOTPSecret(ctx, user.ID, ""); err != nil {
+		return err
+	}
+	return s.users.UpdateUserTOTPEnabled(ctx, user.ID, false)
+}
+
+// VerifyTOTPCode validates a TOTP code during login (step 2 of 2FA login flow).
+// Returns the full TokenResponse (JWT pair + user) on success.
+func (s *Service) VerifyTOTPCode(ctx context.Context, email, token string) (*TokenResponse, error) {
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+
+	if !user.TOTPEnabled {
+		return nil, errors.New("2FA is not enabled for this account")
+	}
+
+	if !totp.Validate(token, user.TOTPSecret) {
+		return nil, errors.New("invalid 2FA code")
+	}
+
+	return s.generateTokenPair(user)
 }
 
 func (s *Service) ValidateAccessToken(tokenString string) (*Claims, error) {

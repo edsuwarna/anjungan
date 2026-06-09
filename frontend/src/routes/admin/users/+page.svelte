@@ -8,6 +8,48 @@
 	let loading = $state(true);
 	let error = $state('');
 
+	// Sort
+	let sortColumn = $state('name');
+	let sortOrder = $state('asc');
+
+	function toggleSort(col) {
+		if (sortColumn === col) {
+			sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+		} else {
+			sortColumn = col;
+			sortOrder = 'asc';
+		}
+	}
+
+	function sortIcon(col) {
+		if (sortColumn !== col) return 'solar:sort-bold';
+		return sortOrder === 'asc' ? 'solar:sort-from-bottom-to-top-bold' : 'solar:sort-from-top-to-bottom-bold';
+	}
+
+	let sortedUsers = $derived([...users].sort((a, b) => {
+		let aVal = a[sortColumn];
+		let bVal = b[sortColumn];
+		if (sortColumn === 'name') {
+			aVal = (a.name || '').toLowerCase();
+			bVal = (b.name || '').toLowerCase();
+		} else if (sortColumn === 'email') {
+			aVal = (a.email || '').toLowerCase();
+			bVal = (b.email || '').toLowerCase();
+		} else if (sortColumn === 'role') {
+			aVal = (a.role || '');
+			bVal = (b.role || '');
+		} else if (sortColumn === 'status') {
+			aVal = (a.status || '');
+			bVal = (b.status || '');
+		} else if (sortColumn === 'created_at') {
+			aVal = a.created_at || '';
+			bVal = b.created_at || '';
+		}
+		if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+		if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+		return 0;
+	}));
+
 	// Modals
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
@@ -239,18 +281,43 @@
 				<table class="w-full">
 					<thead>
 						<tr>
-							<th>Name</th>
-							<th class="hidden sm:table-cell">Email</th>
-							<th class="hidden md:table-cell">Role</th>
+							<th style="cursor: pointer;" onclick={() => toggleSort('name')}>
+								<div class="flex items-center gap-1">
+									Name
+									<Icon icon={sortIcon('name')} class="h-3 w-3" />
+								</div>
+							</th>
+							<th class="hidden sm:table-cell" style="cursor: pointer;" onclick={() => toggleSort('email')}>
+								<div class="flex items-center gap-1">
+									Email
+									<Icon icon={sortIcon('email')} class="h-3 w-3" />
+								</div>
+							</th>
+							<th class="hidden md:table-cell" style="cursor: pointer;" onclick={() => toggleSort('role')}>
+								<div class="flex items-center gap-1">
+									Role
+									<Icon icon={sortIcon('role')} class="h-3 w-3" />
+								</div>
+							</th>
 							<th class="hidden xl:table-cell">Groups</th>
 							<th class="hidden xl:table-cell">2FA</th>
-							<th class="hidden xl:table-cell">Status</th>
-							<th class="hidden xl:table-cell">Created</th>
+							<th class="hidden xl:table-cell" style="cursor: pointer;" onclick={() => toggleSort('status')}>
+								<div class="flex items-center gap-1">
+									Status
+									<Icon icon={sortIcon('status')} class="h-3 w-3" />
+								</div>
+							</th>
+							<th class="hidden xl:table-cell" style="cursor: pointer;" onclick={() => toggleSort('created_at')}>
+								<div class="flex items-center gap-1">
+									Created
+									<Icon icon={sortIcon('created_at')} class="h-3 w-3" />
+								</div>
+							</th>
 							<th class="w-20 md:w-24">Actions</th>
 						</tr>
 					</thead>
 					<tbody>
-						{#each users as user (user.id)}
+						{#each sortedUsers as user (user.id)}
 							<tr>
 								<td class="font-medium max-w-[140px] sm:max-w-none truncate" style="color: var(--color-text);">{user.name}</td>
 								<td class="hidden sm:table-cell max-w-[160px] truncate" style="color: var(--color-text-secondary);">{user.email}</td>
