@@ -62,6 +62,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if registration is enabled
+	if !h.svc.IsRegistrationEnabled(r.Context()) {
+		common.Error(w, http.StatusForbidden, "registration is disabled")
+		return
+	}
+
 	user, err := h.svc.Register(r.Context(), req.Email, req.Name, req.Password)
 	if err != nil {
 		if errors.Is(err, ErrPasswordTooShort) {
