@@ -30,7 +30,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.svc.Login(r.Context(), req.Email, req.Password, req.TOTPCode, ip)
 	if err != nil {
 		if errors.Is(err, ErrTOTPRequired) {
-			common.JSON(w, http.StatusOK, map[string]string{"status": "totp_required"})
+			common.JSON(w, http.StatusOK, map[string]string{"status": "totp_required", "email": req.Email})
 			return
 		}
 		if errors.Is(err, ErrAccountLocked) {
@@ -117,7 +117,129 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Verify2FA(w http.ResponseWriter, r *http.Request) {
-	common.Error(w, http.StatusNotImplemented, "not implemented yet")
+	var req VerifyTOTPRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ip := audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+	resp, err := h.svc.VerifyTOTPCode(r.Context(), req.Email, req.Token)
+	if err != nil {
+		common.Error(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	// Audit login completion
+	if resp.User != nil {
+		meta, _ := json.Marshal(map[string]string{
+			"user_name": resp.User.Name,
+			"user_role": resp.User.Role,
+			"method":    "totp",
+		})
+		audit.Log(h.repo, resp.User.ID, resp.User.Email, ip,
+			"auth.login", "user", resp.User.ID,
+			"User logged in with 2FA", json.RawMessage(meta))
+	}
+
+	common.JSON(w, http.StatusOK, resp)
+}
+
+// ─── TOTP 2FA endpoints ─────────────────────────────────────────────────────
+
+type SetupTOTPRequest struct{}
+
+type VerifyTOTPSetupRequest struct {
+	Token string `json:"token"`
+}
+
+type DisableTOTPRequest struct {
+	Password string `json:"password"`
+}
+
+type VerifyTOTPRequest struct {
+	Email string `json:"email"`
+	Token string `json:"token"`
+}
+
+// SetupTOTP generates TOTP secret + QR code for the authenticated user.
+func (h *Handler) SetupTOTP(w http.ResponseWriter, r *http.Request) {
+	claims := extractClaims(h.svc, r)
+	if claims == nil {
+		common.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	resp, err := h.svc.SetupTOTP(r.Context(), claims.Email)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to setup 2FA")
+		return
+	}
+
+	meta, _ := json.Marshal(map[string]string{"user_email": claims.Email})
+	audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+		"auth.2fa_setup", "user", claims.UserID,
+		"User initiated 2FA setup", json.RawMessage(meta))
+
+	common.JSON(w, http.StatusOK, resp)
+}
+
+// VerifyTOTPSetup confirms TOTP setup with a code and enables 2FA.
+func (h *Handler) VerifyTOTPSetup(w http.ResponseWriter, r *http.Request) {
+	var req VerifyTOTPSetupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	claims := extractClaims(h.svc, r)
+	if claims == nil {
+		common.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if err := h.svc.VerifyTOTPSetup(r.Context(), claims.Email, req.Token); err != nil {
+		common.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	meta, _ := json.Marshal(map[string]string{"user_email": claims.Email})
+	audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+		"auth.2fa_enable", "user", claims.UserID,
+		"User enabled 2FA", json.RawMessage(meta))
+
+	common.JSON(w, http.StatusOK, map[string]string{"message": "2FA enabled successfully"})
+}
+
+// DisableTOTP disables 2FA for the authenticated user.
+func (h *Handler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
+	var req DisableTOTPRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	claims := extractClaims(h.svc, r)
+	if claims == nil {
+		common.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if err := h.svc.DisableTOTP(r.Context(), claims.Email, req.Password); err != nil {
+		if errors.Is(err, ErrInvalidCredentials) {
+			common.Error(w, http.StatusUnauthorized, "password is incorrect")
+			return
+		}
+		common.Error(w, http.StatusInternalServerError, "failed to disable 2FA")
+		return
+	}
+
+	meta, _ := json.Marshal(map[string]string{"user_email": claims.Email})
+	audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+		"auth.2fa_disable", "user", claims.UserID,
+		"User disabled 2FA", json.RawMessage(meta))
+
+	common.JSON(w, http.StatusOK, map[string]string{"message": "2FA disabled successfully"})
 }
 
 // ─── Self-service types ────────────────────────────────────────────────────

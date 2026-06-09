@@ -74,6 +74,7 @@ Make infrastructure management accessible for ops teams AND application deployme
 | Domain | Backend | Frontend | Notes |
 --------|---------|----------|-------|
 | Auth (login, register, JWT, refresh) | ✅ Done | ✅ Done | Login, register, refresh, logout, me ✅ |
+| User Settings (Self-Service) | ✅ Done | ✅ Done | Profile update (name/email), change password (with current password validation), auto re-issue JWT on email change. Route `/settings` with sidebar/topbar access. Admin: registration toggle ✅ |
 | TOTP 2FA | ✅ Done | 🟡 Partial | Backend: verify endpoint ✅. Frontend: login input not yet fully integrated |
 | Dashboard | ✅ Done | ✅ Done | Summary API: server count, status dist, user count. StatCards + data |
 | Servers CRUD | ✅ Done | ✅ Done | List/Create/Get/Update/Delete ✅. Test connection, metrics, detect info, groups/regions/types |
@@ -89,7 +90,6 @@ Make infrastructure management accessible for ops teams AND application deployme
 | Security Scans (Lynis + CIS) | ✅ Done | ✅ Done | Lynis, CIS L1, CIS L2, CIS Docker. Trigger, history, detail, per-container security |
 | Container Security Report | ✅ Done | ✅ Done | Per-container findings, scan history, **container page |
 | SSH Terminal | ✅ Done | ✅ Done | Server-level + container-level terminal via WebSocket |
-| Trivy Vulnerability Scanner | ❌ Missing | ❌ Missing | Belum implement |
 | Trivy Vulnerability Scanner | ❌ Missing | ❌ Missing | Not implemented |
 | Centralized Vault / Secrets | ❌ Missing | ❌ Missing | Not implemented |
 | API Key Management | ❌ Missing | ❌ Missing | Not implemented |

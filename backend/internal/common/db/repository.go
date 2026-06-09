@@ -1073,6 +1073,22 @@ func (r *Repository) UpdateUserPassword(ctx context.Context, id, passwordHash st
 	return err
 }
 
+func (r *Repository) UpdateUserTOTPSecret(ctx context.Context, id, secret string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET totp_secret=$1, updated_at=NOW() WHERE id=$2`,
+		secret, id,
+	)
+	return err
+}
+
+func (r *Repository) UpdateUserTOTPEnabled(ctx context.Context, id string, enabled bool) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE users SET totp_enabled=$1, updated_at=NOW() WHERE id=$2`,
+		enabled, id,
+	)
+	return err
+}
+
 func (r *Repository) DeleteUser(ctx context.Context, id string) error {
 	_, err := r.db.Pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
 	return err

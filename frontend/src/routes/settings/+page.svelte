@@ -26,10 +26,22 @@ import Icon from '@iconify/svelte';
 	let regSaving = $state(false);
 	let regError = $state('');
 
+	// 2FA TOTP
+	let totpStep = $state('idle'); // 'idle' | 'setup' | 'enabled'
+	let totpSaving = $state(false);
+	let totpError = $state('');
+	let totpSuccess = $state('');
+	let totpSecret = $state('');
+	let totpQRCode = $state('');
+	let totpSetupToken = $state('');
+	let disablePassword = $state('');
+
 	onMount(() => {
 		formName = $user?.name || '';
 		formEmail = $user?.email || '';
 		loading = false;
+
+		totpStep = $user?.totp_enabled ? 'enabled' : 'idle';
 
 		if ($user?.role === 'admin') {
 			loadRegistration();
@@ -117,6 +129,74 @@ import Icon from '@iconify/svelte';
 			regSaving = false;
 		}
 	}
+
+	// ─── 2FA TOTP ──────────────────────────────────────────────────────────
+
+	async function handleSetupTOTP() {
+		totpError = '';
+		totpSuccess = '';
+		totpSaving = true;
+		try {
+			const data = await api.auth.setupTOTP();
+			totpSecret = data.secret;
+			totpQRCode = data.qr_code_base64;
+			totpStep = 'setup';
+		} catch (e) {
+			totpError = e.message;
+		} finally {
+			totpSaving = false;
+		}
+	}
+
+	async function handleVerifyTOTPSetup() {
+		if (totpSetupToken.length < 6) return;
+		totpError = '';
+		totpSuccess = '';
+		totpSaving = true;
+		try {
+			await api.auth.verifyTOTPSetup(totpSetupToken);
+			totpSuccess = '2FA enabled successfully';
+			totpStep = 'enabled';
+			totpSetupToken = '';
+			totpSecret = '';
+			totpQRCode = '';
+			// Update local user state
+			const currentUser = $user;
+			if (currentUser) {
+				const updated = { ...currentUser, totp_enabled: true };
+				localStorage.setItem('user', JSON.stringify(updated));
+				user.set(updated);
+			}
+		} catch (e) {
+			totpError = e.message;
+		} finally {
+			totpSaving = false;
+		}
+	}
+
+	async function handleDisableTOTP() {
+		if (!disablePassword) return;
+		totpError = '';
+		totpSuccess = '';
+		totpSaving = true;
+		try {
+			await api.auth.disableTOTP({ password: disablePassword });
+			totpSuccess = '2FA disabled successfully';
+			totpStep = 'idle';
+			disablePassword = '';
+			// Update local user state
+			const currentUser = $user;
+			if (currentUser) {
+				const updated = { ...currentUser, totp_enabled: false };
+				localStorage.setItem('user', JSON.stringify(updated));
+				user.set(updated);
+			}
+		} catch (e) {
+			totpError = e.message;
+		} finally {
+			totpSaving = false;
+		}
+	}
 </script>
 
 <div class="page-container">
@@ -188,6 +268,89 @@ import Icon from '@iconify/svelte';
 					</button>
 				</div>
 			</div>
+		</div>
+
+		<!-- Two-Factor Authentication -->
+		<div class="card">
+			<div class="flex items-center gap-2 mb-4">
+				<Icon icon="solar:shield-keyhole-bold" class="h-5 w-5" style="color: var(--color-primary);" />
+				<h2 class="text-base font-semibold" style="color: var(--color-text);">Two-Factor Authentication</h2>
+			</div>
+
+			{#if totpError}
+				<div class="mb-4 rounded-lg px-4 py-2 text-sm" style="background-color: var(--color-danger-subtle, #fee2e2); color: var(--color-danger);">{totpError}</div>
+			{/if}
+			{#if totpSuccess}
+				<div class="mb-4 rounded-lg px-4 py-2 text-sm" style="background-color: var(--color-success-subtle, #d1fae5); color: var(--color-success);">{totpSuccess}</div>
+			{/if}
+
+			{#if totpStep === 'enabled'}
+				<!-- 2FA is active -->
+				<div class="flex items-center gap-2 mb-4">
+					<Icon icon="solar:check-circle-bold" class="h-5 w-5" style="color: var(--color-success);" />
+					<span class="text-sm font-medium" style="color: var(--color-success);">2FA is active</span>
+				</div>
+
+				<label class="mb-1 block text-sm font-medium" style="color: var(--color-text-secondary);">Enter your password to disable 2FA</label>
+				<input bind:value={disablePassword} type="password" class="input mb-4" placeholder="Current password" />
+
+				<div class="flex justify-end">
+					<button onclick={handleDisableTOTP} disabled={totpSaving || !disablePassword} class="btn-danger" style="background-color: var(--color-danger); color: white;">
+						{totpSaving ? 'Disabling...' : 'Disable 2FA'}
+					</button>
+				</div>
+			{:else if totpStep === 'setup'}
+				<!-- QR Code shown, awaiting verification -->
+				<p class="text-sm mb-3" style="color: var(--color-text-secondary);">
+					Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.)
+				</p>
+
+				{#if totpQRCode}
+					<div class="flex justify-center mb-4">
+						<img src="data:image/png;base64,{totpQRCode}" alt="TOTP QR Code" class="rounded-lg" style="width: 192px; height: 192px;" />
+					</div>
+				{/if}
+
+				<div class="mb-4 p-3 rounded-lg text-sm" style="background-color: var(--color-surface, #f1f5f9);">
+					<p class="font-mono text-xs break-all" style="color: var(--color-text-muted);">Secret: {totpSecret}</p>
+				</div>
+
+				<label class="mb-1 block text-sm font-medium" style="color: var(--color-text-secondary);">Verify with 6-digit code</label>
+				<div class="flex gap-2">
+					<input
+						bind:value={totpSetupToken}
+						type="text"
+						inputmode="numeric"
+						maxlength="6"
+						class="input flex-1 text-center text-lg tracking-[0.3em]"
+						placeholder="000000"
+						onkeydown={(e) => { if (e.key === 'Enter') handleVerifyTOTPSetup(); }}
+					/>
+					<button
+						onclick={handleVerifyTOTPSetup}
+						disabled={totpSaving || totpSetupToken.length < 6}
+						class="btn-primary"
+					>
+						{totpSaving ? 'Verifying...' : 'Verify'}
+					</button>
+				</div>
+
+				<div class="mt-3">
+					<button onclick={() => { totpStep = 'idle'; totpError = ''; totpSetupToken = ''; }} class="text-sm hover:opacity-80" style="color: var(--color-text-muted);">
+						Cancel setup
+					</button>
+				</div>
+			{:else}
+				<!-- idle: 2FA not enabled -->
+				<p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+					Add an extra layer of security to your account by enabling two-factor authentication.
+				</p>
+				<div class="flex justify-end">
+					<button onclick={handleSetupTOTP} disabled={totpSaving} class="btn-primary">
+						{totpSaving ? 'Preparing...' : 'Enable Two-Factor Auth'}
+					</button>
+				</div>
+			{/if}
 		</div>
 
 		<!-- Admin: Registration Toggle -->

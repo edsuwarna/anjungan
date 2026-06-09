@@ -66,7 +66,7 @@ export const api = {
 		setupTOTP: () => request('/auth/setup-totp', { method: 'POST' }),
 		verifyTOTPSetup: (token) =>
 			request('/auth/verify-totp-setup', { method: 'POST', body: JSON.stringify({ token }) }),
-		disableTOTP: () => request('/auth/disable-totp', { method: 'POST' }),
+		disableTOTP: (data) => request('/auth/disable-totp', { method: 'POST', body: JSON.stringify(data) }),
 		changePassword: (data) => request('/auth/password', { method: 'PUT', body: JSON.stringify(data) }),
 		updateProfile: (data) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
 	},
