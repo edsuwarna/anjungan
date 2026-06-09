@@ -2806,3 +2806,76 @@ func (r *Repository) ListEnabledRegistryWebhooks(ctx context.Context) ([]*model.
 	}
 	return hooks, nil
 }
+
+// ─── Registry Tag Protection ────────────────────────────────────────────────
+
+func (r *Repository) ListTagProtections(ctx context.Context, repo string) ([]*model.RegistryTagProtection, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, repo, tag, created_by, created_at
+		 FROM registry_tag_protections WHERE repo = $1 ORDER BY tag`, repo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var protections []*model.RegistryTagProtection
+	for rows.Next() {
+		p := &model.RegistryTagProtection{}
+		if err := rows.Scan(&p.ID, &p.Repo, &p.Tag, &p.CreatedBy, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		protections = append(protections, p)
+	}
+	return protections, nil
+}
+
+func (r *Repository) ListAllTagProtections(ctx context.Context) ([]*model.RegistryTagProtection, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, repo, tag, created_by, created_at
+		 FROM registry_tag_protections ORDER BY repo, tag`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var protections []*model.RegistryTagProtection
+	for rows.Next() {
+		p := &model.RegistryTagProtection{}
+		if err := rows.Scan(&p.ID, &p.Repo, &p.Tag, &p.CreatedBy, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		protections = append(protections, p)
+	}
+	return protections, nil
+}
+
+func (r *Repository) IsTagProtected(ctx context.Context, repo, tag string) (bool, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM registry_tag_protections WHERE repo = $1 AND tag = $2`,
+		repo, tag).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *Repository) CreateTagProtection(ctx context.Context, p *model.RegistryTagProtection) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO registry_tag_protections (id, repo, tag, created_by, created_at)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (repo, tag) DO NOTHING`,
+		p.ID, p.Repo, p.Tag, p.CreatedBy, p.CreatedAt)
+	return err
+}
+
+func (r *Repository) DeleteTagProtection(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM registry_tag_protections WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) DeleteTagProtectionByRepoTag(ctx context.Context, repo, tag string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM registry_tag_protections WHERE repo = $1 AND tag = $2`, repo, tag)
+	return err
+}

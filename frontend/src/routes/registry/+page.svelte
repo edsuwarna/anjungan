@@ -63,6 +63,10 @@ let copiedTarget = $state('');
 	let webhookEventsLoading = $state(false);
 	let showWebhookEvents = $state(false);
 
+	// ─── Tag Protection State ──────────────────────────────────
+	let tagProtections = $state([]); // { repo, tag, id }
+	let tagProtectionsSet = $derived(new Set(tagProtections.map(p => `${p.repo}:${p.tag}`)));
+
 	// ─── Derived ───
 	let isAdmin = $derived($user?.role === 'admin');
 	let filteredRepos = $derived.by(() => {
@@ -80,6 +84,7 @@ let copiedTarget = $state('');
 		loadRepos();
 		loadUsers();
 		loadWebhooks();
+		loadProtections();
 	});
 
 	async function loadConfig() {
@@ -536,6 +541,39 @@ let copiedTarget = $state('');
 			case 'test': return '🧪';
 			default: return '🔔';
 		}
+	}
+
+	// ─── Tag Protection Functions ───────────────────────────────
+
+	async function loadProtections() {
+		try {
+			const data = await api.registry.protections.list();
+			tagProtections = Array.isArray(data) ? data : [];
+		} catch (e) {
+			// ignore
+		}
+	}
+
+	async function protectTag(repo, tag) {
+		try {
+			await api.registry.protections.create({ repo, tag });
+			await loadProtections();
+		} catch (e) {
+			error = e.message || 'Failed to protect tag';
+		}
+	}
+
+	async function unprotectTag(repo, tag) {
+		try {
+			await api.registry.protections.deleteByRepoTag(repo, tag);
+			await loadProtections();
+		} catch (e) {
+			error = e.message || 'Failed to unprotect tag';
+		}
+	}
+
+	function isTagProtected(repo, tag) {
+		return tagProtectionsSet.has(`${repo}:${tag}`);
 	}
 </script>
 
@@ -1034,16 +1072,42 @@ let copiedTarget = $state('');
 												style="color: var(--color-primary);"
 												onclick={() => goto(`/registry/${repo.name}/${tag.name}`)}
 											>
+												{#if isTagProtected(repo.name, tag.name)}
+													<Icon icon="solar:lock-bold" class="mr-1 inline h-3 w-3" style="color: var(--color-warning);" />
+												{/if}
 												{tag.name}
 											</button>
 											{#if tag.name === 'latest'}
 												<span class="ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-medium" style="background-color: var(--color-primary-subtle); color: var(--color-primary);">latest</span>
 											{/if}
+											{#if isTagProtected(repo.name, tag.name)}
+												<span class="ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-medium" style="background-color: rgba(245,158,11,0.15); color: var(--color-warning);">Protected</span>
+											{/if}
 										</div>
 										<span class="w-20 flex-shrink-0 text-right font-mono text-xs" style="color: var(--color-text-muted);">{formatSize(tag.layer_size || tag.size)}</span>
 										<span class="w-24 flex-shrink-0 text-right text-xs" style="color: var(--color-text-muted);">{formatDate(tag.created)}</span>
 										<span class="w-28 flex-shrink-0 truncate text-right font-mono text-[10px]" style="color: var(--color-text-muted);">{shortDigest(tag.digest)}</span>
-										<div class="flex w-16 flex-shrink-0 items-center justify-end gap-1">
+										<div class="flex w-24 flex-shrink-0 items-center justify-end gap-1">
+											{#if isAdmin && !isTagProtected(repo.name, tag.name)}
+												<button
+													class="rounded-md p-1.5 transition-colors"
+													style="color: var(--color-text-muted);"
+													onclick={() => protectTag(repo.name, tag.name)}
+													title="Protect tag"
+												>
+													<Icon icon="solar:shield-up-bold" class="h-3.5 w-3.5" />
+												</button>
+											{/if}
+											{#if isAdmin && isTagProtected(repo.name, tag.name)}
+												<button
+													class="rounded-md p-1.5 transition-colors"
+													style="color: var(--color-warning);"
+													onclick={() => unprotectTag(repo.name, tag.name)}
+													title="Unprotect tag"
+												>
+													<Icon icon="solar:shield-down-bold" class="h-3.5 w-3.5" />
+												</button>
+											{/if}
 											<button
 												class="rounded-md p-1.5 transition-colors"
 												style="color: var(--color-text-muted);"
@@ -1055,7 +1119,7 @@ let copiedTarget = $state('');
 											{#if copiedTarget === `pull-${repo.name}-${tag.name}`}
 												<span class="text-[10px]" style="color: var(--color-success);">✓</span>
 											{/if}
-									{#if isAdmin}
+										{#if isAdmin && !isTagProtected(repo.name, tag.name)}
 											<button
 												class="rounded-md p-1.5 transition-colors hover:opacity-80"
 												style="color: var(--color-text-muted);"

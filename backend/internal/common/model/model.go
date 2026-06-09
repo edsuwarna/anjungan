@@ -820,3 +820,28 @@ func (r *RegistryWebhookRequest) Validate() string {
 	}
 	return ""
 }
+
+// ─── Registry Tag Protection ──────────────────────────────────────────────────
+
+type RegistryTagProtection struct {
+	ID        string    `json:"id"`
+	Repo      string    `json:"repo"`
+	Tag       string    `json:"tag"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type TagProtectionRequest struct {
+	Repo string `json:"repo"`
+	Tag  string `json:"tag"`
+}
+
+func (r *TagProtectionRequest) Validate() string {
+	if r.Repo == "" {
+		return "repo is required"
+	}
+	if r.Tag == "" {
+		return "tag is required"
+	}
+	return ""
+}

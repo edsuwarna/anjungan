@@ -129,6 +129,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/users/{id}/reset-password", h.requireAdmin(h.ResetUserPassword))
 	r.Post("/sync-htpasswd", h.requireAdmin(h.SyncHtpasswd))
 	r.Mount("/webhooks", h.webhookRoutes())
+	r.Mount("/protections", h.tagProtectionRoutes())
 	return r
 }
 
@@ -950,6 +951,11 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	digest := mResp.Header.Get("Docker-Content-Digest")
 	if digest == "" {
 		common.Error(w, http.StatusInternalServerError, "no digest in response")
+		return
+	}
+
+	// Check tag protection
+	if !h.checkTagProtectionBeforeDelete(w, r, name, tag) {
 		return
 	}
 

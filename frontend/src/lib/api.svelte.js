@@ -160,6 +160,17 @@ export const api = {
 				return request(`/registry/webhooks/events${q}`);
 			},
 		},
+		// Tag Protection
+		protections: {
+			list: (repo) => {
+				const q = repo ? `?repo=${encodeURIComponent(repo)}` : '';
+				return request(`/registry/protections${q}`);
+			},
+			create: (data) => request('/registry/protections', { method: 'POST', body: JSON.stringify(data) }),
+			delete: (id) => request(`/registry/protections/${id}`, { method: 'DELETE' }),
+			deleteByRepoTag: (repo, tag) => request(`/registry/protections/by-repo/${encodeURIComponent(repo)}/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
+			check: (repo, tag) => request(`/registry/protections/check/${encodeURIComponent(repo)}/${encodeURIComponent(tag)}`),
+		},
 	},
 
 	repositories: {
