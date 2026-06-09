@@ -45,7 +45,7 @@
 			if (check?.available) {
 				cveAvailable = true;
 				const data = await api.registry.cve.tagDetail(name, tag);
-				cveData = data?.summary || data?.cve || null;
+				cveData = data || null;
 			}
 		} catch (e) {
 			cveAvailable = false;
