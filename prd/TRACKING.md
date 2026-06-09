@@ -83,18 +83,22 @@
 
 | Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
 |---------|-----------|---------|----------|-------------|-------|
-| Repository Browser | PRD-registry.md §F1 | ✅ | ✅ | — | List repos + tags, paginated |
-| Image Detail (config, layers, history) | PRD-registry.md §F2 | ✅ | ✅ | — | Tabs: Config, Layers, History |
-| Image Deletion | PRD-registry.md §F3 | ✅ | ✅ | — | Delete tag/manifest by digest |
+| Repository Browser + Tag Search + Sort | PRD-registry.md §F1 | ✅ | ✅ | — | Sortable tags, search (?q=), pagination (Load More) |
+| Image Detail + Multi-Arch + Raw JSON | PRD-registry.md §F2 | ✅ | ✅ | — | Config/Layers/History + multi-arch platforms + raw manifest viewer |
+| Image Deletion + Delete Repo + Bulk Ops | PRD-registry.md §F3 | ✅ | ✅ | — | Delete tag/manifest, delete repo (all tags), bulk delete/protect |
 | Garbage Collection | PRD-registry.md §F3 | ✅ | ✅ | — | Trigger Zot GC from UI |
 | Self-Service Credentials | PRD-registry.md §F4 | ✅ | ✅ | 000012–000013 | Auto-create registry user per Anjungan user |
 | Registry User Management (Admin) | PRD-registry.md §F5 | ✅ | ✅ | 000012–000013 | CRUD + reset password + htpasswd sync |
 | Registry Config | PRD-registry.md §F6 | ✅ | ✅ | — | Read-only config display |
-| Webhook Notifications | PRD-registry.md §F7 | ❌ | ❌ | — | Push/pull/delete events — not implemented |
+| Webhook Notifications | PRD-registry.md §F7 | ✅ | ✅ | 000022 | Full CRUD webhook subs, async event firing (Telegram/Discord/Slack) |
 | Multi-Registry Support | PRD-registry.md §F8 | ❌ | ❌ | — | Multiple registry endpoints — not implemented |
 | Registry Sync / Mirror | PRD-registry.md §F9 | ❌ | ❌ | — | Docker Hub → Zot sync — not implemented |
-| Cleanup Policies | PRD-registry.md §F10 | ❌ | ❌ | — | Auto-delete old tags — not implemented |
-| Built-in Vulnerability Scan | PRD-registry.md §F11 | ❌ | ❌ | — | Zot-ext-cve or Trivy integration — not implemented |
+| Cleanup Policies (Auto-Scheduler) | PRD-registry.md §F10 | ✅ | ✅ | — | Background ticker scheduler, configurable policies, manual trigger |
+| Built-in Vulnerability Scan (CVE) | PRD-registry.md §F11 | ✅ | ✅ | — | Zot-ext-cve integration, severity filter, pagination, package details |
+| Tag Protection (Lock Tags) | PRD-registry.md §F12 | ✅ | ✅ | 000023 | Protect/unprotect tags, bulk ops, delete blocked for protected |
+| Search Tags Across All Repos | PRD-registry.md §F13 | ✅ | ✅ | — | `GET /registry/search/tags?q=...` — full-text search |
+| KPI Header Cards + Health Badge + Activity Feed | PRD-registry.md §F14 | ✅ | ✅ | — | Always-visible stats, Zot connectivity indicator, event timeline |
+| Image Size Dashboard | PRD-registry.md §F15 | ✅ | ✅ | — | `GET /registry/stats/summary` — per-repo size + tag counts |
 
 ---
 
@@ -217,6 +221,8 @@
 | 000017 | `deployment_history` | ✅ | PRD-repositories-deployments.md |
 | 000018 | Repo connection affiliations | ✅ | PRD-repositories-deployments.md |
 | 000019 | `repo_selections` | ✅ | PRD-repositories-deployments.md |
+| 000022 | `registry_webhooks` | ✅ | PRD-registry.md |
+| 000023 | `registry_tag_protections` | ✅ | PRD-registry.md |
 
 ### ❌ Missing Tables (Planned in PRDs, Not Migrated)
 
@@ -253,10 +259,10 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Done (fully implemented) | **43** features |
+| ✅ Done (fully implemented) | **50** features |
 | 🟡 Partial (some gaps) | **3** features |
-| ❌ Not Started (PRD exists) | **45** features |
-| **Total PRD-documented features** | **91** |
+| ❌ Not Started (PRD exists) | **42** features |
+| **Total PRD-documented features** | **95** |
 
 ### By Domain
 
@@ -265,7 +271,7 @@
 | Auth & Core (PRD.md) | 5 | 1 | 4 |
 | Servers & Infra (PRD.md) | 4 | 0 | 0 |
 | Containers (PRD.md) | 7 | 0 | 0 |
-| Registry (PRD-registry.md) | 7 | 0 | 5 |
+| Registry (PRD-registry.md) | 14 | 0 | 2 |
 | Repos & Deployments (PRD-repositories-deployments.md) | 12 | 1 | 4 |
 | Compliance & Scanning (PRD-compliance.md) | 6 | 0 | 4 |
 | Container Image Scanning (PRD-container-image-scanning.md) | 0 | 0 | 6 |
@@ -289,8 +295,9 @@
 | `/containers/[serverId]/[containerId]/security` | ✅ | Container security report |
 | `/repositories` | ✅ | Repo list + CI status |
 | `/deployments` | ✅ | Tab-based deployment list |
-| `/registry` | ✅ | Repo browser + credentials |
-| `/registry/[name]/[tag]` | ✅ | Image detail (config/layers/history) |
+| `/registry` | ✅ | Repo browser + credentials, KPI cards, admin tabs, activity |
+| `/registry/[name]` | ✅ | Repo detail: sortable tags, search, pagination, bulk ops, tag protection |
+| `/registry/[name]/[tag]` | ✅ | Image detail (config/layers/history + CVE vulns + raw JSON) |
 | `/compliance` | ✅ | Compliance dashboard |
 | `/compliance/cis-level-1` | ✅ | CIS L1 detail |
 | `/compliance/cis-level-2` | ✅ | CIS L2 detail |
