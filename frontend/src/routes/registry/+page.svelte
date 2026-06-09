@@ -111,6 +111,7 @@ let copiedTarget = $state('');
 		loadCredentials();
 		loadHealth();
 		loadRepos();
+		loadStatsSummary();
 		loadUsers();
 		loadWebhooks();
 		loadProtections();
@@ -618,7 +619,6 @@ let copiedTarget = $state('');
 
 	async function loadStatsSummary() {
 		statsLoading = true;
-		showStats = true;
 		try {
 			const data = await api.registry.stats.summary();
 			statsSummary = data;
@@ -630,11 +630,7 @@ let copiedTarget = $state('');
 	}
 
 	function toggleStats() {
-		if (!showStats) {
-			loadStatsSummary();
-		} else {
-			showStats = false;
-		}
+		showStats = !showStats;
 	}
 
 	function formatBytes(bytes) {
@@ -1169,6 +1165,47 @@ let copiedTarget = $state('');
 	</div>
 	{/if}
 
+	<!-- KPI Header Cards -->
+	{#if statsSummary}
+		<div class="grid grid-cols-2 gap-3 mb-3 sm:grid-cols-4">
+			<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
+				<div class="text-lg font-bold" style="color: var(--color-primary);">{statsSummary.total_repos}</div>
+				<div class="text-[10px]" style="color: var(--color-text-muted);">Repositories</div>
+			</div>
+			<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
+				<div class="text-lg font-bold" style="color: var(--color-primary);">{statsSummary.total_tags}</div>
+				<div class="text-[10px]" style="color: var(--color-text-muted);">Tags</div>
+			</div>
+			<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
+				<div class="text-lg font-bold" style="color: var(--color-primary);">{formatBytes(statsSummary.total_storage)}</div>
+				<div class="text-[10px]" style="color: var(--color-text-muted);">Storage</div>
+			</div>
+			<div class="rounded-lg p-3 text-center" style="background-color: {registryHealth?.status === 'up' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)'};">
+				{#if healthLoading}
+					<div class="text-lg font-bold" style="color: var(--color-text-muted);">
+						<Icon icon="solar:spinner-bold" class="h-5 w-5 inline animate-spin" />
+					</div>
+				{:else if registryHealth?.status === 'up'}
+					<div class="text-lg font-bold" style="color: #10b981;">
+						<Icon icon="solar:check-circle-bold" class="h-5 w-5 inline" />
+					</div>
+				{:else}
+					<div class="text-lg font-bold" style="color: #ef4444;">
+						<Icon icon="solar:forbidden-circle-bold" class="h-5 w-5 inline" />
+					</div>
+				{/if}
+				<div class="text-[10px]" style="color: var(--color-text-muted);">Registry Status</div>
+			</div>
+		</div>
+	{:else if !statsSummary && statsLoading}
+		<div class="grid grid-cols-4 gap-3 mb-3">
+			<div class="rounded-lg h-20 animate-pulse" style="background-color: var(--color-primary-subtle);"></div>
+			<div class="rounded-lg h-20 animate-pulse" style="background-color: var(--color-primary-subtle);"></div>
+			<div class="rounded-lg h-20 animate-pulse" style="background-color: var(--color-primary-subtle);"></div>
+			<div class="rounded-lg h-20 animate-pulse" style="background-color: var(--color-primary-subtle);"></div>
+		</div>
+	{/if}
+
 	<!-- Search + Stats -->
 	<div class="flex items-center justify-between gap-4">
 		<div class="relative flex-1 max-w-sm">
@@ -1235,8 +1272,8 @@ let copiedTarget = $state('');
 				style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
 				onclick={toggleStats}
 			>
-				<Icon icon={statsLoading ? 'solar:spinner-bold animate-spin' : 'solar:chart-square-bold'} class="h-3 w-3" />
-				Storage
+				<Icon icon={showStats ? 'solar:alt-arrow-up-outline' : 'solar:chart-square-bold'} class="h-3 w-3" />
+				{showStats ? 'Hide Detail' : 'Top Repos'}
 			</button>
 			<button
 				class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
