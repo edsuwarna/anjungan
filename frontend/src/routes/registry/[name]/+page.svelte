@@ -30,6 +30,51 @@
 	let deleteRepoTarget = $state(false);
 	let deleting = $state(false);
 
+	// Sort state
+	let sortField = $state('name');
+	let sortDir = $state('asc');
+
+	let sortedTags = $derived.by(() => {
+		const sorted = [...tags];
+		const dir = sortDir === 'asc' ? 1 : -1;
+		sorted.sort((a, b) => {
+			switch (sortField) {
+				case 'name': {
+					const va = (a.name || '').toLowerCase();
+					const vb = (b.name || '').toLowerCase();
+					return va < vb ? -dir : va > vb ? dir : 0;
+				}
+				case 'size': {
+					return ((a.layer_size || a.size || 0) - (b.layer_size || b.size || 0)) * dir;
+				}
+				case 'created': {
+					const da = new Date(a.created || 0).getTime();
+					const db = new Date(b.created || 0).getTime();
+					return (da - db) * dir;
+				}
+				default:
+					return 0;
+			}
+		});
+		return sorted;
+	});
+
+	function toggleSort(field) {
+		if (sortField === field) {
+			sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+		} else {
+			sortField = field;
+			sortDir = 'asc';
+		}
+	}
+
+	function sortIcon(field) {
+		if (sortField !== field) return '';
+		return sortDir === 'asc'
+			? 'solar:alt-arrow-up-outline'
+			: 'solar:alt-arrow-down-outline';
+	}
+
 	onMount(() => {
 		loadTags();
 		loadProtections();
@@ -284,14 +329,29 @@
 		<div class="card mt-3 overflow-hidden">
 			<!-- Column headers -->
 			<div class="flex items-center gap-3 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted); border-bottom: 1px solid var(--color-border);">
-				<span class="min-w-0 flex-1">TAG</span>
-				<span class="w-20 flex-shrink-0 text-right">SIZE</span>
-				<span class="w-24 flex-shrink-0 text-right">CREATED</span>
+				<button class="flex min-w-0 flex-1 items-center gap-1 text-left" onclick={() => toggleSort('name')}>
+					TAG
+					{#if sortField === 'name'}
+						<Icon icon={sortIcon('name')} class="h-3 w-3" />
+					{/if}
+				</button>
+				<button class="flex w-20 flex-shrink-0 items-center justify-end gap-1" onclick={() => toggleSort('size')}>
+					SIZE
+					{#if sortField === 'size'}
+						<Icon icon={sortIcon('size')} class="h-3 w-3" />
+					{/if}
+				</button>
+				<button class="flex w-24 flex-shrink-0 items-center justify-end gap-1" onclick={() => toggleSort('created')}>
+					CREATED
+					{#if sortField === 'created'}
+						<Icon icon={sortIcon('created')} class="h-3 w-3" />
+					{/if}
+				</button>
 				<span class="w-28 flex-shrink-0 text-right">DIGEST</span>
 				<span class="w-32 flex-shrink-0 text-right">ACTIONS</span>
 			</div>
 
-			{#each tags as tag}
+			{#each sortedTags as tag}
 				<div class="flex items-center gap-3 px-4 py-2.5 transition-colors" style="border-bottom: 1px solid var(--color-border);">
 					<div class="min-w-0 flex-1">
 						<button

@@ -142,6 +142,7 @@ export const api = {
 		delete: (name, digest) => request(`/registry/repos/${encodeURIComponent(name)}/manifests/${encodeURIComponent(digest)}`, { method: 'DELETE' }),
 		deleteTag: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
 		deleteRepo: (name) => request(`/registry/repos/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+		raw: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/${encodeURIComponent(tag)}/raw`),
 		gc: () => request('/registry/gc', { method: 'POST' }),
 		users: () => request('/registry/users'),
 		createUser: (data) => request('/registry/users', { method: 'POST', body: JSON.stringify(data) }),
@@ -180,7 +181,7 @@ export const api = {
 		// CVE / Vulnerability
 		cve: {
 			check: () => request('/registry/cve/check'),
-			tagDetail: (name, tag) => request(`/registry/cve/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`),
+			tagDetail: (name, tag, qs) => request(`/registry/cve/${encodeURIComponent(name)}/${encodeURIComponent(tag)}${qs || ''}`),
 		},
 		// Stats
 		stats: {

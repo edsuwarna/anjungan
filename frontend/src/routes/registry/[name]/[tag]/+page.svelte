@@ -18,6 +18,31 @@
 	let cveAvailable = $state(false);
 	let cveData = $state(null);
 	let cveLoading = $state(false);
+	let cveLoadingMore = $state(false);
+	let allCveList = $state([]); // accumulated across loads
+	let cveSkip = $state(0);
+	let cveSeverityFilter = $state('');
+
+	let rawData = $state(null);
+	let rawLoading = $state(false);
+
+	async function loadRaw() {
+		if (rawData) return; // already loaded
+		rawLoading = true;
+		try {
+			rawData = await api.registry.raw(name, tag);
+		} catch (e) {
+			rawData = { error: e.message };
+		} finally {
+			rawLoading = false;
+		}
+	}
+
+	let filteredCveList = $derived(
+		cveSeverityFilter
+			? allCveList.filter(c => c.Severity === cveSeverityFilter)
+			: allCveList
+	);
 
 	onMount(() => {
 		loadDetail();
@@ -38,19 +63,46 @@
 		}
 	}
 
-	async function loadCve() {
+	async function loadCve(skip = 0) {
 		cveLoading = true;
+		cveSkip = skip;
 		try {
 			const check = await api.registry.cve.check();
 			if (check?.available) {
 				cveAvailable = true;
-				const data = await api.registry.cve.tagDetail(name, tag);
+				const qs = skip > 0 ? `?skip=${skip}` : '';
+				const data = await api.registry.cve.tagDetail(name, tag, qs);
 				cveData = data || null;
+				if (skip > 0) {
+					allCveList = [...allCveList, ...(data?.cve || [])];
+				} else {
+					allCveList = data?.cve || [];
+				}
 			}
 		} catch (e) {
 			cveAvailable = false;
 		} finally {
 			cveLoading = false;
+		}
+	}
+
+	async function loadMoreCve() {
+		if (cveLoadingMore || cveLoading) return;
+		cveLoadingMore = true;
+		try {
+			const total = cveData?.page?.TotalCount || cveData?.page?.totalCount || 0;
+			const nextSkip = allCveList.length;
+			if (nextSkip >= total) return;
+			const qs = `?skip=${nextSkip}`;
+			const data = await api.registry.cve.tagDetail(name, tag, qs);
+			if (data) {
+				cveData = { ...cveData, ...data };
+				allCveList = [...allCveList, ...(data?.cve || [])];
+			}
+		} catch (e) {
+			// ignore
+		} finally {
+			cveLoadingMore = false;
 		}
 	}
 
@@ -119,6 +171,7 @@
 		{ id: 'layers', label: 'Layers', icon: 'solar:layers-outline' },
 		{ id: 'history', label: 'History', icon: 'solar:clock-circle-outline' },
 		...(cveAvailable ? [{ id: 'cve', label: 'Vulnerabilities', icon: 'solar:shield-warning-outline' }] : []),
+		{ id: 'raw', label: 'Raw JSON', icon: 'solar:code-outline' },
 	]);
 
 	let pullCmd = $derived(`docker pull registry.anjungan.io/${name}:${tag}`);
@@ -490,15 +543,54 @@
 							</div>
 						</div>
 
+												<!-- Severity filter chips -->
+						{#if allCveList.length > 0}
+							<div class="mb-3 flex flex-wrap items-center gap-1.5">
+								<button
+									class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+									style="background-color: {!cveSeverityFilter ? 'var(--color-primary)' : 'var(--color-primary-subtle)'}; color: {!cveSeverityFilter ? '#fff' : 'var(--color-text-secondary)'};"
+									onclick={() => cveSeverityFilter = ''}
+								>All ({allCveList.length})</button>
+								{#if critical > 0}
+									<button
+										class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+										style="background-color: {cveSeverityFilter === 'CRITICAL' ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.08)'}; color: #ef4444;"
+										onclick={() => cveSeverityFilter = 'CRITICAL'}
+									>Critical ({critical})</button>
+								{/if}
+								{#if high > 0}
+									<button
+										class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+										style="background-color: {cveSeverityFilter === 'HIGH' ? 'rgba(249,115,22,0.2)' : 'rgba(249,115,22,0.08)'}; color: #f97316;"
+										onclick={() => cveSeverityFilter = 'HIGH'}
+									>High ({high})</button>
+								{/if}
+								{#if medium > 0}
+									<button
+										class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+										style="background-color: {cveSeverityFilter === 'MEDIUM' ? 'rgba(234,179,8,0.2)' : 'rgba(234,179,8,0.08)'}; color: #eab308;"
+										onclick={() => cveSeverityFilter = 'MEDIUM'}
+									>Medium ({medium})</button>
+								{/if}
+								{#if low > 0}
+									<button
+										class="rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors"
+										style="background-color: {cveSeverityFilter === 'LOW' ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.08)'}; color: #22c55e;"
+										onclick={() => cveSeverityFilter = 'LOW'}
+									>Low ({low})</button>
+								{/if}
+							</div>
+						{/if}
+
 						<!-- CVE Detail List -->
-						{@const cveList = Array.isArray(cveData?.cve) ? cveData.cve : Array.isArray(cveData) ? cveData : []}
-						{#if cveList.length > 0}
+						{@const shownCveList = filteredCveList}
+						{#if shownCveList.length > 0}
 							<div class="mb-3 flex items-center justify-between">
 								<h4 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">All Vulnerabilities</h4>
-								<span class="text-[10px]" style="color: var(--color-text-muted);">{cveList.length} findings</span>
+								<span class="text-[10px]" style="color: var(--color-text-muted);">{shownCveList.length} findings</span>
 							</div>
 							<div class="space-y-1">
-								{#each cveList as cve}
+								{#each shownCveList as cve}
 									{@const pkgList = cve.PackageList || cve.packageList || cve.Packages || []}
 									{@const mainPkg = Array.isArray(pkgList) && pkgList.length > 0 ? pkgList[0] : null}
 									<div class="flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:opacity-90" style="border-color: var(--color-border);">
@@ -542,20 +634,29 @@
 							</div>
 						{/if}
 
-						<!-- Pagination info -->
-						{@const pageMeta = cveData?.page?.TotalCount ?? cveData?.page?.totalCount ?? null}
-						{@const shownCount = cveList.length}
-						{#if pageMeta !== null && pageMeta > shownCount}
+						<!-- Pagination: Load More -->
+						{@const pageTotal = cveData?.page?.TotalCount ?? cveData?.page?.totalCount ?? null}
+						{#if pageTotal !== null}
 							<div class="mt-3 flex items-center justify-between">
 								<p class="text-xs" style="color: var(--color-text-muted);">
-									Showing <strong style="color: var(--color-text);">{shownCount}</strong> of <strong style="color: var(--color-text);">{pageMeta}</strong> vulnerabilities
+									Showing <strong style="color: var(--color-text);">{allCveList.length}</strong> of <strong style="color: var(--color-text);">{pageTotal}</strong> vulnerabilities
 								</p>
-								<span class="text-[10px]" style="color: var(--color-text-muted);">(limit: 50 per page)</span>
+								{#if allCveList.length < pageTotal}
+									<button
+										class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+										style="background-color: var(--color-primary-subtle); color: var(--color-primary);"
+										onclick={loadMoreCve}
+										disabled={cveLoadingMore}
+									>
+										{#if cveLoadingMore}
+											<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
+											Loading...
+										{:else}
+											Load More
+										{/if}
+									</button>
+								{/if}
 							</div>
-						{:else if pageMeta !== null}
-							<p class="mt-3 text-xs" style="color: var(--color-text-secondary);">
-								All <strong>{pageMeta}</strong> vulnerabilities shown
-							</p>
 						{/if}
 					{:else}
 						<div class="rounded-lg p-6 text-center" style="background-color: rgba(16,185,129,0.08);">
@@ -574,6 +675,68 @@
 	{/if}
 </div>
 
+
+		<!-- Tab: Raw JSON -->
+		{#if activeTab === 'raw'}
+			<div class="card p-4">
+				<div class="mb-3 flex items-center justify-between">
+					<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Raw Manifest</h3>
+					{#if rawData?.content_type}
+						<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">{rawData.content_type}</span>
+					{/if}
+				</div>
+				{#if rawLoading}
+					<div class="flex items-center justify-center py-8">
+						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
+					</div>
+				{:else if rawData?.error}
+					<div class="rounded-lg border p-3 text-xs" style="background-color: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: var(--color-danger);">
+						{rawData.error}
+					</div>
+				{:else if rawData?.manifest}
+					{@const manifestText = rawData.manifest}
+					<div class="mb-3 flex items-center justify-end gap-2">
+						{#if rawData.digest}
+							<code class="text-[10px] font-mono" style="color: var(--color-text-muted);">sha256:{rawData.digest.slice(0, 64)}</code>
+						{/if}
+						<button
+							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
+							style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
+							onclick={() => copyToClipboard(manifestText, 'raw-manifest')}
+						>
+							<Icon icon="solar:copy-outline" class="h-3 w-3" />
+							{copiedTarget === 'raw-manifest' ? 'Copied!' : 'Copy'}
+						</button>
+					</div>
+					<pre class="max-h-96 overflow-auto rounded-lg p-3 font-mono text-[10px] leading-relaxed" style="background-color: #0d1117; color: #e6edf3;">
+						<code>{manifestText}</code>
+					</pre>
+					{#if rawData.config}
+						<div class="mt-4">
+							<div class="mb-2 flex items-center justify-between">
+								<h4 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Config</h4>
+								<button
+									class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
+									style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
+									onclick={() => copyToClipboard(rawData.config, 'raw-config')}
+								>
+									<Icon icon="solar:copy-outline" class="h-3 w-3" />
+									{copiedTarget === 'raw-config' ? 'Copied!' : 'Copy'}
+								</button>
+							</div>
+							<pre class="max-h-96 overflow-auto rounded-lg p-3 font-mono text-[10px] leading-relaxed" style="background-color: #0d1117; color: #e6edf3;">
+								<code>{rawData.config}</code>
+							</pre>
+						</div>
+					{/if}
+				{:else}
+					{@const _load = loadRaw()}
+					<div class="flex items-center justify-center py-8">
+						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
+					</div>
+				{/if}
+			</div>
+		{/if}
 <!-- Delete Confirmation Modal -->
 {#if deleteConfirm}
 	<div

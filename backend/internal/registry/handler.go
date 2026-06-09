@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -137,6 +138,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/search/tags", h.SearchTags)
 	r.Get("/cve/check", h.CVECheck)
 	r.Get("/cve/{name}/{tag}", h.CVETagDetail)
+	r.Get("/repos/{name}/{tag}/raw", h.ImageRaw)
 	r.Get("/stats/summary", h.StatsSummary)
 	r.Post("/cleanup/run", h.requireAdmin(h.RunCleanup))
 	r.Get("/cleanup/config", h.GetCleanupConfig)
@@ -1241,12 +1243,23 @@ func (h *Handler) CVETagDetail(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	tag := chi.URLParam(r, "tag")
 
-	query := fmt.Sprintf(`{ CVEListForImage(image: "%s:%s", requestedPage: {limit: 50}) {
+	skip := 0
+	if s := r.URL.Query().Get("skip"); s != "" {
+		if parsed, err := strconv.Atoi(s); err == nil && parsed >= 0 {
+			skip = parsed
+		}
+	}
+	// Cap skip at 500 to prevent abusive queries
+	if skip > 500 {
+		skip = 500
+	}
+
+	query := fmt.Sprintf(`{ CVEListForImage(image: "%s:%s", requestedPage: {limit: 50, offset: {skip: %d}}) {
 		Tag
 		CVEList { Id Title Description Severity PackageList { Name InstalledVersion FixedVersion } }
 		Summary { MaxSeverity Count CriticalCount HighCount MediumCount LowCount UnknownCount }
 		Page { TotalCount }
-	} }`, name, tag)
+	} }`, name, tag, skip)
 
 	resp, err := h.zotGraphQL(query)
 	if err != nil {
@@ -1304,6 +1317,7 @@ func (h *Handler) CVETagDetail(w http.ResponseWriter, r *http.Request) {
 		"cve":     gqlResp.Data.CVEListForImage.CVEList,
 		"summary": summary,
 		"page":    gqlResp.Data.CVEListForImage.Page,
+		"skip":    skip,
 	})
 }
 
@@ -1365,6 +1379,64 @@ func (h *Handler) cveSummaryForTag(name, tag string) map[string]interface{} {
 		return nil
 	}
 	return gqlResp.Data.CVEListForImage.Summary
+}
+
+// ImageRaw returns the raw manifest JSON for a specific image tag.
+// GET /registry/repos/{name}/{tag}/raw
+func (h *Handler) ImageRaw(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	tag := chi.URLParam(r, "tag")
+
+	resp, err := h.zotRequest("/v2/" + name + "/manifests/" + tag)
+	if err != nil {
+		common.Error(w, http.StatusBadGateway, "failed to fetch manifest")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		common.Errorf(w, resp.StatusCode, "manifest error: %s — %s", resp.Status, string(body))
+		return
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	digest := resp.Header.Get("Docker-Content-Digest")
+	contentType := resp.Header.Get("Content-Type")
+
+	// Pretty-print
+	var pretty bytes.Buffer
+	json.Indent(&pretty, body, "", "  ")
+
+	// Try to fetch config blob too
+	var configBlob []byte
+	var manifest struct {
+		Config struct {
+			Digest string `json:"digest"`
+		} `json:"config"`
+	}
+	if err := json.Unmarshal(body, &manifest); err == nil && manifest.Config.Digest != "" {
+		cResp, cErr := h.zotRequest("/v2/" + name + "/blobs/" + manifest.Config.Digest)
+		if cErr == nil && cResp.StatusCode < 400 {
+			cBody, _ := io.ReadAll(cResp.Body)
+			var cPretty bytes.Buffer
+			json.Indent(&cPretty, cBody, "", "  ")
+			configBlob = cPretty.Bytes()
+			cResp.Body.Close()
+		}
+	}
+
+	var configVal interface{} = nil
+	if configBlob != nil {
+		configVal = string(configBlob)
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"manifest":     pretty.String(),
+		"digest":       digest,
+		"content_type": contentType,
+		"config":       configVal,
+	})
 }
 
 // ─── Stats/Summary ──────────────────────────────────────────────────────────
