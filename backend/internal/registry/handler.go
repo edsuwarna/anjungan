@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -127,6 +128,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Delete("/users/{id}", h.requireAdmin(h.DeleteUser))
 	r.Post("/users/{id}/reset-password", h.requireAdmin(h.ResetUserPassword))
 	r.Post("/sync-htpasswd", h.requireAdmin(h.SyncHtpasswd))
+	r.Mount("/webhooks", h.webhookRoutes())
 	return r
 }
 
@@ -958,6 +960,7 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Audit log
+	actor := ""
 	if claims := auth.GetClaims(r.Context()); claims != nil {
 		meta, _ := json.Marshal(map[string]string{
 			"repo":   name,
@@ -968,7 +971,11 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 			"registry.delete", "registry_image", name,
 			fmt.Sprintf("Deleted image %s:%s (%s)", name, tag, shortenDigest(digest)),
 			json.RawMessage(meta))
+		actor = claims.Email
 	}
+
+	// 4. Fire webhook event (async)
+	go h.fireDeleteEvent(context.Background(), name, tag, digest, actor)
 
 	common.JSON(w, http.StatusOK, map[string]string{
 		"status": "deleted",

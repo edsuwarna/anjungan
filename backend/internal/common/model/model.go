@@ -739,3 +739,84 @@ type ComplianceThresholds struct {
 func DefaultComplianceThresholds() ComplianceThresholds {
     return ComplianceThresholds{Compliant: 90, Warning: 70}
 }
+
+// ─── Registry Webhooks ────────────────────────────────────────────────────────
+
+type RegistryWebhook struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	URL       string    `json:"url"`
+	Platform  string    `json:"platform"`
+	Events    string    `json:"events"` // JSON array
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type RegistryWebhookEvent struct {
+	ID          string    `json:"id"`
+	WebhookID   string    `json:"webhook_id,omitempty"`
+	EventType   string    `json:"event_type"`
+	Repo        string    `json:"repo"`
+	Tag         string    `json:"tag"`
+	Digest      string    `json:"digest"`
+	Actor       string    `json:"actor"`
+	Description string    `json:"description"`
+	Payload     *string   `json:"payload,omitempty"`
+	Status      string    `json:"status"`
+	StatusCode  int       `json:"status_code"`
+	Response    string    `json:"response"`
+	CreatedAt   time.Time `json:"created_at"`
+	DeliveredAt *time.Time `json:"delivered_at,omitempty"`
+}
+
+func (w *RegistryWebhook) EventList() []string {
+	var events []string
+	if err := json.Unmarshal([]byte(w.Events), &events); err != nil {
+		return []string{"push", "pull", "delete"}
+	}
+	return events
+}
+
+func (w *RegistryWebhook) PlatformIcon() string {
+	switch w.Platform {
+	case "telegram":
+		return "solar:telegram-bold"
+	case "discord":
+		return "solar:discord-bold"
+	case "slack":
+		return "solar:slack-bold"
+	default:
+		return "solar:link-bold"
+	}
+}
+
+type RegistryWebhookRequest struct {
+	Name     string   `json:"name"`
+	URL      string   `json:"url"`
+	Platform string   `json:"platform"`
+	Events   []string `json:"events"`
+	Enabled  *bool    `json:"enabled,omitempty"`
+}
+
+func (r *RegistryWebhookRequest) Validate() string {
+	if r.URL == "" {
+		return "URL is required"
+	}
+	if r.Platform == "" {
+		r.Platform = "generic"
+	}
+	validPlatforms := map[string]bool{"telegram": true, "discord": true, "slack": true, "generic": true}
+	if !validPlatforms[r.Platform] {
+		return "platform must be telegram, discord, slack, or generic"
+	}
+	if len(r.Events) == 0 {
+		r.Events = []string{"push", "pull", "delete"}
+	}
+	for _, e := range r.Events {
+		if e != "push" && e != "pull" && e != "delete" {
+			return "event must be push, pull, or delete"
+		}
+	}
+	return ""
+}

@@ -46,6 +46,23 @@
 	let showPassword = $state(false);
 let copiedTarget = $state('');
 
+	// ─── Webhook State ──────────────────────────────────────────
+	let webhooks = $state([]);
+	let webhooksLoading = $state(false);
+	let showWebhookModal = $state(false);
+	let webhookModalMode = $state('add'); // 'add' | 'edit'
+	let editWebhookId = $state('');
+	let webhookForm = $state({ name: '', url: '', platform: 'generic', events: ['push', 'pull', 'delete'], enabled: true });
+	let webhookFormError = $state('');
+	let webhookFormLoading = $state(false);
+	let webhookTestResult = $state(null); // { id, status, status_code, error }
+	let webhookTestingId = $state(null);
+	// Event log
+	let webhookEvents = $state([]);
+	let webhookEventsTotal = $state(0);
+	let webhookEventsLoading = $state(false);
+	let showWebhookEvents = $state(false);
+
 	// ─── Derived ───
 	let isAdmin = $derived($user?.role === 'admin');
 	let filteredRepos = $derived.by(() => {
@@ -62,6 +79,7 @@ let copiedTarget = $state('');
 		loadCredentials();
 		loadRepos();
 		loadUsers();
+		loadWebhooks();
 	});
 
 	async function loadConfig() {
@@ -378,6 +396,147 @@ let copiedTarget = $state('');
 			if (copiedTarget === target) copiedTarget = '';
 		}, 2000);
 	}
+
+	// ─── Webhook Functions ──────────────────────────────────────
+
+	async function loadWebhooks() {
+		webhooksLoading = true;
+		try {
+			const data = await api.registry.webhooks.list();
+			webhooks = Array.isArray(data) ? data : [];
+		} catch (e) {
+			// ignore
+		} finally {
+			webhooksLoading = false;
+		}
+	}
+
+	async function loadWebhookEvents() {
+		webhookEventsLoading = true;
+		try {
+			const data = await api.registry.webhooks.events({ limit: 30 });
+			webhookEvents = data?.events || [];
+			webhookEventsTotal = data?.total || 0;
+		} catch (e) {
+			// ignore
+		} finally {
+			webhookEventsLoading = false;
+		}
+	}
+
+	function openAddWebhook() {
+		webhookModalMode = 'add';
+		editWebhookId = '';
+		webhookForm = { name: '', url: '', platform: 'generic', events: ['push', 'pull', 'delete'], enabled: true };
+		webhookFormError = '';
+		webhookTestResult = null;
+		showWebhookModal = true;
+	}
+
+	function openEditWebhook(hook) {
+		webhookModalMode = 'edit';
+		editWebhookId = hook.id;
+		webhookForm = {
+			name: hook.name,
+			url: hook.url,
+			platform: hook.platform,
+			events: Array.isArray(hook.events) ? hook.events : JSON.parse(hook.events || '["push","pull","delete"]'),
+			enabled: hook.enabled
+		};
+		webhookFormError = '';
+		webhookTestResult = null;
+		showWebhookModal = true;
+	}
+
+	function closeWebhookModal() {
+		showWebhookModal = false;
+		webhookTestResult = null;
+	}
+
+	async function submitWebhookForm() {
+		webhookFormError = '';
+		if (!webhookForm.url) {
+			webhookFormError = 'URL is required';
+			return;
+		}
+		webhookFormLoading = true;
+		try {
+			const payload = {
+				name: webhookForm.name,
+				url: webhookForm.url,
+				platform: webhookForm.platform,
+				events: webhookForm.events,
+			};
+			if (webhookModalMode === 'add') {
+				payload.enabled = webhookForm.enabled;
+				await api.registry.webhooks.create(payload);
+			} else {
+				await api.registry.webhooks.update(editWebhookId, payload);
+			}
+			await loadWebhooks();
+			closeWebhookModal();
+		} catch (e) {
+			webhookFormError = e.message || 'Operation failed';
+		} finally {
+			webhookFormLoading = false;
+		}
+	}
+
+	async function deleteWebhook(id) {
+		if (!confirm('Delete this webhook? This cannot be undone.')) return;
+		try {
+			await api.registry.webhooks.delete(id);
+			await loadWebhooks();
+		} catch (e) {
+			error = e.message || 'Failed to delete webhook';
+		}
+	}
+
+	async function testWebhook(id) {
+		webhookTestingId = id;
+		webhookTestResult = null;
+		try {
+			const result = await api.registry.webhooks.test(id);
+			webhookTestResult = { id, ...result };
+		} catch (e) {
+			webhookTestResult = { id, status: 'failed', error: e.message };
+		} finally {
+			webhookTestingId = null;
+		}
+	}
+
+	function toggleWebhookEvents() {
+		showWebhookEvents = !showWebhookEvents;
+		if (showWebhookEvents && webhookEvents.length === 0) {
+			loadWebhookEvents();
+		}
+	}
+
+	function webhookPlatformIcon(platform) {
+		const icons = { telegram: 'solar:telegram-bold', discord: 'solar:discord-bold', slack: 'solar:slack-bold', generic: 'solar:link-bold' };
+		return icons[platform] || 'solar:link-bold';
+	}
+
+	function webhookEventStatusIcon(status) {
+		if (status === 'delivered') return 'solar:check-circle-bold';
+		if (status === 'failed') return 'solar:danger-triangle-bold';
+		return 'solar:clock-circle-bold';
+	}
+
+	function webhookEventStatusColor(status) {
+		if (status === 'delivered') return 'var(--color-success)';
+		if (status === 'failed') return 'var(--color-danger)';
+		return 'var(--color-warning)';
+	}
+
+	function webhookEventTypeIcon(type) {
+		switch (type) {
+			case 'push': return '📦';
+			case 'delete': return '🗑';
+			case 'test': return '🧪';
+			default: return '🔔';
+		}
+	}
 </script>
 
 <div class="page-container">
@@ -595,6 +754,166 @@ let copiedTarget = $state('');
 		{:else}
 			<div class="rounded-lg border p-4 text-center" style="border-color: var(--color-border);">
 				<p class="text-xs" style="color: var(--color-text-muted);">No registry users configured. Add a user to enable Docker login.</p>
+			</div>
+		{/if}
+	</div>
+	{/if}
+
+	<!-- Registry Webhooks -->
+	{#if isAdmin}
+	<div class="card p-5">
+		<div class="flex items-center justify-between mb-3">
+			<div class="flex items-center gap-2">
+				<Icon icon="solar:bell-bing-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+				<h3 class="text-sm font-semibold" style="color: var(--color-text);">Webhook Notifications</h3>
+				<span class="rounded-full px-2 py-0.5 text-[10px] font-medium" style="background-color: var(--color-primary-subtle); color: var(--color-primary);">{webhooks.length}</span>
+			</div>
+			<div class="flex items-center gap-2">
+				<button
+					class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+					style="color: var(--color-text-secondary); border: 1px solid var(--color-border);"
+					onclick={toggleWebhookEvents}
+				>
+					<Icon icon="solar:history-bold" class="h-3.5 w-3.5" />
+					Events
+				</button>
+				<button
+					class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+					style="background-color: var(--color-primary); color: #fff;"
+					onclick={openAddWebhook}
+				>
+					<Icon icon="solar:add-circle-bold" class="h-3.5 w-3.5" />
+					Add Webhook
+				</button>
+			</div>
+		</div>
+
+		{#if webhooks.length > 0}
+			<div class="space-y-2">
+				{#each webhooks as hook}
+					<div class="flex items-center justify-between rounded-lg p-3" style="background-color: var(--color-primary-subtle);">
+						<div class="flex items-center gap-3 min-w-0 flex-1">
+							<Icon icon={webhookPlatformIcon(hook.platform)} class="h-4 w-4 flex-shrink-0" style="color: var(--color-primary);" />
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-2">
+									<span class="text-xs font-medium" style="color: var(--color-text);">{hook.name || hook.platform}</span>
+									<span class="rounded px-1.5 py-0.5 text-[9px] font-medium uppercase" style="background-color: rgba(100,116,139,0.15); color: var(--color-text-muted);">{hook.platform}</span>
+									{#if !hook.enabled}
+										<span class="rounded px-1.5 py-0.5 text-[9px] font-medium uppercase" style="background-color: rgba(245,158,11,0.15); color: var(--color-warning);">Paused</span>
+									{/if}
+								</div>
+								<p class="mt-0.5 truncate text-[10px]" style="color: var(--color-text-muted);">{hook.url}</p>
+								<div class="mt-1 flex items-center gap-1.5">
+									{@const evts = Array.isArray(hook.events) ? hook.events : JSON.parse(hook.events || '[]')}
+									{#each evts as ev}
+										<span class="rounded px-1.5 py-0.5 text-[9px]" style="background-color: rgba(59,130,246,0.1); color: var(--color-info, #3b82f6);">{ev}</span>
+									{/each}
+								</div>
+							</div>
+						</div>
+						<div class="flex items-center gap-1 flex-shrink-0 ml-2">
+							<button
+								class="rounded-md p-1.5 transition-colors"
+								style="color: var(--color-text-muted);"
+								onclick={() => testWebhook(hook.id)}
+								disabled={webhookTestingId === hook.id}
+								title="Test webhook"
+							>
+								{#if webhookTestingId === hook.id}
+									<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
+								{:else}
+									<Icon icon="solar:play-stream-bold" class="h-3.5 w-3.5" />
+								{/if}
+							</button>
+							<button
+								class="rounded-md p-1.5 transition-colors"
+								style="color: var(--color-text-muted);"
+								onclick={() => openEditWebhook(hook)}
+								title="Edit webhook"
+							>
+								<Icon icon="solar:pen-outline" class="h-3.5 w-3.5" />
+							</button>
+							<button
+								class="rounded-md p-1.5 transition-colors"
+								style="color: var(--color-danger);"
+								onclick={() => deleteWebhook(hook.id)}
+								title="Delete webhook"
+							>
+								<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
+							</button>
+						</div>
+					</div>
+
+					<!-- Test result inline -->
+					{#if webhookTestResult && webhookTestResult.id === hook.id}
+						<div class="mt-1 rounded-lg p-2 text-xs" style="background-color: {webhookTestResult.status === 'delivered' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)'};">
+							<span style="color: {webhookTestResult.status === 'delivered' ? 'var(--color-success)' : 'var(--color-danger)'};">
+								{#if webhookTestResult.status === 'delivered'}
+									✓ Delivered (HTTP {webhookTestResult.status_code})
+								{:else}
+									✗ Failed — {webhookTestResult.error || 'HTTP ' + webhookTestResult.status_code}
+								{/if}
+							</span>
+						</div>
+					{/if}
+				{/each}
+			</div>
+		{:else if !webhooksLoading}
+			<div class="rounded-lg border p-4 text-center" style="border-color: var(--color-border);">
+				<p class="text-xs" style="color: var(--color-text-muted);">No webhooks configured. Add a webhook to get notified of registry events.</p>
+				<p class="mt-1 text-[10px]" style="color: var(--color-text-muted);">Supports Telegram, Discord, Slack, and generic webhook URLs.</p>
+			</div>
+		{/if}
+
+		<!-- Webhook Events Log -->
+		{#if showWebhookEvents}
+			<div class="mt-4 rounded-lg border" style="border-color: var(--color-border);">
+				<div class="flex items-center justify-between px-4 py-2.5 border-b" style="border-color: var(--color-border);">
+					<span class="text-xs font-medium" style="color: var(--color-text);">Event Timeline ({webhookEventsTotal} total)</span>
+					<button
+						class="rounded-md p-1 transition-colors"
+						style="color: var(--color-text-muted);"
+						onclick={toggleWebhookEvents}
+					>
+						<Icon icon="solar:close-circle-outline" class="h-3.5 w-3.5" />
+					</button>
+				</div>
+				<div class="max-h-60 overflow-y-auto">
+					{#if webhookEventsLoading}
+						<div class="flex items-center justify-center gap-2 py-4">
+							<Icon icon="solar:spinner-bold" class="h-4 w-4 animate-spin" style="color: var(--color-primary);" />
+							<span class="text-xs" style="color: var(--color-text-muted);">Loading events...</span>
+						</div>
+					{:else if webhookEvents.length > 0}
+						{#each webhookEvents as ev}
+							<div class="flex items-start gap-3 px-4 py-2.5 border-b last:border-b-0" style="border-color: var(--color-border-light);">
+								<span class="text-xs">{webhookEventTypeIcon(ev.event_type)}</span>
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2">
+										<span class="text-xs font-medium" style="color: var(--color-text);">{ev.repo}</span>
+										{#if ev.tag}
+											<span class="font-mono text-[10px]" style="color: var(--color-text-muted);">:{ev.tag}</span>
+										{/if}
+										<span class="rounded px-1 py-0.5 text-[9px] uppercase" style="background-color: {webhookEventStatusColor(ev.status)}20; color: {webhookEventStatusColor(ev.status)};">{ev.status}</span>
+									</div>
+									<div class="flex items-center gap-2 mt-0.5">
+										<span class="text-[10px]" style="color: var(--color-text-muted);">{ev.event_type}</span>
+										{#if ev.actor}
+											<span class="text-[10px]" style="color: var(--color-text-muted);">by {ev.actor}</span>
+										{/if}
+										<span class="text-[10px]" style="color: var(--color-text-muted);">{formatDate(ev.created_at)}</span>
+									</div>
+								</div>
+								<Icon icon={webhookEventStatusIcon(ev.status)} class="h-3.5 w-3.5 flex-shrink-0" style="color: {webhookEventStatusColor(ev.status)};" />
+							</div>
+						{/each}
+					{:else}
+						<div class="py-4 text-center">
+							<p class="text-xs" style="color: var(--color-text-muted);">No events recorded yet.</p>
+							<p class="text-[10px]" style="color: var(--color-text-muted);">Events will appear when images are pushed or deleted.</p>
+						</div>
+					{/if}
+				</div>
 			</div>
 		{/if}
 	</div>
@@ -909,6 +1228,116 @@ let copiedTarget = $state('');
 					</button>
 				</div>
 			{/if}
+		</div>
+	</div>
+{/if}
+
+<!-- Webhook Modal (Add/Edit) -->
+{#if showWebhookModal}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center"
+		style="background-color: rgba(0,0,0,0.6);"
+		onclick={closeWebhookModal}
+	>
+		<div
+			class="mx-4 w-full max-w-md rounded-xl border shadow-2xl"
+			style="background-color: var(--color-card); border-color: var(--color-border);"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="p-5">
+				<div class="flex items-center gap-2 mb-4">
+					<Icon icon="solar:bell-bing-bold" class="h-5 w-5" style="color: var(--color-primary);" />
+					<h3 class="text-sm font-semibold" style="color: var(--color-text);">
+						{webhookModalMode === 'add' ? 'Add Webhook' : 'Edit Webhook'}
+					</h3>
+				</div>
+
+				<div class="space-y-3">
+					<div>
+						<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Name <span class="text-[10px]" style="color: var(--color-text-muted);">(optional)</span></label>
+						<input
+							type="text"
+							bind:value={webhookForm.name}
+							class="w-full rounded-lg border px-3 py-2 text-xs"
+							style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
+							placeholder="e.g. Telegram Alerts"
+						/>
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Platform</label>
+						<select
+							bind:value={webhookForm.platform}
+							class="w-full rounded-lg border px-3 py-2 text-xs"
+							style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
+						>
+							<option value="telegram">Telegram</option>
+							<option value="discord">Discord</option>
+							<option value="slack">Slack</option>
+							<option value="generic">Generic Webhook</option>
+						</select>
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Webhook URL</label>
+						<input
+							type="url"
+							bind:value={webhookForm.url}
+							class="w-full rounded-lg border px-3 py-2 text-xs font-mono"
+							style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
+							placeholder="https://hooks.example.com/..."
+						/>
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Trigger Events</label>
+						<div class="flex flex-wrap gap-3">
+							<label class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs cursor-pointer" style="border-color: var(--color-border); color: var(--color-text);">
+								<input type="checkbox" value="push" bind:group={webhookForm.events} class="h-3.5 w-3.5" />
+								📦 Push
+							</label>
+							<label class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs cursor-pointer" style="border-color: var(--color-border); color: var(--color-text);">
+								<input type="checkbox" value="pull" bind:group={webhookForm.events} class="h-3.5 w-3.5" />
+								⬇️ Pull
+							</label>
+							<label class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs cursor-pointer" style="border-color: var(--color-border); color: var(--color-text);">
+								<input type="checkbox" value="delete" bind:group={webhookForm.events} class="h-3.5 w-3.5" />
+								🗑 Delete
+							</label>
+						</div>
+					</div>
+					{#if webhookModalMode === 'add'}
+						<div>
+							<label class="inline-flex items-center gap-2 text-xs cursor-pointer" style="color: var(--color-text);">
+								<input type="checkbox" bind:checked={webhookForm.enabled} class="h-3.5 w-3.5" />
+								Enable immediately
+							</label>
+						</div>
+					{/if}
+					{#if webhookFormError}
+						<div class="rounded-md p-2 text-xs" style="background-color: rgba(239,68,68,0.08); color: var(--color-danger);">
+							{webhookFormError}
+						</div>
+					{/if}
+				</div>
+			</div>
+			<div class="flex items-center justify-end gap-2 rounded-b-xl border-t px-5 py-3" style="border-color: var(--color-border); background-color: var(--color-topbar-bg);">
+				<button
+					class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+					style="color: var(--color-text-secondary);"
+					onclick={closeWebhookModal}
+				>Cancel</button>
+				<button
+					class="inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-medium text-white transition-colors"
+					style="background-color: var(--color-primary);"
+					onclick={submitWebhookForm}
+					disabled={webhookFormLoading}
+				>
+					{#if webhookFormLoading}
+						<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
+						Saving...
+					{:else}
+						{webhookModalMode === 'add' ? 'Create Webhook' : 'Save Changes'}
+					{/if}
+				</button>
+			</div>
 		</div>
 	</div>
 {/if}

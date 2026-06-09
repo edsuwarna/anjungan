@@ -147,6 +147,19 @@ export const api = {
 		deleteUser: (id) => request(`/registry/users/${id}`, { method: 'DELETE' }),
 		resetPassword: (id, data) => request(`/registry/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify(data) }),
 		syncHtpasswd: () => request('/registry/sync-htpasswd', { method: 'POST' }),
+		// Webhooks
+		webhooks: {
+			list: () => request('/registry/webhooks'),
+			get: (id) => request(`/registry/webhooks/${id}`),
+			create: (data) => request('/registry/webhooks', { method: 'POST', body: JSON.stringify(data) }),
+			update: (id, data) => request(`/registry/webhooks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+			delete: (id) => request(`/registry/webhooks/${id}`, { method: 'DELETE' }),
+			test: (id) => request(`/registry/webhooks/${id}/test`, { method: 'POST' }),
+			events: (params) => {
+				const q = params ? '?' + new URLSearchParams(params).toString() : '';
+				return request(`/registry/webhooks/events${q}`);
+			},
+		},
 	},
 
 	repositories: {
