@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/edsuwarna/anjungan/internal/audit"
 	"github.com/edsuwarna/anjungan/internal/common"
@@ -111,4 +112,100 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 	common.Error(w, http.StatusNotImplemented, "not implemented yet")
+}
+
+// ─── Self-service types ────────────────────────────────────────────────────
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+type UpdateProfileRequest struct {
+	Name  *string `json:"name,omitempty"`
+	Email *string `json:"email,omitempty"`
+}
+
+// extractClaims validates the Bearer token and returns claims.
+func extractClaims(svc *Service, r *http.Request) *Claims {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return nil
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenStr == authHeader {
+		return nil
+	}
+	claims, err := svc.ValidateAccessToken(tokenStr)
+	if err != nil {
+		return nil
+	}
+	return claims
+}
+
+// ChangePassword updates the authenticated user's password.
+func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	var req ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		common.Error(w, http.StatusBadRequest, "current_password and new_password are required")
+		return
+	}
+	claims := extractClaims(h.svc, r)
+	if claims == nil {
+		common.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if err := h.svc.ChangePassword(r.Context(), claims.Email, req.CurrentPassword, req.NewPassword); err != nil {
+		if errors.Is(err, ErrInvalidCredentials) {
+			common.Error(w, http.StatusUnauthorized, "current password is incorrect")
+			return
+		}
+		if errors.Is(err, ErrPasswordTooShort) {
+			common.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		common.Error(w, http.StatusInternalServerError, "failed to change password")
+		return
+	}
+	common.JSON(w, http.StatusOK, map[string]string{"message": "password changed"})
+}
+
+// UpdateProfile updates the authenticated user's name and/or email.
+func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	var req UpdateProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Name == nil && req.Email == nil {
+		common.Error(w, http.StatusBadRequest, "at least one field (name or email) must be provided")
+		return
+	}
+	claims := extractClaims(h.svc, r)
+	if claims == nil {
+		common.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	newName := ""
+	if req.Name != nil {
+		newName = *req.Name
+	}
+	newEmail := ""
+	if req.Email != nil {
+		newEmail = *req.Email
+	}
+	user, err := h.svc.UpdateProfile(r.Context(), claims.Email, newName, newEmail)
+	if err != nil {
+		if err.Error() == "email already in use" {
+			common.Error(w, http.StatusConflict, "email already in use")
+			return
+		}
+		common.Error(w, http.StatusInternalServerError, "failed to update profile")
+		return
+	}
+	common.JSON(w, http.StatusOK, user)
 }
