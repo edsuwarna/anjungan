@@ -1,8 +1,8 @@
 <script>
 	import { onMount } from 'svelte';
-	import { api } from '$lib/api.svelte.js';
-	import { user } from '$lib/stores/auth.js';
-	import Icon from '@iconify/svelte';
+import { api, setAuthToken } from '$lib/api.svelte.js';
+import { user } from '$lib/stores/auth.js';
+import Icon from '@iconify/svelte';
 
 	let loading = $state(true);
 
@@ -57,8 +57,18 @@
 				return;
 			}
 			const updated = await api.auth.updateProfile(payload);
-			localStorage.setItem('user', JSON.stringify(updated));
-			user.set(updated);
+			if (updated.access_token) {
+				// Backend returned new token pair (email changed or always re-issued)
+				localStorage.setItem('access_token', updated.access_token);
+				localStorage.setItem('refresh_token', updated.refresh_token);
+				localStorage.setItem('user', JSON.stringify(updated.user));
+				setAuthToken(updated.access_token);
+				user.set(updated.user);
+			} else {
+				// Fallback: old response shape (just user object)
+				localStorage.setItem('user', JSON.stringify(updated));
+				user.set(updated);
+			}
 			profileSuccess = 'Profile updated';
 		} catch (e) {
 			profileError = e.message;

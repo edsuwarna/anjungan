@@ -181,6 +181,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateProfile updates the authenticated user's name and/or email.
+// If the email was changed, a new JWT token pair is issued with the updated claims.
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var req UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -213,5 +214,21 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		common.Error(w, http.StatusInternalServerError, "failed to update profile")
 		return
 	}
-	common.JSON(w, http.StatusOK, user)
+
+	// Always re-issue tokens so the JWT claims (especially email) stay in sync
+	ip := audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+	meta, _ := json.Marshal(map[string]string{
+		"user_name": user.Name,
+		"user_role": user.Role,
+	})
+	audit.Log(h.repo, user.ID, user.Email, ip,
+		"auth.profile_update", "user", user.ID,
+		"User updated profile", json.RawMessage(meta))
+
+	resp, err := h.svc.generateTokenPair(user)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+	common.JSON(w, http.StatusOK, resp)
 }
