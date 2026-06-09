@@ -55,7 +55,11 @@
 			const data = await api.registry.detail(name, tag);
 			detail = data;
 			// Check CVE availability
-			loadCve();
+			try {
+				await loadCve();
+			} catch (cveErr) {
+				cveAvailable = false;
+			}
 		} catch (e) {
 			error = e.message || 'Failed to load image details';
 		} finally {
@@ -688,9 +692,10 @@
 </div>
 
 
-		<!-- Tab: Raw JSON -->
-		{#if activeTab === 'raw'}
-			<div class="card p-4">
+\t\t\t\t\t<!-- Tab: Raw JSON -->
+\t\t{#if activeTab === 'raw'}
+\t\t\t{@const _ = loadRaw()}
+\t\t\t<div class="card p-4">
 				<div class="mb-3 flex items-center justify-between">
 					<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Raw Manifest</h3>
 					{#if rawData?.content_type}
@@ -742,7 +747,6 @@
 						</div>
 					{/if}
 				{:else}
-					{@const _load = loadRaw()}
 					<div class="flex items-center justify-center py-8">
 						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
 					</div>

@@ -182,12 +182,27 @@
 	}
 
 	// ─── Delete Handlers ───
+	function promptDeleteTag(repo, tag) {
+		if (isTagProtected(repo, tag)) {
+			error = `⚠️ Tag "${repo}:${tag}" is protected. Unprotect it first before deleting.`;
+			return;
+		}
+		deleteTagTarget = { repo, tag };
+	}
+
 	async function confirmDeleteTag() {
 		if (!deleteTagTarget) return;
+		const { repo, tag } = deleteTagTarget;
+		// Double-check protection before delete
+		if (isTagProtected(repo, tag)) {
+			error = `⚠️ Tag "${repo}:${tag}" is protected. Unprotect it first before deleting.`;
+			deleteTagTarget = null;
+			return;
+		}
 		deleting = true;
 		try {
-			await api.registry.deleteTag(deleteTagTarget.repo, deleteTagTarget.tag);
-			tags = tags.filter(t => t.name !== deleteTagTarget.tag);
+			await api.registry.deleteTag(repo, tag);
+			tags = tags.filter(t => t.name !== tag);
 			deleteTagTarget = null;
 		} catch (e) {
 			error = e.message || 'Failed to delete tag';
@@ -455,7 +470,7 @@
 							<button
 								class="rounded-md p-1.5 transition-colors hover:opacity-80"
 								style="color: {isTagProtected(name, tag.name) ? 'var(--color-warning)' : 'var(--color-text-muted)'};"
-								onclick={() => deleteTagTarget = { repo: name, tag: tag.name }}
+								onclick={() => promptDeleteTag(name, tag.name)}
 								title={isTagProtected(name, tag.name) ? 'Protected — unprotect first' : 'Delete tag'}
 							>
 								<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
