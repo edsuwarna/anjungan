@@ -1,7 +1,7 @@
 # Anjungan — PRD: SSL Certificate Monitoring
 
-> **Version:** 1.0
-> **Status:** 🟡 In Development — Branch `feat/ssl-monitoring`
+> **Version:** 2.0
+> **Status:** 🟡 In Development — Branch `feat/ssl-monitoring` (Phase 2 ✅, Phase 3 pending)
 > **Author:** Endang Suwarna
 > **Last Updated:** June 10, 2026
 
