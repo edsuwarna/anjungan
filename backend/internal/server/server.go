@@ -120,6 +120,8 @@ func authRoutes(h *auth.Handler) chi.Router {
 	r.Post("/verify-2fa", h.Verify2FA)
 	r.Get("/me", h.Me)
 	r.Post("/logout", h.Logout)
+	r.Put("/password", h.ChangePassword)
+	r.Put("/profile", h.UpdateProfile)
 	return r
 }
 
