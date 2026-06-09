@@ -279,7 +279,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		changes = append(changes, "password")
 	}
 
-	if len(changes) == 0 {
+	if len(changes) == 0 && req.AllowedGroups == nil {
 		common.JSON(w, http.StatusOK, map[string]string{"message": "no changes"})
 		return
 	}
@@ -289,7 +289,7 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update allowed server groups
+	// Update allowed server groups (must happen before audit log)
 	if req.AllowedGroups != nil {
 		_ = h.repo.SetUserServerGroups(r.Context(), user.ID, req.AllowedGroups)
 		changes = append(changes, "allowed_groups")
