@@ -84,6 +84,9 @@ let copiedTarget = $state('');
 	let registryHealth = $state(null);
 	let healthLoading = $state(true);
 
+	// ─── Activity State ─────────────────────────────────────────
+	let showAllEvents = $state(false);
+
 	// ─── Stats State ────────────────────────────────────────────
 	let statsSummary = $state(null);
 	let statsLoading = $state(false);
@@ -114,6 +117,7 @@ let copiedTarget = $state('');
 		loadStatsSummary();
 		loadUsers();
 		loadWebhooks();
+		loadWebhookEvents();
 		loadProtections();
 		loadCveStatus();
 	});
@@ -1204,6 +1208,48 @@ let copiedTarget = $state('');
 			<div class="rounded-lg h-20 animate-pulse" style="background-color: var(--color-primary-subtle);"></div>
 			<div class="rounded-lg h-20 animate-pulse" style="background-color: var(--color-primary-subtle);"></div>
 		</div>
+	{/if}
+
+	<!-- Recent Activity -->
+	{#if webhookEvents.length > 0}
+	<div class="card p-4 mb-3">
+		<div class="flex items-center justify-between mb-3">
+			<div class="flex items-center gap-2">
+				<Icon icon="solar:clock-circle-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+				<h3 class="text-sm font-semibold" style="color: var(--color-text);">Recent Activity</h3>
+			</div>
+			<button
+				class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
+				style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
+				onclick={() => showAllEvents = !showAllEvents}
+			>
+				<Icon icon={showAllEvents ? 'solar:alt-arrow-up-outline' : 'solar:alt-arrow-down-outline'} class="h-3 w-3" />
+				{showAllEvents ? 'Show Less' : `View All (${webhookEventsTotal})`}
+			</button>
+		</div>
+		<div class="space-y-1">
+			{#each (showAllEvents ? webhookEvents : webhookEvents.slice(0, 5)) as ev}
+				<div class="flex items-start gap-2 rounded-lg px-3 py-1.5" style="background-color: var(--color-primary-subtle);">
+					<span class="mt-0.5 text-xs">{webhookEventTypeIcon(ev.event_type)}</span>
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center gap-1.5 flex-wrap">
+							<span class="text-xs font-medium" style="color: var(--color-text);">{ev.repo}</span>
+							{#if ev.tag}
+								<span class="font-mono text-[10px]" style="color: var(--color-text-muted);">:{ev.tag}</span>
+							{/if}
+							<span class="rounded px-1 py-0.5 text-[9px] uppercase" style="background-color: {webhookEventStatusColor(ev.status)}20; color: {webhookEventStatusColor(ev.status)};">{ev.event_type}</span>
+						</div>
+						<div class="flex items-center gap-2 mt-0.5">
+							{#if ev.actor}
+								<span class="text-[10px]" style="color: var(--color-text-muted);">by {ev.actor}</span>
+							{/if}
+							<span class="text-[10px]" style="color: var(--color-text-muted);">{formatDate(ev.created_at)}</span>
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	</div>
 	{/if}
 
 	<!-- Search + Stats -->
