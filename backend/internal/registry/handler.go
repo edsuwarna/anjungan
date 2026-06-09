@@ -1303,6 +1303,7 @@ func (h *Handler) CVETagDetail(w http.ResponseWriter, r *http.Request) {
 		"tag":     tag,
 		"cve":     gqlResp.Data.CVEListForImage.CVEList,
 		"summary": summary,
+		"page":    gqlResp.Data.CVEListForImage.Page,
 	})
 }
 

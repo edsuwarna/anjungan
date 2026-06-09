@@ -502,7 +502,7 @@
 									{@const pkgList = cve.PackageList || cve.packageList || cve.Packages || []}
 									{@const mainPkg = Array.isArray(pkgList) && pkgList.length > 0 ? pkgList[0] : null}
 									<div class="flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:opacity-90" style="border-color: var(--color-border);">
-										<span class="severity-pill flex-shrink-0 mt-0.5" style="font-size: 10px; min-width: 52px; text-align: center; {cve.Severity === 'CRITICAL' ? 'background: rgba(239,68,68,0.12); color: #ef4444;' : cve.Severity === 'HIGH' ? 'background: rgba(245,158,11,0.12); color: #f59e0b;' : cve.Severity === 'MEDIUM' ? 'background: rgba(139,92,246,0.12); color: #8b5cf6;' : 'background: rgba(34,197,94,0.12); color: #22c55e;'}">
+										<span class="severity-pill flex-shrink-0 mt-0.5" style="font-size: 10px; min-width: 52px; text-align: center; {cve.Severity === 'CRITICAL' ? 'background: rgba(239,68,68,0.12); color: #ef4444;' : cve.Severity === 'HIGH' ? 'background: rgba(249,115,22,0.12); color: #f97316;' : cve.Severity === 'MEDIUM' ? 'background: rgba(234,179,8,0.12); color: #eab308;' : 'background: rgba(34,197,94,0.12); color: #22c55e;'}">
 											{cve.Severity || 'UNKNOWN'}
 										</span>
 										<div class="min-w-0 flex-1">
@@ -542,7 +542,21 @@
 							</div>
 						{/if}
 
-						<p class="mt-3 text-xs" style="color: var(--color-text-secondary);">Total: {total} vulnerabilities found</p>
+						<!-- Pagination info -->
+						{@const pageMeta = cveData?.page?.TotalCount ?? cveData?.page?.totalCount ?? null}
+						{@const shownCount = cveList.length}
+						{#if pageMeta !== null && pageMeta > shownCount}
+							<div class="mt-3 flex items-center justify-between">
+								<p class="text-xs" style="color: var(--color-text-muted);">
+									Showing <strong style="color: var(--color-text);">{shownCount}</strong> of <strong style="color: var(--color-text);">{pageMeta}</strong> vulnerabilities
+								</p>
+								<span class="text-[10px]" style="color: var(--color-text-muted);">(limit: 50 per page)</span>
+							</div>
+						{:else if pageMeta !== null}
+							<p class="mt-3 text-xs" style="color: var(--color-text-secondary);">
+								All <strong>{pageMeta}</strong> vulnerabilities shown
+							</p>
+						{/if}
 					{:else}
 						<div class="rounded-lg p-6 text-center" style="background-color: rgba(16,185,129,0.08);">
 							<Icon icon="solar:shield-check-bold" class="h-8 w-8 mx-auto mb-2" style="color: var(--color-success);" />
