@@ -19,10 +19,6 @@
           "policies": [
             {
               "users": ["**"],
-              "actions": ["read"]
-            },
-            {
-              "users": ["deploy"],
               "actions": ["read", "create"]
             },
             {
