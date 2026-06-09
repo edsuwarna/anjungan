@@ -22,8 +22,8 @@
 	}
 
 	function sortIcon(col) {
-		if (sortColumn !== col) return 'solar:arrow-up-wide-narrow-linear';
-		return sortOrder === 'asc' ? 'solar:sort-from-top-bold' : 'solar:sort-from-bottom-bold';
+		if (sortColumn !== col) return 'solar:sort-bold';
+		return sortOrder === 'asc' ? 'solar:sort-from-bottom-to-top-bold' : 'solar:sort-from-top-to-bottom-bold';
 	}
 
 	let sortedUsers = $derived([...users].sort((a, b) => {
@@ -280,44 +280,44 @@
 			<div class="data-table min-w-0 md:min-w-[520px]">
 				<table class="w-full">
 					<thead>
-\t\t\t\t\t\t<tr>
-\t\t\t\t\t\t\t<th style="cursor: pointer;" onclick={() => toggleSort('name')}>
-\t\t\t\t\t\t\t\t<div class="flex items-center gap-1">
-\t\t\t\t\t\t\t\t\tName
-\t\t\t\t\t\t\t\t\t<Icon icon={sortIcon('name')} class="h-3 w-3" />
-\t\t\t\t\t\t\t\t</div>
-\t\t\t\t\t\t\t</th>
-\t\t\t\t\t\t\t<th class="hidden sm:table-cell" style="cursor: pointer;" onclick={() => toggleSort('email')}>
-\t\t\t\t\t\t\t\t<div class="flex items-center gap-1">
-\t\t\t\t\t\t\t\t\tEmail
-\t\t\t\t\t\t\t\t\t<Icon icon={sortIcon('email')} class="h-3 w-3" />
-\t\t\t\t\t\t\t\t</div>
-\t\t\t\t\t\t\t</th>
-\t\t\t\t\t\t\t<th class="hidden md:table-cell" style="cursor: pointer;" onclick={() => toggleSort('role')}>
-\t\t\t\t\t\t\t\t<div class="flex items-center gap-1">
-\t\t\t\t\t\t\t\t\tRole
-\t\t\t\t\t\t\t\t\t<Icon icon={sortIcon('role')} class="h-3 w-3" />
-\t\t\t\t\t\t\t\t</div>
-\t\t\t\t\t\t\t</th>
-\t\t\t\t\t\t\t<th class="hidden xl:table-cell">Groups</th>
-\t\t\t\t\t\t\t<th class="hidden xl:table-cell">2FA</th>
-\t\t\t\t\t\t\t<th class="hidden xl:table-cell" style="cursor: pointer;" onclick={() => toggleSort('status')}>
-\t\t\t\t\t\t\t\t<div class="flex items-center gap-1">
-\t\t\t\t\t\t\t\t\tStatus
-\t\t\t\t\t\t\t\t\t<Icon icon={sortIcon('status')} class="h-3 w-3" />
-\t\t\t\t\t\t\t\t</div>
-\t\t\t\t\t\t\t</th>
-\t\t\t\t\t\t\t<th class="hidden xl:table-cell" style="cursor: pointer;" onclick={() => toggleSort('created_at')}>
-\t\t\t\t\t\t\t\t<div class="flex items-center gap-1">
-\t\t\t\t\t\t\t\t\tCreated
-\t\t\t\t\t\t\t\t\t<Icon icon={sortIcon('created_at')} class="h-3 w-3" />
-\t\t\t\t\t\t\t\t</div>
-\t\t\t\t\t\t\t</th>
-\t\t\t\t\t\t\t<th class="w-20 md:w-24">Actions</th>
-\t\t\t\t\t\t</tr>
+						<tr>
+							<th style="cursor: pointer;" onclick={() => toggleSort('name')}>
+								<div class="flex items-center gap-1">
+									Name
+									<Icon icon={sortIcon('name')} class="h-3 w-3" />
+								</div>
+							</th>
+							<th class="hidden sm:table-cell" style="cursor: pointer;" onclick={() => toggleSort('email')}>
+								<div class="flex items-center gap-1">
+									Email
+									<Icon icon={sortIcon('email')} class="h-3 w-3" />
+								</div>
+							</th>
+							<th class="hidden md:table-cell" style="cursor: pointer;" onclick={() => toggleSort('role')}>
+								<div class="flex items-center gap-1">
+									Role
+									<Icon icon={sortIcon('role')} class="h-3 w-3" />
+								</div>
+							</th>
+							<th class="hidden xl:table-cell">Groups</th>
+							<th class="hidden xl:table-cell">2FA</th>
+							<th class="hidden xl:table-cell" style="cursor: pointer;" onclick={() => toggleSort('status')}>
+								<div class="flex items-center gap-1">
+									Status
+									<Icon icon={sortIcon('status')} class="h-3 w-3" />
+								</div>
+							</th>
+							<th class="hidden xl:table-cell" style="cursor: pointer;" onclick={() => toggleSort('created_at')}>
+								<div class="flex items-center gap-1">
+									Created
+									<Icon icon={sortIcon('created_at')} class="h-3 w-3" />
+								</div>
+							</th>
+							<th class="w-20 md:w-24">Actions</th>
+						</tr>
 					</thead>
-\t\t\t\t\t<tbody>
-\t\t\t\t\t\t{#each sortedUsers as user (user.id)}
+					<tbody>
+						{#each sortedUsers as user (user.id)}
 							<tr>
 								<td class="font-medium max-w-[140px] sm:max-w-none truncate" style="color: var(--color-text);">{user.name}</td>
 								<td class="hidden sm:table-cell max-w-[160px] truncate" style="color: var(--color-text-secondary);">{user.email}</td>

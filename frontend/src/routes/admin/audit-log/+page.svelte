@@ -31,8 +31,8 @@
 	}
 
 	function sortIcon(col) {
-		if (sortColumn !== col) return 'solar:arrow-up-wide-narrow-linear';
-		return sortOrder === 'desc' ? 'solar:sort-from-top-bold' : 'solar:sort-from-bottom-bold';
+		if (sortColumn !== col) return 'solar:sort-bold';
+		return sortOrder === 'desc' ? 'solar:sort-from-top-to-bottom-bold' : 'solar:sort-from-bottom-to-top-bold';
 	}
 
 	// Filter options
