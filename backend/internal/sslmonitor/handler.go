@@ -35,6 +35,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
 	r.Get("/summary", h.Summary)
+	r.Get("/export/csv", h.ExportCSV)
+	r.Post("/import", h.BatchImport)
 	r.Post("/check-all", h.CheckAll)
 	r.Get("/{id}", h.Get)
 	r.Put("/{id}", h.Update)
@@ -583,4 +585,220 @@ func formatSlackNotification(payload map[string]interface{}) ([]byte, error) {
 		"text":   fmt.Sprintf("%s SSL Alert: %s", emoji, domain),
 		"blocks": blocks,
 	})
+}
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+
+func (h *Handler) ExportCSV(w http.ResponseWriter, r *http.Request) {
+	monitors, err := h.repo.ListSSLMonitors(r.Context(), "", "", false)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to list monitors")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=ssl-monitors-export.csv")
+
+	// Write BOM for Excel compatibility
+	w.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	// CSV header
+	w.Write([]byte("domain,port,display_name,status,days_remaining,issuer,subject,cert_expires_at," +
+		"cipher_grade,chain_valid,ocsp_status,san_names,san_mismatch," +
+		"last_checked_at,last_error,check_interval,notify_before,enabled,created_at\n"))
+
+	for _, m := range monitors {
+		certExpires := ""
+		if m.CertExpiresAt != nil {
+			certExpires = m.CertExpiresAt.Format(time.RFC3339)
+		}
+		lastChecked := ""
+		if m.LastCheckAt != nil {
+			lastChecked = m.LastCheckAt.Format(time.RFC3339)
+		}
+		chainValid := ""
+		if m.ChainValid != nil {
+			if *m.ChainValid {
+				chainValid = "valid"
+			} else {
+				chainValid = "invalid"
+			}
+		}
+		enabled := "false"
+		if m.Enabled {
+			enabled = "true"
+		}
+
+		sanStr := strings.Join(m.SANNames, "; ")
+		sanMismatch := "false"
+		if m.SANMismatch {
+			sanMismatch = "true"
+		}
+
+		line := fmt.Sprintf("%s,%d,%s,%s,%d,%s,%s,%s,%s,%s,%s,\"%s\",%s,%s,%s,%s,%s,%s,%s\n",
+			csvEscape(m.Domain),
+			m.Port,
+			csvEscape(m.DisplayName),
+			m.LastStatus,
+			m.DaysRemaining,
+			csvEscape(m.Issuer),
+			csvEscape(m.Subject),
+			certExpires,
+			m.CipherGrade,
+			chainValid,
+			m.OCSPStatus,
+			sanStr,
+			sanMismatch,
+			lastChecked,
+			csvEscape(m.LastError),
+			m.CheckInterval,
+			m.NotifyBefore,
+			enabled,
+			m.CreatedAt.Format(time.RFC3339),
+		)
+		w.Write([]byte(line))
+	}
+}
+
+func csvEscape(s string) string {
+	if s == "" {
+		return ""
+	}
+	if strings.ContainsAny(s, ",\"\n") {
+		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	}
+	return s
+}
+
+// ─── Batch Import ─────────────────────────────────────────────────────────────
+
+type BatchImportRequest struct {
+	Domains       []string `json:"domains"`
+	Port          int      `json:"port"`
+	CheckInterval string   `json:"check_interval,omitempty"`
+	NotifyBefore  string   `json:"notify_before,omitempty"`
+	WebhookIDs    []string `json:"webhook_ids,omitempty"`
+	Enabled       *bool    `json:"enabled,omitempty"`
+}
+
+type BatchImportResult struct {
+	Created int                      `json:"created"`
+	Skipped int                      `json:"skipped"`
+	Errors  int                      `json:"errors"`
+	Details []BatchImportDetail      `json:"details"`
+}
+
+type BatchImportDetail struct {
+	Domain string `json:"domain"`
+	Status string `json:"status"` // created, skipped, error
+	Error  string `json:"error,omitempty"`
+}
+
+func (h *Handler) BatchImport(w http.ResponseWriter, r *http.Request) {
+	var input BatchImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(input.Domains) == 0 {
+		common.Error(w, http.StatusBadRequest, "domains array is required")
+		return
+	}
+
+	if input.Port == 0 {
+		input.Port = 443
+	}
+	if input.CheckInterval == "" {
+		input.CheckInterval = "1h"
+	}
+	if input.NotifyBefore == "" {
+		input.NotifyBefore = "14d"
+	}
+
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+
+	userID := ""
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		userID = claims.UserID
+	}
+
+	result := BatchImportResult{
+		Details: make([]BatchImportDetail, 0, len(input.Domains)),
+	}
+
+	for _, domain := range input.Domains {
+		domain = strings.TrimSpace(domain)
+		if domain == "" {
+			continue
+		}
+
+		// Check duplicate
+		existing, _ := h.repo.GetSSLMonitorByDomainPort(r.Context(), domain, input.Port)
+		if existing != nil {
+			result.Skipped++
+			result.Details = append(result.Details, BatchImportDetail{
+				Domain: domain,
+				Status: "skipped",
+				Error:  "already exists",
+			})
+			continue
+		}
+
+		now := time.Now()
+		displayName := ""
+		monitor := &model.SSLMonitor{
+			ID:            uuid.New().String(),
+			Domain:        domain,
+			Port:          input.Port,
+			DisplayName:   displayName,
+			CheckInterval: input.CheckInterval,
+			NotifyBefore:  input.NotifyBefore,
+			WebhookIDs:    input.WebhookIDs,
+			Enabled:       enabled,
+			CreatedBy:     userID,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		if err := h.repo.CreateSSLMonitor(r.Context(), monitor); err != nil {
+			result.Errors++
+			result.Details = append(result.Details, BatchImportDetail{
+				Domain: domain,
+				Status: "error",
+				Error:  err.Error(),
+			})
+			continue
+		}
+
+		result.Created++
+
+		// Run initial check in background
+		go h.runCheck(context.Background(), monitor)
+
+		result.Details = append(result.Details, BatchImportDetail{
+			Domain: domain,
+			Status: "created",
+		})
+	}
+
+	// Audit
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		meta, _ := json.Marshal(map[string]interface{}{
+			"total":   len(input.Domains),
+			"created": result.Created,
+			"skipped": result.Skipped,
+			"errors":  result.Errors,
+		})
+		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+			"sslmonitor.batch-import", "ssl_monitor", "",
+			fmt.Sprintf("Batch imported %d SSL monitors (%d created, %d skipped, %d errors)",
+				len(input.Domains), result.Created, result.Skipped, result.Errors),
+			json.RawMessage(meta))
+	}
+
+	common.JSON(w, http.StatusCreated, result)
 }

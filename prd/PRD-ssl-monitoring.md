@@ -1,7 +1,7 @@
 # Anjungan — PRD: SSL Certificate Monitoring
 
-> **Version:** 2.0
-> **Status:** 🟡 In Development — Branch `feat/ssl-monitoring` (Phase 2 ✅, Phase 3 pending)
+> **Version:** 2.1
+> **Status:** 🟢 Phase 3 Complete — Branch `feat/ssl-monitoring`
 > **Author:** Endang Suwarna
 > **Last Updated:** June 10, 2026
 
@@ -427,15 +427,14 @@ CREATE INDEX idx_ssl_monitors_enabled ON ssl_monitors(enabled);
 | 14 | Frontend: Notification config in add/edit form | 0.5 day | #10 |
 | | **Total** | **4.5 days** | |
 
-### 🔵 Phase 3 — Enhancements (Future)
+### 🟢 Phase 3 — Enhancements (Complete)
 
-| Order | Feature | Effort |
-|-------|---------|--------|
-| 15 | Cipher grade scoring | 1 day |
-| 16 | OCSP stapling check | 1 day |
-| 17 | Email notification channel | 0.5 day |
-| 18 | Export report (CSV) | 0.5 day |
-| 19 | Batch import domains | 0.5 day |
+| Order | Feature | Effort | Status |
+|-------|---------|--------|--------|
+| 15 | Cipher grade scoring | 1 day | ✅ Done in Phase 1 (checker.go) |
+| 16 | OCSP stapling check | 1 day | ✅ Done in Phase 1 (checker.go) |
+| 18 | Export report (CSV) | 0.5 day | ✅ Done |
+| 19 | Batch import domains | 0.5 day | ✅ Done |
 
 ### Total Estimated Effort: ~11 days (Phase 1+2)
 

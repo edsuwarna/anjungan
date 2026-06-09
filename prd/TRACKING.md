@@ -285,7 +285,7 @@
 | Secret Scanning (PRD-secret-scanning.md) | 0 | 0 | 7 |
 | Agent System (PRD-anj-agent.md) | 0 | 0 | 10 |
 || Domain Management (PRD-domain-management.md) | 0 | 0 | 5 |
-|| SSL Monitoring (PRD-ssl-monitoring.md) | 0 | 1 🟡 | 0 |
+| SSL Monitoring (PRD-ssl-monitoring.md) | 3 | 0 | 0 |
 | Resource & Cost (PRD-resource-usage-cost.md) | 0 | 0 | 7 |
 | Templates (PRD-templates-scaffolding.md) | 0 | 0 | 6 |
 | Observability & Ecosystem (PRD.md future) | 0 | 1 | 6 |
@@ -315,7 +315,7 @@
 | `/admin/audit-log` | ✅ | Audit log viewer |
 | `/ssh-keys` | ✅ | SSH key management |
 || `/infra/domains` | ❌ | Domain management — not created |
-|| `/ssl-monitors` | 🟡 | SSL monitoring — in development on `feat/ssl-monitoring` |
+|| `/ssl-monitors` | 🟢 | SSL monitoring — Phase 3 complete (export CSV + batch import) |
 | `/infra/resources` | ❌ | Resource dashboard — not created |
 | `/infra/templates` | ❌ | Template scaffold — not created |
 | `/agents` | ❌ | Agent management — not created |

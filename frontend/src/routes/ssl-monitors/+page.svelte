@@ -28,6 +28,12 @@
 	let checking = $state({});
 	let checkingAll = $state(false);
 
+	// Batch import
+	let showBatchModal = $state(false);
+	let batchDomains = $state('');
+	let batchImporting = $state(false);
+	let batchResult = $state(null);
+
 	// Webhooks for notification config in add modal
 	let webhooks = $state([]);
 	let webhooksLoading = $state(false);
@@ -132,6 +138,52 @@
 		}
 	}
 
+	// ─── Export CSV ───
+	async function downloadCsv() {
+		try {
+			const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+			const res = await fetch('/api/v1/ssl-monitors/export/csv', {
+				headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+			});
+			if (!res.ok) throw new Error('Export failed');
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'ssl-monitors-export.csv';
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} catch (e) {
+			alert('Failed to export: ' + e.message);
+		}
+	}
+
+	// ─── Batch Import ───
+	async function handleBatchImport() {
+		const domains = batchDomains
+			.split('\n')
+			.map(d => d.trim())
+			.filter(d => d.length > 0 && !d.startsWith('#'));
+		if (domains.length === 0) {
+			alert('Please enter at least one domain.');
+			return;
+		}
+		batchImporting = true;
+		batchResult = null;
+		try {
+			batchResult = await api.sslMonitors.batchImport({ domains });
+			await loadData();
+			await loadSummary();
+		} catch (e) {
+			alert('Import failed: ' + e.message);
+			batchImporting = false;
+		} finally {
+			batchImporting = false;
+		}
+	}
+
 	// ─── Modal ───
 	async function loadWebhooks() {
 		webhooksLoading = true;
@@ -213,6 +265,21 @@
 			</p>
 		</div>
 		<div class="flex items-center gap-3">
+			<button
+				class="btn-ghost"
+				onclick={downloadCsv}
+				title="Export CSV"
+			>
+				<Icon icon="solar:export-bold" class="h-4 w-4" />
+				CSV
+			</button>
+			<button
+				class="btn-secondary"
+				onclick={() => showBatchModal = true}
+			>
+				<Icon icon="solar:import-bold" class="h-4 w-4" />
+				Batch Import
+			</button>
 			<button
 				class="btn-secondary"
 				onclick={checkAll}
@@ -546,6 +613,98 @@
 					<button type="submit" class="btn-primary">Add Monitor</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Batch Import Modal -->
+{#if showBatchModal}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="modal-overlay" onclick={() => { if (!batchImporting) showBatchModal = false; }}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="modal-panel" onclick={(e) => e.stopPropagation()}>
+			<div class="flex items-center justify-between border-b pb-4" style="border-color: var(--color-border);">
+				<div>
+					<h2 class="text-lg font-bold" style="color: var(--color-text);">Batch Import Domains</h2>
+					<p class="mt-1 text-sm" style="color: var(--color-text-secondary);">
+						One domain per line. Lines starting with # are ignored.
+					</p>
+				</div>
+				<button class="btn-icon" onclick={() => showBatchModal = false}>
+					<Icon icon="solar:close-circle-bold" class="h-5 w-5" />
+				</button>
+			</div>
+
+			<div class="py-5">
+				<textarea
+					bind:value={batchDomains}
+					placeholder="app1.example.com&#10;app2.example.com&#10;staging.example.com&#10;# this is a comment"
+					class="input w-full"
+					rows="10"
+					disabled={batchImporting}
+					style="font-family: 'Courier New', monospace; font-size: 0.875rem; resize: vertical;"
+				></textarea>
+
+				{#if batchDomains.trim()}
+					{@const domains = batchDomains.split('\n').map(d => d.trim()).filter(d => d.length > 0 && !d.startsWith('#'))}
+					<p class="mt-2 text-xs" style="color: var(--color-text-secondary);">
+						{domains.length} domain{domains.length !== 1 ? 's' : ''} detected
+					</p>
+				{/if}
+
+				{#if batchResult}
+					<div class="mt-4 rounded-lg border p-4" style="border-color: var(--color-border); background: var(--color-bg);">
+						<p class="text-sm font-medium" style="color: var(--color-text);">Import Complete</p>
+						<div class="mt-2 flex gap-4 text-sm">
+							<span style="color: var(--color-primary);">✅ {batchResult.created} created</span>
+							{#if batchResult.skipped > 0}
+								<span style="color: #f59e0b;">⏭️ {batchResult.skipped} skipped</span>
+							{/if}
+							{#if batchResult.errors > 0}
+								<span style="color: #ef4444;">❌ {batchResult.errors} errors</span>
+							{/if}
+						</div>
+						{#if batchResult.details?.length > 0}
+							<div class="mt-3 max-h-32 space-y-1 overflow-y-auto text-xs" style="color: var(--color-text-secondary);">
+								{#each batchResult.details as d}
+									<div>
+										{d.domain} —
+										{#if d.status === 'created'}
+											<span style="color: var(--color-primary);">created</span>
+										{:else if d.status === 'skipped'}
+											<span style="color: #f59e0b;">skipped ({d.error})</span>
+										{:else}
+											<span style="color: #ef4444;">error: {d.error}</span>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<div class="flex items-center justify-between gap-3 pt-4">
+				<button type="button" class="btn-ghost text-sm" onclick={() => batchDomains = ''}>
+					Clear
+				</button>
+				<div class="flex items-center gap-3">
+					<button type="button" class="btn-secondary" onclick={() => { showBatchModal = false; batchResult = null; batchDomains = ''; }}>
+						{batchResult ? 'Close' : 'Cancel'}
+					</button>
+					{#if !batchResult}
+						<button
+							type="button"
+							class="btn-primary"
+							onclick={handleBatchImport}
+							disabled={batchImporting || !batchDomains.trim()}
+						>
+							<Icon icon="solar:import-bold" class="h-4 w-4" />
+							{batchImporting ? 'Importing...' : 'Import Domains'}
+						</button>
+					{/if}
+				</div>
+			</div>
 		</div>
 	</div>
 {/if}

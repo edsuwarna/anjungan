@@ -391,6 +391,7 @@ export const api = {
 			const q = qs.toString();
 			return request(`/ssl-monitors/${id}/history${q ? '?' + q : ''}`);
 		},
+		batchImport: (data) => request('/ssl-monitors/import', { method: 'POST', body: JSON.stringify(data) }),
 	},
 
 	registryWebhooks: {
