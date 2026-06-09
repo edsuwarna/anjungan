@@ -26,6 +26,13 @@
 	let rawData = $state(null);
 	let rawLoading = $state(false);
 
+	// Load raw manifest when raw tab is clicked
+	$effect(() => {
+		if (activeTab === 'raw' && !rawData && !rawLoading) {
+			loadRaw();
+		}
+	});
+
 	async function loadRaw() {
 		if (rawData) return; // already loaded
 		rawLoading = true;
@@ -46,6 +53,7 @@
 
 	onMount(() => {
 		loadDetail();
+		checkCveAvailability();
 	});
 
 	async function loadDetail() {
@@ -54,16 +62,23 @@
 		try {
 			const data = await api.registry.detail(name, tag);
 			detail = data;
-			// Check CVE availability
-			try {
-				await loadCve();
-			} catch (cveErr) {
-				cveAvailable = false;
-			}
 		} catch (e) {
 			error = e.message || 'Failed to load image details';
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function checkCveAvailability() {
+		try {
+			const check = await api.registry.cve.check();
+			if (check?.available) {
+				cveAvailable = true;
+				// Load CVE data for current image
+				await loadCve();
+			}
+		} catch {
+			cveAvailable = false;
 		}
 	}
 
@@ -84,7 +99,8 @@
 				}
 			}
 		} catch (e) {
-			cveAvailable = false;
+			// Tag detail might fail if no CVE data for this image — don't hide tab
+			cveData = null;
 		} finally {
 			cveLoading = false;
 		}
@@ -110,8 +126,22 @@
 		}
 	}
 
+	function promptDeleteTag() {
+		if (detail?.protected) {
+			error = '⚠️ Tag is protected — unprotect it first from the repo page.';
+			return;
+		}
+		deleteConfirm = true;
+	}
+
 	async function handleDelete() {
 		if (!deleteConfirm) return;
+		// Check tag protection
+		if (detail?.protected) {
+			error = '⚠️ Tag is protected — unprotect it first from the repo page.';
+			deleteConfirm = false;
+			return;
+		}
 		deleting = true;
 		try {
 			await api.registry.deleteTag(name, tag);
@@ -195,7 +225,7 @@
 			<button
 				class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
 				style="color: var(--color-danger); border: 1px solid rgba(239,68,68,0.3);"
-				onclick={() => deleteConfirm = true}
+				onclick={promptDeleteTag}
 			>
 				<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
 				Delete Tag
@@ -688,14 +718,10 @@
 				{/if}
 			</div>
 		{/if}
-	{/if}
-</div>
 
-
-\t\t\t\t\t<!-- Tab: Raw JSON -->
-\t\t{#if activeTab === 'raw'}
-\t\t\t{@const _ = loadRaw()}
-\t\t\t<div class="card p-4">
+		<!-- Tab: Raw JSON -->
+		{#if activeTab === 'raw'}
+			<div class="card p-4">
 				<div class="mb-3 flex items-center justify-between">
 					<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Raw Manifest</h3>
 					{#if rawData?.content_type}
@@ -753,6 +779,8 @@
 				{/if}
 			</div>
 		{/if}
+	{/if}
+</div>
 <!-- Delete Confirmation Modal -->
 {#if deleteConfirm}
 	<div
@@ -773,6 +801,12 @@
 					<div class="min-w-0 flex-1">
 						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Delete Image Tag</h3>
 						<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">Are you sure you want to delete <strong>{name}:{tag}</strong>? This action is irreversible.</p>
+						{#if detail?.protected}
+							<div class="mt-2 flex items-start gap-2 rounded-lg border p-2.5" style="border-color: rgba(245,158,11,0.3); background-color: rgba(245,158,11,0.08);">
+								<Icon icon="solar:shield-warning-bold" class="mt-0.5 h-4 w-4 flex-shrink-0" style="color: #f59e0b;" />
+								<p class="text-[10px] leading-relaxed" style="color: #f59e0b;">This tag is <strong>protected</strong>. Unprotect it first from the repo page before deleting.</p>
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>

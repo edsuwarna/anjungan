@@ -59,17 +59,18 @@ type ImageDetail struct {
 	LayersArr []LayerInfo      `json:"layers_arr"`
 	History   []HistStep       `json:"history"`
 	Platforms []PlatformDetail `json:"platforms,omitempty"`
+	Protected bool             `json:"protected"`
 }
 
 type ImageCfg struct {
-	Cmd           []string        `json:"cmd"`
-	Entrypoint    []string        `json:"entrypoint,omitempty"`
-	Workdir       string          `json:"workdir"`
-	User          string          `json:"user"`
-	ExposedPorts  []string        `json:"exposed_ports"`
-	Env           []EnvVar        `json:"env"`
-	Labels        []EnvVar        `json:"labels"`
-	Volumes       []string        `json:"volumes"`
+	Cmd          []string `json:"cmd"`
+	Entrypoint   []string `json:"entrypoint,omitempty"`
+	Workdir      string   `json:"workdir"`
+	User         string   `json:"user"`
+	ExposedPorts []string `json:"exposed_ports"`
+	Env          []EnvVar `json:"env"`
+	Labels       []EnvVar `json:"labels"`
+	Volumes      []string `json:"volumes"`
 }
 
 type EnvVar struct {
@@ -96,11 +97,11 @@ type PlatformInfo struct {
 }
 
 type PlatformDetail struct {
-	OS     string `json:"os"`
-	Arch   string `json:"arch"`
+	OS      string `json:"os"`
+	Arch    string `json:"arch"`
 	Variant string `json:"variant,omitempty"`
-	Digest string `json:"digest"`
-	Size   int64  `json:"size"`
+	Digest  string `json:"digest"`
+	Size    int64  `json:"size"`
 }
 
 // --- Handler ---
@@ -678,6 +679,18 @@ func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
 		return tags[i].Created > tags[j].Created
 	})
 
+	// Filter by search query
+	if q := r.URL.Query().Get("q"); q != "" {
+		qLower := strings.ToLower(q)
+		filtered := make([]TagInfo, 0, len(tags))
+		for _, t := range tags {
+			if strings.Contains(strings.ToLower(t.Name), qLower) {
+				filtered = append(filtered, t)
+			}
+		}
+		tags = filtered
+	}
+
 	// Parse Link header for next cursor
 	nextLast := parseNextLink(resp.Header.Get("Link"))
 
@@ -723,9 +736,9 @@ func (h *Handler) ImageDetail(w http.ResponseWriter, r *http.Request) {
 			Digest    string `json:"digest"`
 		} `json:"config"`
 		Layers []struct {
-			MediaType string `json:"mediaType"`
-			Size      int64  `json:"size"`
-			Digest    string `json:"digest"`
+			MediaType string   `json:"mediaType"`
+			Size      int64    `json:"size"`
+			Digest    string   `json:"digest"`
 			URLs      []string `json:"urls,omitempty"`
 		} `json:"layers"`
 		Annotations map[string]string `json:"annotations,omitempty"`
@@ -740,6 +753,9 @@ func (h *Handler) ImageDetail(w http.ResponseWriter, r *http.Request) {
 		Tag:    tag,
 		Digest: digest,
 	}
+
+	// Check tag protection — needed for BOTH single-arch and index paths
+	detail.Protected, _ = h.repo.IsTagProtected(r.Context(), name, tag)
 
 	// Check if multi-arch index (OCI index or Docker manifest list)
 	if manifest.MediaType == "application/vnd.oci.image.index.v1+json" ||
@@ -859,14 +875,14 @@ func (h *Handler) populateConfig(detail *ImageDetail, name, digest string) {
 		OS           string `json:"os"`
 		Architecture string `json:"architecture"`
 		Config       struct {
-			Cmd           []string              `json:"Cmd"`
-			Entrypoint    []string              `json:"Entrypoint"`
-			WorkingDir    string                `json:"WorkingDir"`
-			User          string                `json:"User"`
-			ExposedPorts  map[string]interface{} `json:"ExposedPorts"`
-			Env           []string              `json:"Env"`
-			Labels        map[string]string     `json:"Labels"`
-			Volumes       map[string]interface{} `json:"Volumes"`
+			Cmd          []string               `json:"Cmd"`
+			Entrypoint   []string               `json:"Entrypoint"`
+			WorkingDir   string                 `json:"WorkingDir"`
+			User         string                 `json:"User"`
+			ExposedPorts map[string]interface{} `json:"ExposedPorts"`
+			Env          []string               `json:"Env"`
+			Labels       map[string]string      `json:"Labels"`
+			Volumes      map[string]interface{} `json:"Volumes"`
 		} `json:"config"`
 		History []struct {
 			Created    string `json:"created"`
@@ -1213,11 +1229,11 @@ func (h *Handler) TriggerGC(w http.ResponseWriter, r *http.Request) {
 
 	// If direct GC is not available, report auto-GC schedule
 	common.JSON(w, http.StatusOK, map[string]interface{}{
-		"status":       "auto_gc",
-		"message":      "Direct GC not available. Zot runs automatic GC every 24h. Restart the zot container to trigger immediate GC.",
-		"gc_interval":  "24h",
-		"gc_delay":     "168h",
-		"restart_cmd":  "docker restart anjungan-zot",
+		"status":      "auto_gc",
+		"message":     "Direct GC not available. Zot runs automatic GC every 24h. Restart the zot container to trigger immediate GC.",
+		"gc_interval": "24h",
+		"gc_delay":    "168h",
+		"restart_cmd": "docker restart anjungan-zot",
 	})
 }
 
@@ -1257,7 +1273,7 @@ func (h *Handler) CVETagDetail(w http.ResponseWriter, r *http.Request) {
 		skip = 500
 	}
 
-	query := fmt.Sprintf(`{ CVEListForImage(image: "%s:%s", requestedPage: {limit: 50, offset: {skip: %d}}) {
+	query := fmt.Sprintf(`{ CVEListForImage(image: "%s:%s", requestedPage: {limit: 50, offset: %d}) {
 		Tag
 		CVEList { Id Title Description Severity PackageList { Name InstalledVersion FixedVersion } }
 		Summary { MaxSeverity Count CriticalCount HighCount MediumCount LowCount UnknownCount }
@@ -1280,10 +1296,10 @@ func (h *Handler) CVETagDetail(w http.ResponseWriter, r *http.Request) {
 	var gqlResp struct {
 		Data struct {
 			CVEListForImage *struct {
-				Tag      string `json:"Tag"`
-				CVEList  []map[string]interface{} `json:"CVEList"`
-				Summary  map[string]interface{}   `json:"Summary"`
-				Page     map[string]interface{}   `json:"Page"`
+				Tag     string                   `json:"Tag"`
+				CVEList []map[string]interface{} `json:"CVEList"`
+				Summary map[string]interface{}   `json:"Summary"`
+				Page    map[string]interface{}   `json:"Page"`
 			} `json:"CVEListForImage"`
 		} `json:"data"`
 		Errors []map[string]interface{} `json:"errors,omitempty"`
@@ -1446,9 +1462,9 @@ func (h *Handler) ImageRaw(w http.ResponseWriter, r *http.Request) {
 
 // StatsSummary returns storage statistics for the registry.
 type repoStats struct {
-	Name     string `json:"name"`
-	TagCount int    `json:"tag_count"`
-	TotalSize int64 `json:"total_size"`
+	Name      string `json:"name"`
+	TagCount  int    `json:"tag_count"`
+	TotalSize int64  `json:"total_size"`
 }
 
 func (h *Handler) StatsSummary(w http.ResponseWriter, r *http.Request) {
@@ -1476,8 +1492,8 @@ func (h *Handler) StatsSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type sizeResult struct {
-		name     string
-		tagCount int
+		name      string
+		tagCount  int
 		totalSize int64
 	}
 

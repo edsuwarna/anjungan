@@ -99,6 +99,17 @@
 		bulkLoading = false;
 	}
 
+	async function bulkUnprotectSelected() {
+		if (selectedTags.size === 0) return;
+		bulkLoading = true;
+		for (const tag of selectedTags) {
+			try { await api.registry.protections.deleteByRepoTag(name, tag); } catch {}
+		}
+		await loadProtections();
+		selectedTags = new Set();
+		bulkLoading = false;
+	}
+
 	async function bulkDeleteSelected() {
 		if (selectedTags.size === 0) return;
 		if (!confirm(`Delete ${selectedTags.size} tags? This cannot be undone.`)) return;
@@ -533,6 +544,15 @@
 					>
 						<Icon icon="solar:shield-up-bold" class="h-3 w-3" />
 						Protect All
+					</button>
+					<button
+						class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-medium transition-colors"
+						style="background-color: rgba(234,179,8,0.12); color: #eab308;"
+						onclick={bulkUnprotectSelected}
+						disabled={bulkLoading}
+					>
+						<Icon icon="solar:shield-down-bold" class="h-3 w-3" />
+						Unprotect All
 					</button>
 					<button
 						class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-medium transition-colors"
