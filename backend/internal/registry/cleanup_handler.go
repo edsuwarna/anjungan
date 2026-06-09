@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"sync"
@@ -42,7 +43,14 @@ func (h *Handler) GetCleanupConfig(w http.ResponseWriter, r *http.Request) {
 		json.Unmarshal([]byte(s.Value), &cfg)
 	}
 
-	common.JSON(w, http.StatusOK, cfg)
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"enabled":           cfg.Enabled,
+		"keep_last_n":       cfg.KeepLastN,
+		"max_age_days":      cfg.MaxAgeDays,
+		"exclude_tags":      cfg.ExcludeTags,
+		"run_at":            cfg.RunAt,
+		"scheduler_active":  h.cleanupTicker != nil,
+	})
 }
 
 // ─── UpdateCleanupConfig ────────────────────────────────────────────────────
@@ -75,7 +83,14 @@ func (h *Handler) UpdateCleanupConfig(w http.ResponseWriter, r *http.Request) {
 	h.logAudit(r, "registry.cleanup.config", "registry_cleanup", "",
 		fmt.Sprintf("Updated cleanup policy: keep_last_n=%d, max_age=%dd, enabled=%v", cfg.KeepLastN, cfg.MaxAgeDays, cfg.Enabled))
 
-	common.JSON(w, http.StatusOK, cfg)
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"enabled":           cfg.Enabled,
+		"keep_last_n":       cfg.KeepLastN,
+		"max_age_days":      cfg.MaxAgeDays,
+		"exclude_tags":      cfg.ExcludeTags,
+		"run_at":            cfg.RunAt,
+		"scheduler_active":  h.cleanupTicker != nil,
+	})
 }
 
 // ─── RunCleanup ─────────────────────────────────────────────────────────────
@@ -346,4 +361,52 @@ func formatBytes(bytes int64) string {
 		return fmt.Sprintf("%d B", bytes)
 	}
 	return fmt.Sprintf("%.1f %s", size, units[i])
+}
+
+// StartCleanupScheduler starts a background ticker that periodically runs cleanup.
+func (h *Handler) StartCleanupScheduler(ctx context.Context) {
+	h.cleanupMu.Lock()
+	defer h.cleanupMu.Unlock()
+
+	if h.cleanupTicker != nil {
+		return // already running
+	}
+
+	h.cleanupDone = make(chan struct{})
+	h.cleanupTicker = time.NewTicker(1 * time.Hour)
+
+	go func() {
+		defer h.cleanupTicker.Stop()
+		for {
+			select {
+			case <-h.cleanupTicker.C:
+				cfg := DefaultCleanupConfig()
+				s, err := h.repo.GetSetting(ctx, "registry.cleanup")
+				if err == nil && s.Value != "" {
+					json.Unmarshal([]byte(s.Value), &cfg)
+				}
+				if cfg.Enabled {
+					log.Printf("[registry.cleanup] running scheduled cleanup (keep_last_n=%d, max_age=%dd)", cfg.KeepLastN, cfg.MaxAgeDays)
+					h.executeCleanup(ctx, cfg)
+				}
+			case <-h.cleanupDone:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	log.Printf("[registry.cleanup] scheduler started (interval: 1h)")
+}
+
+// StopCleanupScheduler stops the background cleanup scheduler.
+func (h *Handler) StopCleanupScheduler() {
+	h.cleanupMu.Lock()
+	defer h.cleanupMu.Unlock()
+	if h.cleanupTicker != nil {
+		close(h.cleanupDone)
+		h.cleanupTicker = nil
+		log.Printf("[registry.cleanup] scheduler stopped")
+	}
 }

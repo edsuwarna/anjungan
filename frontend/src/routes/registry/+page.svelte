@@ -1928,6 +1928,13 @@ let copiedTarget = $state('');
 						</div>
 					</div>
 
+
+					{#if cleanupConfig.scheduler_active}
+						<div class="flex items-center gap-2 text-xs" style="color: var(--color-success);">
+							<Icon icon="solar:check-circle-bold" class="h-3.5 w-3.5" />
+							Scheduler active — runs every hour
+						</div>
+					{/if}
 					<hr class="my-4" style="border-color: var(--color-border);" />
 
 					{#if cleanupRunning}

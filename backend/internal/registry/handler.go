@@ -106,8 +106,11 @@ type PlatformDetail struct {
 // --- Handler ---
 
 type Handler struct {
-	cfg  config.RegistryConfig
-	repo *db.Repository
+	cfg           config.RegistryConfig
+	repo          *db.Repository
+	cleanupTicker *time.Ticker
+	cleanupDone   chan struct{}
+	cleanupMu     sync.Mutex
 }
 
 func NewHandler(cfg config.RegistryConfig, repo *db.Repository) *Handler {
@@ -1750,3 +1753,8 @@ func (h *Handler) SearchTags(w http.ResponseWriter, r *http.Request) {
 
 // Ensure sync import
 var _ = time.Now
+
+// Start starts background services (cleanup scheduler, etc.)
+func (h *Handler) Start(ctx context.Context) {
+	h.StartCleanupScheduler(ctx)
+}

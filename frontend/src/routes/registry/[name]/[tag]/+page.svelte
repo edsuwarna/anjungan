@@ -295,6 +295,18 @@
 							<span class="text-xs" style="color: var(--color-text-muted);">Layer Count</span>
 							<span class="text-xs font-medium" style="color: var(--color-text);">{detail.layers || 0} layers</span>
 						</div>
+						{#if detail.platforms?.length}
+							<div class="flex items-center justify-between">
+								<span class="text-xs" style="color: var(--color-text-muted);">Platforms</span>
+								<div class="flex flex-wrap gap-1">
+									{#each detail.platforms as p}
+										<span class="rounded px-1.5 py-0.5 text-[9px] font-mono" style="background-color: rgba(6,182,212,0.1); color: #06b6d4;">
+											{p.os}/{p.arch}{p.variant ? "/" + p.variant : ""}
+										</span>
+									{/each}
+								</div>
+							</div>
+						{/if}
 						<div class="flex items-center justify-between">
 							<span class="text-xs" style="color: var(--color-text-muted);">Digest</span>
 							<code class="max-w-[180px] truncate font-mono text-[10px]" style="color: var(--color-text-secondary);">{detail.digest}</code>
