@@ -23,9 +23,12 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 	status := "up"
 	message := "Registry is reachable"
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= 500 {
 		status = "down"
 		message = "Registry returned status " + resp.Status
+	} else if resp.StatusCode >= 400 {
+		// 401/403 means Zot is alive but needs auth — still counts as "up"
+		message = "Registry requires authentication (status " + resp.Status + ")"
 	}
 
 	common.JSON(w, http.StatusOK, map[string]interface{}{

@@ -489,7 +489,60 @@
 								<div class="text-[10px]" style="color: #22c55e;">Low</div>
 							</div>
 						</div>
-						<p class="text-xs" style="color: var(--color-text-secondary);">Total: {total} vulnerabilities found</p>
+
+						<!-- CVE Detail List -->
+						{@const cveList = Array.isArray(cveData?.cve) ? cveData.cve : Array.isArray(cveData) ? cveData : []}
+						{#if cveList.length > 0}
+							<div class="mb-3 flex items-center justify-between">
+								<h4 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">All Vulnerabilities</h4>
+								<span class="text-[10px]" style="color: var(--color-text-muted);">{cveList.length} findings</span>
+							</div>
+							<div class="space-y-1">
+								{#each cveList as cve}
+									{@const pkgList = cve.PackageList || cve.packageList || cve.Packages || []}
+									{@const mainPkg = Array.isArray(pkgList) && pkgList.length > 0 ? pkgList[0] : null}
+									<div class="flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:opacity-90" style="border-color: var(--color-border);">
+										<span class="severity-pill flex-shrink-0 mt-0.5" style="font-size: 10px; min-width: 52px; text-align: center; {cve.Severity === 'CRITICAL' ? 'background: rgba(239,68,68,0.12); color: #ef4444;' : cve.Severity === 'HIGH' ? 'background: rgba(245,158,11,0.12); color: #f59e0b;' : cve.Severity === 'MEDIUM' ? 'background: rgba(139,92,246,0.12); color: #8b5cf6;' : 'background: rgba(34,197,94,0.12); color: #22c55e;'}">
+											{cve.Severity || 'UNKNOWN'}
+										</span>
+										<div class="min-w-0 flex-1">
+											<div class="flex items-center gap-2">
+												<a
+													href="https://nvd.nist.gov/vuln/detail/{cve.Id}"
+													target="_blank"
+													rel="noopener noreferrer"
+													class="text-xs font-semibold hover:underline"
+													style="color: var(--color-text);"
+												>{cve.Id}</a>
+												{#if mainPkg}
+													<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">{mainPkg.Name || mainPkg.PackageName || mainPkg.Package || ''}</span>
+												{/if}
+											</div>
+											{#if cve.Title}
+												<p class="mt-0.5 text-[11px] leading-relaxed" style="color: var(--color-text-secondary);">{cve.Title}</p>
+											{/if}
+											{#if mainPkg}
+												<div class="mt-1 flex items-center gap-2 text-[10px] font-mono" style="color: var(--color-text-muted);">
+													<span>installed: <span style="color: var(--color-text);">{mainPkg.InstalledVersion || '—'}</span></span>
+													<span class="opacity-40">|</span>
+													<span>fixed in: <span style="color: var(--color-success);">{mainPkg.FixedVersion || '—'}</span></span>
+												</div>
+											{/if}
+										</div>
+										<button
+											class="flex-shrink-0 rounded-md p-1 transition-colors hover:opacity-80"
+											style="color: var(--color-text-muted);"
+											title="View CVE details"
+											onclick={() => window.open(`https://nvd.nist.gov/vuln/detail/${cve.Id}`, '_blank')}
+										>
+											<Icon icon="solar:export-outline" class="h-3.5 w-3.5" />
+										</button>
+									</div>
+								{/each}
+							</div>
+						{/if}
+
+						<p class="mt-3 text-xs" style="color: var(--color-text-secondary);">Total: {total} vulnerabilities found</p>
 					{:else}
 						<div class="rounded-lg p-6 text-center" style="background-color: rgba(16,185,129,0.08);">
 							<Icon icon="solar:shield-check-bold" class="h-8 w-8 mx-auto mb-2" style="color: var(--color-success);" />

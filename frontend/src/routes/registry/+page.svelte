@@ -730,14 +730,19 @@ let copiedTarget = $state('');
 	let deleteRepoLoading = $state(false);
 	let deleteRepoResult = $state(null);
 
-	async function confirmDeleteRepo(name) {
-		if (!confirm(`Hapus seluruh repo "${name}" beserta semua tag-nya?`)) return;
+	function confirmDeleteRepo(name) {
+		deleteRepoTarget = name;
+	}
+
+	async function executeDeleteRepo() {
+		if (!deleteRepoTarget) return;
 		deleteRepoLoading = true;
 		deleteRepoResult = null;
 		try {
-			const data = await api.registry.deleteRepo(name);
+			const data = await api.registry.deleteRepo(deleteRepoTarget);
 			deleteRepoResult = data;
 			await loadRepos();
+			deleteRepoTarget = null;
 		} catch (e) {
 			deleteRepoResult = { error: e.message || 'Delete failed' };
 		} finally {
@@ -2259,6 +2264,75 @@ let copiedTarget = $state('');
 					style="background-color: var(--color-primary); color: white;"
 					onclick={() => protectedDeleteTarget = null}
 				>Got it</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Delete Repo Modal -->
+{#if deleteRepoTarget}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center"
+		style="background-color: rgba(0,0,0,0.6);"
+		onclick={() => { if (!deleteRepoLoading) deleteRepoTarget = null; }}
+	>
+		<div
+			class="mx-4 w-full max-w-md rounded-xl border shadow-2xl"
+			style="background-color: var(--color-card); border-color: var(--color-border);"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="p-5">
+				<div class="flex items-start gap-3">
+					<div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style="background-color: rgba(239,68,68,0.15);">
+						<Icon icon="solar:danger-triangle-bold" class="h-4.5 w-4.5" style="color: var(--color-danger);" />
+					</div>
+					<div class="min-w-0 flex-1">
+						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Delete Repository</h3>
+						<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">
+							Are you sure you want to delete <strong class="font-mono">{deleteRepoTarget}</strong> and all its tags? This action is irreversible.
+						</p>
+
+						<div class="mt-4 rounded-lg p-3" style="background-color: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);">
+							<div class="flex items-start gap-2">
+								<Icon icon="solar:info-circle-bold" class="mt-0.5 h-3.5 w-3.5 flex-shrink-0" style="color: var(--color-warning);" />
+								<p class="text-xs" style="color: var(--color-text-secondary);">
+									All tags, manifests, and blobs associated with this repository will be permanently removed.
+								</p>
+							</div>
+						</div>
+
+						{#if deleteRepoResult?.error}
+							<div class="mt-3 rounded-lg border p-2.5" style="background-color: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2);">
+								<div class="flex items-center gap-2">
+									<Icon icon="solar:danger-triangle-bold" class="h-3.5 w-3.5 flex-shrink-0" style="color: var(--color-danger);" />
+									<p class="text-xs" style="color: var(--color-danger);">{deleteRepoResult.error}</p>
+								</div>
+							</div>
+						{/if}
+					</div>
+				</div>
+			</div>
+			<div class="flex items-center justify-end gap-2 rounded-b-xl border-t px-5 py-3" style="border-color: var(--color-border); background-color: var(--color-topbar-bg);">
+				<button
+					class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+					style="color: var(--color-text-secondary);"
+					onclick={() => deleteRepoTarget = null}
+					disabled={deleteRepoLoading}
+				>Cancel</button>
+				<button
+					class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors"
+					style="background-color: var(--color-danger);"
+					onclick={executeDeleteRepo}
+					disabled={deleteRepoLoading}
+				>
+					{#if deleteRepoLoading}
+						<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
+						Deleting...
+					{:else}
+						<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
+						Delete Repository
+					{/if}
+				</button>
 			</div>
 		</div>
 	</div>
