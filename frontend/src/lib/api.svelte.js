@@ -171,6 +171,10 @@ export const api = {
 			deleteByRepoTag: (repo, tag) => request(`/registry/protections/by-repo/${encodeURIComponent(repo)}/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
 			check: (repo, tag) => request(`/registry/protections/check/${encodeURIComponent(repo)}/${encodeURIComponent(tag)}`),
 		},
+		// Tag Search
+		searchTags: (q) => {
+			return request(`/registry/search/tags?q=${encodeURIComponent(q)}`);
+		},
 	},
 
 	repositories: {

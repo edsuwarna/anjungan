@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -130,6 +131,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/sync-htpasswd", h.requireAdmin(h.SyncHtpasswd))
 	r.Mount("/webhooks", h.webhookRoutes())
 	r.Mount("/protections", h.tagProtectionRoutes())
+	r.Get("/search/tags", h.SearchTags)
 	return r
 }
 
@@ -1093,5 +1095,150 @@ func (h *Handler) TriggerGC(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Ensure used imports
+// SearchTags searches for tags across all repositories that match a query.
+// GET /registry/search/tags?q=myquery
+func (h *Handler) SearchTags(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		common.Error(w, http.StatusBadRequest, "query param 'q' is required")
+		return
+	}
+
+	qLower := strings.ToLower(q)
+
+	// Get all repos from catalog
+	path := "/v2/_catalog?n=100"
+	resp, err := h.zotRequest(path)
+	if err != nil {
+		common.Errorf(w, http.StatusBadGateway, "registry connection: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		common.Errorf(w, http.StatusBadGateway, "registry error: %s — %s", resp.Status, string(body))
+		return
+	}
+
+	var catalog struct {
+		Repositories []string `json:"repositories"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&catalog); err != nil {
+		common.Errorf(w, http.StatusInternalServerError, "parse catalog: %v", err)
+		return
+	}
+
+	type searchResult struct {
+		Repo   string `json:"repo"`
+		Tag    string `json:"tag"`
+		Digest string `json:"digest"`
+		Size   int64  `json:"size"`
+	}
+
+	var results []searchResult
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 10) // limit concurrency
+
+	for _, name := range catalog.Repositories {
+		if !strings.Contains(strings.ToLower(name), qLower) {
+			// Repo name doesn't match, check tags
+			wg.Add(1)
+			go func(repoName string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				tagResp, err := h.zotRequest("/v2/" + repoName + "/tags/list")
+				if err != nil {
+					return
+				}
+				defer tagResp.Body.Close()
+
+				var tl struct {
+					Tags []string `json:"tags"`
+				}
+				if err := json.NewDecoder(tagResp.Body).Decode(&tl); err != nil {
+					return
+				}
+
+				for _, tag := range tl.Tags {
+					if strings.Contains(strings.ToLower(tag), qLower) {
+						// Fetch digest for this tag
+						mResp, mErr := h.zotRequest("/v2/" + repoName + "/manifests/" + tag)
+						if mErr != nil {
+							mu.Lock()
+							results = append(results, searchResult{Repo: repoName, Tag: tag})
+							mu.Unlock()
+							return
+						}
+						defer mResp.Body.Close()
+
+						digest := mResp.Header.Get("Docker-Content-Digest")
+						mu.Lock()
+						results = append(results, searchResult{Repo: repoName, Tag: tag, Digest: digest})
+						mu.Unlock()
+					}
+				}
+			}(name)
+		} else {
+			// Repo name matches — include all tags
+			wg.Add(1)
+			go func(repoName string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				tagResp, err := h.zotRequest("/v2/" + repoName + "/tags/list")
+				if err != nil {
+					return
+				}
+				defer tagResp.Body.Close()
+
+				var tl struct {
+					Tags []string `json:"tags"`
+				}
+				if err := json.NewDecoder(tagResp.Body).Decode(&tl); err != nil {
+					return
+				}
+
+				for _, tag := range tl.Tags {
+					mu.Lock()
+					results = append(results, searchResult{Repo: repoName, Tag: tag})
+					mu.Unlock()
+				}
+			}(name)
+		}
+	}
+
+	wg.Wait()
+
+	// Deduplicate
+	seen := make(map[string]bool)
+	var unique []searchResult
+	for _, r := range results {
+		key := r.Repo + ":" + r.Tag
+		if !seen[key] {
+			seen[key] = true
+			unique = append(unique, r)
+		}
+	}
+
+	// Sort by repo name then tag
+	sort.Slice(unique, func(i, j int) bool {
+		if unique[i].Repo != unique[j].Repo {
+			return unique[i].Repo < unique[j].Repo
+		}
+		return unique[i].Tag < unique[j].Tag
+	})
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"results": unique,
+		"total":   len(unique),
+		"query":   q,
+	})
+}
+
+// Ensure sync import
 var _ = time.Now

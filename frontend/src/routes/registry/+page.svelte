@@ -67,6 +67,14 @@ let copiedTarget = $state('');
 	let tagProtections = $state([]); // { repo, tag, id }
 	let tagProtectionsSet = $derived(new Set(tagProtections.map(p => `${p.repo}:${p.tag}`)));
 
+	// ─── Tag Search State ──────────────────────────────────────
+	let searchMode = $state('repo'); // 'repo' | 'tag'
+	let tagSearchQuery = $state('');
+	let tagSearchResults = $state([]);
+	let tagSearchLoading = $state(false);
+	let tagSearchTotal = $state(0);
+	let tagSearchDebounce = $state(null);
+
 	// ─── Derived ───
 	let isAdmin = $derived($user?.role === 'admin');
 	let filteredRepos = $derived.by(() => {
@@ -575,6 +583,39 @@ let copiedTarget = $state('');
 	function isTagProtected(repo, tag) {
 		return tagProtectionsSet.has(`${repo}:${tag}`);
 	}
+
+	// ─── Tag Search Functions ──────────────────────────────────
+
+	async function doTagSearch() {
+		if (!tagSearchQuery.trim()) {
+			tagSearchResults = [];
+			tagSearchTotal = 0;
+			return;
+		}
+		tagSearchLoading = true;
+		try {
+			const data = await api.registry.searchTags(tagSearchQuery.trim());
+			tagSearchResults = data?.results || [];
+			tagSearchTotal = data?.total || 0;
+		} catch (e) {
+			tagSearchResults = [];
+			tagSearchTotal = 0;
+		} finally {
+			tagSearchLoading = false;
+		}
+	}
+
+	function onTagSearchInput() {
+		if (tagSearchDebounce) clearTimeout(tagSearchDebounce);
+		tagSearchDebounce = setTimeout(doTagSearch, 300);
+	}
+
+	function switchSearchMode(mode) {
+		searchMode = mode;
+		if (mode === 'tag' && tagSearchQuery && tagSearchResults.length === 0) {
+			doTagSearch();
+		}
+	}
 </script>
 
 <div class="page-container">
@@ -960,19 +1001,47 @@ let copiedTarget = $state('');
 	<!-- Search + Stats -->
 	<div class="flex items-center justify-between gap-4">
 		<div class="relative flex-1 max-w-sm">
-			<Icon icon="solar:magnifer-outline" class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style="color: var(--color-text-muted);" />
-			<input
-				type="text"
-				placeholder="Search repositories..."
-				bind:value={searchQuery}
-				class="w-full rounded-lg border py-2 pl-8 pr-3 text-xs"
-				style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
-			/>
+			{#if searchMode === 'repo'}
+				<Icon icon="solar:magnifer-outline" class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style="color: var(--color-text-muted);" />
+				<input
+					type="text"
+					placeholder="Search repositories..."
+					bind:value={searchQuery}
+					class="w-full rounded-lg border py-2 pl-8 pr-3 text-xs"
+					style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
+				/>
+			{:else}
+				<Icon icon="solar:hashtag-outline" class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style="color: var(--color-text-muted);" />
+				<input
+					type="text"
+					placeholder="Search tags across all repos..."
+					bind:value={tagSearchQuery}
+					oninput={onTagSearchInput}
+					class="w-full rounded-lg border py-2 pl-8 pr-3 text-xs"
+					style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
+				/>
+			{/if}
+			<div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded-md p-0.5" style="background-color: var(--color-topbar-bg);">
+				<button
+					class="rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors"
+					style="color: {searchMode === 'repo' ? 'var(--color-text)' : 'var(--color-text-muted)'}; {searchMode === 'repo' ? 'background-color: var(--color-card);' : ''}"
+					onclick={() => switchSearchMode('repo')}
+				>Repo</button>
+				<button
+					class="rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors"
+					style="color: {searchMode === 'tag' ? 'var(--color-text)' : 'var(--color-text-muted)'}; {searchMode === 'tag' ? 'background-color: var(--color-card);' : ''}"
+					onclick={() => switchSearchMode('tag')}
+				>Tag</button>
+			</div>
 		</div>
 		<div class="flex items-center gap-4 text-xs" style="color: var(--color-text-secondary);">
-			<span>{filteredRepos.length} repos</span>
-			<span class="h-3 w-px" style="background-color: var(--color-border);"></span>
-			<span>{totalTags} tags</span>
+			{#if searchMode === 'repo'}
+				<span>{filteredRepos.length} repos</span>
+				<span class="h-3 w-px" style="background-color: var(--color-border);"></span>
+				<span>{totalTags} tags</span>
+			{:else if tagSearchQuery}
+				<span>{tagSearchTotal} results</span>
+			{/if}
 			{#if isAdmin}
 			<span class="h-3 w-px" style="background-color: var(--color-border);"></span>
 			<button
@@ -998,6 +1067,52 @@ let copiedTarget = $state('');
 		</div>
 	{/if}
 
+	{#if searchMode === 'tag'}
+		<!-- Tag Search Results -->
+		{#if tagSearchLoading}
+			<div class="flex items-center justify-center py-8">
+				<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
+			</div>
+		{:else if tagSearchQuery && tagSearchResults.length > 0}
+			<div class="card p-0 overflow-hidden">
+				<div class="divide-y" style="border-color: var(--color-border);">
+					{#each tagSearchResults as result}
+						<div class="flex items-center justify-between px-4 py-2.5 transition-colors hover:opacity-80">
+							<div class="min-w-0 flex-1">
+								<button
+									class="font-mono text-xs hover:underline"
+									style="color: var(--color-primary);"
+									onclick={() => goto(`/registry/${result.repo}/${result.tag}`)}
+								>
+									{result.repo}:{result.tag}
+								</button>
+							</div>
+							<div class="flex items-center gap-2">
+								{#if result.digest}
+									<span class="font-mono text-[10px]" style="color: var(--color-text-muted);">{shortDigest(result.digest)}</span>
+								{/if}
+								<button
+									class="rounded-md p-1.5 transition-colors"
+									style="color: var(--color-text-muted);"
+									onclick={() => copyToClipboard(`docker pull registry.anjungan.io/${result.repo}:${result.tag}`, `search-${result.repo}-${result.tag}`)}
+									title="Copy pull command"
+								>
+									<Icon icon="solar:copy-outline" class="h-3.5 w-3.5" />
+								</button>
+								{#if copiedTarget === `search-${result.repo}-${result.tag}`}
+									<span class="text-[10px]" style="color: var(--color-success);">✓</span>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{:else if tagSearchQuery && !tagSearchLoading}
+			<div class="rounded-lg border p-6 text-center" style="border-color: var(--color-border);">
+				<p class="text-xs" style="color: var(--color-text-muted);">No tags match "{tagSearchQuery}"</p>
+			</div>
+		{/if}
+	{:else}
 	<!-- Copy tooltip: inline per button -->
 
 	<!-- Loading -->
@@ -1177,6 +1292,7 @@ let copiedTarget = $state('');
 			</div>
 		{/if}
 	{/if}
+{/if}
 </div>
 
 <!-- User Modal (Add/Edit) -->
