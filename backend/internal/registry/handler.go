@@ -135,6 +135,9 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/cve/check", h.CVECheck)
 	r.Get("/cve/{name}/{tag}", h.CVETagDetail)
 	r.Get("/stats/summary", h.StatsSummary)
+	r.Post("/cleanup/run", h.requireAdmin(h.RunCleanup))
+	r.Get("/cleanup/config", h.GetCleanupConfig)
+	r.Put("/cleanup/config", h.requireAdmin(h.UpdateCleanupConfig))
 	return r
 }
 

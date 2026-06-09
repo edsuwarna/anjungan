@@ -84,6 +84,12 @@ let copiedTarget = $state('');
 	let statsLoading = $state(false);
 	let showStats = $state(false);
 
+	// ─── Cleanup State ──────────────────────────────────────────
+	let cleanupConfig = $state(null);
+	let cleanupModalOpen = $state(false);
+	let cleanupRunning = $state(false);
+	let cleanupResult = $state(null);
+
 	// ─── Derived ───
 	let isAdmin = $derived($user?.role === 'admin');
 	let filteredRepos = $derived.by(() => {
@@ -626,6 +632,49 @@ let copiedTarget = $state('');
 		return Math.max(2, (size / maxSize) * 100);
 	}
 
+	// ─── Cleanup Functions ──────────────────────────────────────
+
+	async function loadCleanupConfig() {
+		try {
+			const data = await api.registry.cleanup.config();
+			cleanupConfig = data;
+		} catch (e) {
+			cleanupConfig = null;
+		}
+	}
+
+	function openCleanupModal() {
+		cleanupResult = null;
+		loadCleanupConfig().then(() => { cleanupModalOpen = true; });
+	}
+
+	function closeCleanupModal() {
+		cleanupModalOpen = false;
+	}
+
+	async function saveCleanupConfig() {
+		if (!cleanupConfig) return;
+		try {
+			const data = await api.registry.cleanup.updateConfig(cleanupConfig);
+			cleanupConfig = data;
+		} catch (e) {
+			error = e.message || 'Failed to save cleanup config';
+		}
+	}
+
+	async function runCleanup() {
+		cleanupRunning = true;
+		cleanupResult = null;
+		try {
+			const data = await api.registry.cleanup.run();
+			cleanupResult = data;
+		} catch (e) {
+			cleanupResult = { error: e.message || 'Cleanup failed' };
+		} finally {
+			cleanupRunning = false;
+		}
+	}
+
 	async function protectTag(repo, tag) {
 		try {
 			await api.registry.protections.create({ repo, tag });
@@ -1130,6 +1179,14 @@ let copiedTarget = $state('');
 			>
 				<Icon icon={statsLoading ? 'solar:spinner-bold animate-spin' : 'solar:chart-square-bold'} class="h-3 w-3" />
 				Storage
+			</button>
+			<button
+				class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
+				style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
+				onclick={openCleanupModal}
+			>
+				<Icon icon="solar:eraser-bold" class="h-3 w-3" />
+				Cleanup
 			</button>
 			{/if}
 		</div>
@@ -1659,6 +1716,146 @@ let copiedTarget = $state('');
 						{webhookModalMode === 'add' ? 'Create Webhook' : 'Save Changes'}
 					{/if}
 				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Cleanup Modal -->
+{#if cleanupModalOpen}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center"
+		style="background-color: rgba(0,0,0,0.6);"
+		onclick={closeCleanupModal}
+	>
+		<div
+			class="mx-4 w-full max-w-lg rounded-xl border shadow-2xl"
+			style="background-color: var(--color-card); border-color: var(--color-border);"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="p-5">
+				<div class="flex items-center gap-2 mb-4">
+					<Icon icon="solar:eraser-bold" class="h-5 w-5" style="color: var(--color-primary);" />
+					<h3 class="text-sm font-semibold" style="color: var(--color-text);">Registry Cleanup</h3>
+				</div>
+
+				{#if cleanupConfig}
+					<div class="space-y-4">
+						<div class="flex items-center gap-3">
+							<label class="inline-flex items-center gap-2 text-xs cursor-pointer" style="color: var(--color-text);">
+								<input type="checkbox" bind:checked={cleanupConfig.enabled} class="h-3.5 w-3.5" onchange={saveCleanupConfig} />
+								Enable automatic cleanup
+							</label>
+						</div>
+
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Keep Last N Tags</label>
+								<input
+									type="number" min="0"
+									bind:value={cleanupConfig.keep_last_n}
+									class="w-full rounded-lg border px-3 py-2 text-xs"
+									style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
+									onchange={saveCleanupConfig}
+									placeholder="0 = disabled"
+								/>
+							</div>
+							<div>
+								<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Max Age (days)</label>
+								<input
+									type="number" min="0"
+									bind:value={cleanupConfig.max_age_days}
+									class="w-full rounded-lg border px-3 py-2 text-xs"
+									style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
+									onchange={saveCleanupConfig}
+									placeholder="0 = disabled"
+								/>
+							</div>
+						</div>
+
+						<div>
+							<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Excluded Tags (comma separated)</label>
+							<input
+								type="text"
+								bind:value={cleanupConfig.exclude_tags}
+								class="w-full rounded-lg border px-3 py-2 text-xs"
+								style="background-color: var(--color-card); border-color: var(--color-border); color: var(--color-text);"
+								onchange={saveCleanupConfig}
+								placeholder="latest, production, staging"
+							/>
+						</div>
+					</div>
+
+					<hr class="my-4" style="border-color: var(--color-border);" />
+
+					{#if cleanupRunning}
+						<div class="flex items-center justify-center gap-2 py-4">
+							<Icon icon="solar:spinner-bold" class="h-4 w-4 animate-spin" style="color: var(--color-primary);" />
+							<span class="text-xs" style="color: var(--color-text-muted);">Running cleanup...</span>
+						</div>
+					{:else if cleanupResult}
+						{#if cleanupResult.error}
+							<div class="rounded-lg p-3 text-xs" style="background-color: rgba(239,68,68,0.08); color: var(--color-danger);">
+								{cleanupResult.error}
+							</div>
+						{:else}
+							<div class="rounded-lg p-3" style="background-color: rgba(16,185,129,0.08);">
+								<p class="text-xs font-medium" style="color: var(--color-success);">Cleanup completed</p>
+								<div class="mt-2 grid grid-cols-3 gap-2 text-center">
+									<div>
+										<div class="text-sm font-bold" style="color: var(--color-text);">{cleanupResult.repos_scanned}</div>
+										<div class="text-[10px]" style="color: var(--color-text-muted);">Repos</div>
+									</div>
+									<div>
+										<div class="text-sm font-bold" style="color: var(--color-text);">{cleanupResult.tags_deleted}</div>
+										<div class="text-[10px]" style="color: var(--color-text-muted);">Deleted</div>
+									</div>
+									<div>
+										<div class="text-sm font-bold" style="color: var(--color-text);">{formatBytes(cleanupResult.space_freed)}</div>
+										<div class="text-[10px]" style="color: var(--color-text-muted);">Freed</div>
+									</div>
+								</div>
+								{#if cleanupResult.deleted_tags?.length}
+									<details class="mt-2">
+										<summary class="text-[10px] cursor-pointer" style="color: var(--color-text-muted);">Deleted tags ({cleanupResult.deleted_tags.length})</summary>
+										<div class="mt-1 max-h-32 overflow-y-auto space-y-0.5">
+											{#each cleanupResult.deleted_tags as tag}
+												<div class="text-[10px] font-mono" style="color: var(--color-text-muted);">{tag}</div>
+											{/each}
+										</div>
+									</details>
+								{/if}
+							</div>
+						{/if}
+					{/if}
+				{:else}
+					<div class="py-4 text-center">
+						<p class="text-xs" style="color: var(--color-text-muted);">Loading configuration...</p>
+					</div>
+				{/if}
+			</div>
+			<div class="flex items-center justify-end gap-2 rounded-b-xl border-t px-5 py-3" style="border-color: var(--color-border); background-color: var(--color-topbar-bg);">
+				<button
+					class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+					style="color: var(--color-text-secondary);"
+					onclick={closeCleanupModal}
+				>Close</button>
+				{#if cleanupConfig?.enabled}
+					<button
+						class="inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-medium text-white transition-colors"
+						style="background-color: var(--color-danger);"
+						onclick={runCleanup}
+						disabled={cleanupRunning}
+					>
+						{#if cleanupRunning}
+							<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
+							Running...
+						{:else}
+							<Icon icon="solar:eraser-bold" class="h-3.5 w-3.5" />
+							Run Cleanup Now
+						{/if}
+					</button>
+				{/if}
 			</div>
 		</div>
 	</div>

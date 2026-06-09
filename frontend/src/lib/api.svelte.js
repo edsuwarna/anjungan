@@ -184,6 +184,12 @@ export const api = {
 		stats: {
 			summary: () => request('/registry/stats/summary'),
 		},
+		// Cleanup
+		cleanup: {
+			config: () => request('/registry/cleanup/config'),
+			updateConfig: (data) => request('/registry/cleanup/config', { method: 'PUT', body: JSON.stringify(data) }),
+			run: () => request('/registry/cleanup/run', { method: 'POST' }),
+		},
 	},
 
 	repositories: {
