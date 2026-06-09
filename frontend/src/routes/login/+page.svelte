@@ -1,4 +1,5 @@
 <script>
+	import { onMount } from 'svelte';
 	import Icon from '@iconify/svelte';
 	import { api, setAuthToken } from '$lib/api.svelte.js';
 	import { user } from '$lib/stores/auth.js';
@@ -11,6 +12,17 @@
 	let error = $state('');
 	let showPassword = $state(false);
 	let mode = $state('login'); // 'login' | 'register'
+	let registrationEnabled = $state(true);
+
+	onMount(async () => {
+		try {
+			const data = await api.settings.registration();
+			registrationEnabled = data.enabled;
+			if (!data.enabled && mode === 'register') {
+				mode = 'login';
+			}
+		} catch (_) {}
+	});
 
 	async function handleSubmit(e) {
 		e.preventDefault();
@@ -155,16 +167,25 @@
 
 			<!-- Mode switch -->
 			<div class="mt-6 text-center">
-				<button
-					type="button"
-					onclick={switchMode}
-					class="text-sm font-medium transition-colors hover:opacity-80"
-					style="color: var(--color-primary);"
-				>
-					{mode === 'login'
-						? "Don't have an account? Register"
-						: 'Already have an account? Sign in'}
-				</button>
+				{#if mode === 'login' && registrationEnabled}
+					<button
+						type="button"
+						onclick={switchMode}
+						class="text-sm font-medium transition-colors hover:opacity-80"
+						style="color: var(--color-primary);"
+					>
+						Don't have an account? Register
+					</button>
+				{:else if mode === 'register'}
+					<button
+						type="button"
+						onclick={switchMode}
+						class="text-sm font-medium transition-colors hover:opacity-80"
+						style="color: var(--color-primary);"
+					>
+						Already have an account? Sign in
+					</button>
+				{/if}
 			</div>
 		</div>
 
