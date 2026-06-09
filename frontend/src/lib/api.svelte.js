@@ -180,6 +180,10 @@ export const api = {
 			check: () => request('/registry/cve/check'),
 			tagDetail: (name, tag) => request(`/registry/cve/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`),
 		},
+		// Stats
+		stats: {
+			summary: () => request('/registry/stats/summary'),
+		},
 	},
 
 	repositories: {

@@ -79,6 +79,11 @@ let copiedTarget = $state('');
 	let cveAvailable = $state(false);
 	let cveChecking = $state(false);
 
+	// ─── Stats State ────────────────────────────────────────────
+	let statsSummary = $state(null);
+	let statsLoading = $state(false);
+	let showStats = $state(false);
+
 	// ─── Derived ───
 	let isAdmin = $derived($user?.role === 'admin');
 	let filteredRepos = $derived.by(() => {
@@ -581,6 +586,46 @@ let copiedTarget = $state('');
 		}
 	}
 
+	// ─── Stats Functions ────────────────────────────────────────
+
+	async function loadStatsSummary() {
+		statsLoading = true;
+		showStats = true;
+		try {
+			const data = await api.registry.stats.summary();
+			statsSummary = data;
+		} catch (e) {
+			statsSummary = null;
+		} finally {
+			statsLoading = false;
+		}
+	}
+
+	function toggleStats() {
+		if (!showStats) {
+			loadStatsSummary();
+		} else {
+			showStats = false;
+		}
+	}
+
+	function formatBytes(bytes) {
+		if (!bytes || bytes === 0) return '0 B';
+		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+		let i = 0;
+		let size = bytes;
+		while (size >= 1024 && i < units.length - 1) {
+			size /= 1024;
+			i++;
+		}
+		return size.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+	}
+
+	function storageBarWidth(size, maxSize) {
+		if (!maxSize) return 0;
+		return Math.max(2, (size / maxSize) * 100);
+	}
+
 	async function protectTag(repo, tag) {
 		try {
 			await api.registry.protections.create({ repo, tag });
@@ -1077,9 +1122,82 @@ let copiedTarget = $state('');
 				<Icon icon={cveChecking ? 'solar:spinner-bold animate-spin' : cveAvailable ? 'solar:shield-check-bold' : 'solar:shield-outline'} class="h-3 w-3" />
 				{cveChecking ? 'CVE...' : cveAvailable ? 'CVE Active' : 'No CVE'}
 			</div>
+			<span class="h-3 w-px" style="background-color: var(--color-border);"></span>
+			<button
+				class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
+				style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
+				onclick={toggleStats}
+			>
+				<Icon icon={statsLoading ? 'solar:spinner-bold animate-spin' : 'solar:chart-square-bold'} class="h-3 w-3" />
+				Storage
+			</button>
 			{/if}
 		</div>
 	</div>
+
+	<!-- Storage Stats Dashboard -->
+	{#if showStats}
+		<div class="card p-5">
+			<div class="flex items-center justify-between mb-4">
+				<div class="flex items-center gap-2">
+					<Icon icon="solar:chart-square-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+					<h3 class="text-sm font-semibold" style="color: var(--color-text);">Storage Summary</h3>
+				</div>
+				<button
+					class="rounded-md p-1 transition-colors"
+					style="color: var(--color-text-muted);"
+					onclick={() => showStats = false}
+				>
+					<Icon icon="solar:close-circle-outline" class="h-4 w-4" />
+				</button>
+			</div>
+
+			{#if statsLoading}
+				<div class="flex items-center justify-center py-8">
+					<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
+				</div>
+			{:else if statsSummary}
+				<div class="grid grid-cols-3 gap-3 mb-4">
+					<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
+						<div class="text-lg font-bold" style="color: var(--color-primary);">{statsSummary.total_repos}</div>
+						<div class="text-[10px]" style="color: var(--color-text-muted);">Repositories</div>
+					</div>
+					<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
+						<div class="text-lg font-bold" style="color: var(--color-primary);">{statsSummary.total_tags}</div>
+						<div class="text-[10px]" style="color: var(--color-text-muted);">Tags</div>
+					</div>
+					<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
+						<div class="text-lg font-bold" style="color: var(--color-primary);">{formatBytes(statsSummary.total_storage)}</div>
+						<div class="text-[10px]" style="color: var(--color-text-muted);">Total Storage</div>
+					</div>
+				</div>
+
+				{#if statsSummary.top_repos?.length}
+					<h4 class="mb-2 text-xs font-medium" style="color: var(--color-text-secondary);">Top Repositories by Size</h4>
+					<div class="space-y-1.5">
+						{@const maxSize = statsSummary.top_repos[0]?.total_size || 1}
+						{#each statsSummary.top_repos as repo}
+							<div class="flex items-center gap-2">
+								<div class="flex-1 min-w-0">
+									<div class="flex items-center justify-between mb-0.5">
+										<span class="text-xs truncate" style="color: var(--color-text);">{repo.name}</span>
+										<span class="text-[10px] flex-shrink-0 ml-2" style="color: var(--color-text-muted);">{formatBytes(repo.total_size)}</span>
+									</div>
+									<div class="h-1.5 rounded-full" style="background-color: var(--color-border);">
+										<div class="h-full rounded-full transition-all" style="width: {storageBarWidth(repo.total_size, maxSize)}%; background-color: var(--color-primary); opacity: 0.6;"></div>
+									</div>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			{:else}
+				<div class="py-4 text-center">
+					<p class="text-xs" style="color: var(--color-text-muted);">Failed to load storage summary.</p>
+				</div>
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Error -->
 	{#if error}

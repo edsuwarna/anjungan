@@ -134,6 +134,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/search/tags", h.SearchTags)
 	r.Get("/cve/check", h.CVECheck)
 	r.Get("/cve/{name}/{tag}", h.CVETagDetail)
+	r.Get("/stats/summary", h.StatsSummary)
 	return r
 }
 
@@ -1179,6 +1180,170 @@ func (h *Handler) cveSummaryForTag(name, tag string) map[string]interface{} {
 		return nil
 	}
 	return data
+}
+
+// ─── Stats/Summary ──────────────────────────────────────────────────────────
+
+// StatsSummary returns storage statistics for the registry.
+type repoStats struct {
+	Name     string `json:"name"`
+	TagCount int    `json:"tag_count"`
+	TotalSize int64 `json:"total_size"`
+}
+
+func (h *Handler) StatsSummary(w http.ResponseWriter, r *http.Request) {
+	// Get all repos
+	path := "/v2/_catalog?n=100"
+	resp, err := h.zotRequest(path)
+	if err != nil {
+		common.Errorf(w, http.StatusBadGateway, "registry connection: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		common.Errorf(w, http.StatusBadGateway, "registry error: %s — %s", resp.Status, string(body))
+		return
+	}
+
+	var catalog struct {
+		Repositories []string `json:"repositories"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&catalog); err != nil {
+		common.Errorf(w, http.StatusInternalServerError, "parse catalog: %v", err)
+		return
+	}
+
+	type sizeResult struct {
+		name     string
+		tagCount int
+		totalSize int64
+	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 15)
+	var repoResults []sizeResult
+
+	for _, name := range catalog.Repositories {
+		wg.Add(1)
+		go func(repoName string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			// Get tags
+			tagResp, err := h.zotRequest("/v2/" + repoName + "/tags/list")
+			if err != nil {
+				return
+			}
+			defer tagResp.Body.Close()
+
+			var tl struct {
+				Tags []string `json:"tags"`
+			}
+			if err := json.NewDecoder(tagResp.Body).Decode(&tl); err != nil {
+				return
+			}
+
+			tagCount := len(tl.Tags)
+			var totalSize int64
+
+			// Get size for each tag (parallel with semaphore)
+			var tagWg sync.WaitGroup
+			tagSem := make(chan struct{}, 5)
+			for _, tag := range tl.Tags {
+				tagWg.Add(1)
+				go func(t string) {
+					defer tagWg.Done()
+					tagSem <- struct{}{}
+					defer func() { <-tagSem }()
+
+					mResp, err := h.zotRequest("/v2/" + repoName + "/manifests/" + t)
+					if err != nil {
+						return
+					}
+					defer mResp.Body.Close()
+
+					if mResp.StatusCode >= 400 {
+						return
+					}
+
+					mBody, _ := io.ReadAll(mResp.Body)
+					var mtCheck struct {
+						MediaType string `json:"mediaType"`
+					}
+					json.Unmarshal(mBody, &mtCheck)
+
+					if mtCheck.MediaType == "application/vnd.oci.image.index.v1+json" ||
+						mtCheck.MediaType == "application/vnd.docker.distribution.manifest.list.v2+json" {
+						var idx struct {
+							Manifests []struct {
+								Size int64 `json:"size"`
+							} `json:"manifests"`
+						}
+						if err := json.Unmarshal(mBody, &idx); err == nil {
+							for _, m := range idx.Manifests {
+								totalSize += m.Size
+							}
+						}
+					} else {
+						var manifest struct {
+							Config struct {
+								Size int64 `json:"size"`
+							} `json:"config"`
+							Layers []struct {
+								Size int64 `json:"size"`
+							} `json:"layers"`
+						}
+						if err := json.Unmarshal(mBody, &manifest); err == nil {
+							totalSize += manifest.Config.Size
+							for _, l := range manifest.Layers {
+								totalSize += l.Size
+							}
+						}
+					}
+				}(tag)
+			}
+			tagWg.Wait()
+
+			mu.Lock()
+			repoResults = append(repoResults, sizeResult{name: repoName, tagCount: tagCount, totalSize: totalSize})
+			mu.Unlock()
+		}(name)
+	}
+	wg.Wait()
+
+	// Sort by size descending
+	sort.Slice(repoResults, func(i, j int) bool {
+		return repoResults[i].totalSize > repoResults[j].totalSize
+	})
+
+	var totalRepos int64
+	var totalTags int64
+	var totalStorage int64
+	var topRepos []repoStats
+
+	for i, r := range repoResults {
+		totalRepos++
+		totalTags += int64(r.tagCount)
+		totalStorage += r.totalSize
+		if i < 10 {
+			topRepos = append(topRepos, repoStats{
+				Name:      r.name,
+				TagCount:  r.tagCount,
+				TotalSize: r.totalSize,
+			})
+		}
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"total_repos":   totalRepos,
+		"total_tags":    totalTags,
+		"total_storage": totalStorage,
+		"top_repos":     topRepos,
+	})
 }
 
 // SearchTags searches for tags across all repositories that match a query.
