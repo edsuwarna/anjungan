@@ -87,6 +87,16 @@ let copiedTarget = $state('');
 	// ─── Activity State ─────────────────────────────────────────
 	let showAllEvents = $state(false);
 
+	// ─── Tab State ──────────────────────────────────────────
+	let activeTab = $state('repos');
+	const tabs = [
+		{ id: 'repos', label: 'Repos', icon: 'solar:box-bold', adminOnly: false },
+		{ id: 'credentials', label: 'Credentials', icon: 'solar:key-minimalistic-bold', adminOnly: false },
+		{ id: 'activity', label: 'Activity', icon: 'solar:clock-circle-bold', adminOnly: false },
+		{ id: 'admin', label: 'Admin', icon: 'solar:tuning-2-bold', adminOnly: true },
+	];
+	let filteredTabs = $derived(tabs.filter(t => !t.adminOnly || isAdmin));
+
 	// ─── Stats State ────────────────────────────────────────────
 	let statsSummary = $state(null);
 	let statsLoading = $state(false);
@@ -774,6 +784,22 @@ let copiedTarget = $state('');
 </script>
 
 <div class="page-container">
+	<!-- Tab Bar -->
+	<div class="flex items-center gap-1 mb-4 rounded-lg p-1 overflow-x-auto" style="background-color: var(--color-topbar-bg);">
+		{#each filteredTabs as tab}
+			<button
+				class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap"
+				style="color: {activeTab === tab.id ? 'var(--color-text)' : 'var(--color-text-muted)'}; background-color: {activeTab === tab.id ? 'var(--color-card)' : 'transparent'};"
+				onclick={() => activeTab = tab.id}
+			>
+				<Icon icon={tab.icon} class="h-3.5 w-3.5" />
+				{tab.label}
+			</button>
+		{/each}
+	</div>
+
+	<!-- ─── Tab: Credentials ─── -->
+	{#if activeTab === 'credentials'}
 	<!-- Connection Info — Self-Service Credentials -->
 	<div class="card p-5">
 		<div class="flex items-start justify-between mb-4">
@@ -942,7 +968,10 @@ let copiedTarget = $state('');
 			</div>
 		{/if}
 	</div>
+{/if}
 
+	<!-- ─── Tab: Admin ─── -->
+	{#if activeTab === 'admin'}
 	<!-- Registry Users -->
 	{#if isAdmin}
 	<div class="card p-5">
@@ -1168,7 +1197,10 @@ let copiedTarget = $state('');
 		{/if}
 	</div>
 	{/if}
+{/if}
 
+	<!-- ─── Tab: Repos ─── -->
+	{#if activeTab === 'repos'}
 	<!-- KPI Header Cards -->
 	{#if statsSummary}
 		<div class="grid grid-cols-2 gap-3 mb-3 sm:grid-cols-4">
@@ -1645,6 +1677,100 @@ let copiedTarget = $state('');
 		{/if}
 	{/if}
 {/if}
+{/if}
+
+	<!-- ─── Tab: Activity ─── -->
+	{#if activeTab === 'activity'}
+	<!-- Recent Activity -->
+	{#if webhookEvents.length > 0}
+	<div class="card p-4 mb-3">
+		<div class="flex items-center justify-between mb-3">
+			<div class="flex items-center gap-2">
+				<Icon icon="solar:clock-circle-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+				<h3 class="text-sm font-semibold" style="color: var(--color-text);">Recent Activity</h3>
+			</div>
+			<button
+				class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors"
+				style="color: var(--color-text-muted); border: 1px solid var(--color-border);"
+				onclick={() => showAllEvents = !showAllEvents}
+			>
+				<Icon icon={showAllEvents ? 'solar:alt-arrow-up-outline' : 'solar:alt-arrow-down-outline'} class="h-3 w-3" />
+				{showAllEvents ? 'Show Less' : `View All (${webhookEventsTotal})`}
+			</button>
+		</div>
+		<div class="space-y-1">
+			{#each (showAllEvents ? webhookEvents : webhookEvents.slice(0, 5)) as ev}
+				<div class="flex items-start gap-2 rounded-lg px-3 py-1.5" style="background-color: var(--color-primary-subtle);">
+					<span class="mt-0.5 text-xs">{webhookEventTypeIcon(ev.event_type)}</span>
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center gap-1.5 flex-wrap">
+							<span class="text-xs font-medium" style="color: var(--color-text);">{ev.repo}</span>
+							{#if ev.tag}
+								<span class="font-mono text-[10px]" style="color: var(--color-text-muted);">:{ev.tag}</span>
+							{/if}
+							<span class="rounded px-1 py-0.5 text-[9px] uppercase" style="background-color: {webhookEventStatusColor(ev.status)}20; color: {webhookEventStatusColor(ev.status)};">{ev.event_type}</span>
+						</div>
+						<div class="flex items-center gap-2 mt-0.5">
+							{#if ev.actor}
+								<span class="text-[10px]" style="color: var(--color-text-muted);">by {ev.actor}</span>
+							{/if}
+							<span class="text-[10px]" style="color: var(--color-text-muted);">{formatDate(ev.created_at)}</span>
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	</div>
+	{/if}
+
+	<!-- Webhook Events Timeline -->
+	<div class="card p-4">
+		<div class="flex items-center justify-between mb-3">
+			<div class="flex items-center gap-2">
+				<Icon icon="solar:history-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+				<h3 class="text-sm font-semibold" style="color: var(--color-text);">Webhook Events</h3>
+				<span class="rounded-full px-2 py-0.5 text-[10px] font-medium" style="background-color: var(--color-primary-subtle); color: var(--color-primary);">{webhookEventsTotal}</span>
+			</div>
+		</div>
+		{#if webhookEventsLoading}
+			<div class="flex items-center justify-center gap-2 py-4">
+				<Icon icon="solar:spinner-bold" class="h-4 w-4 animate-spin" style="color: var(--color-primary);" />
+				<span class="text-xs" style="color: var(--color-text-muted);">Loading events...</span>
+			</div>
+		{:else if webhookEvents.length > 0}
+			<div class="divide-y" style="border-color: var(--color-border);">
+				{#each webhookEvents as ev}
+					<div class="flex items-start gap-3 px-4 py-2.5">
+						<span class="text-xs">{webhookEventTypeIcon(ev.event_type)}</span>
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center gap-2">
+								<span class="text-xs font-medium" style="color: var(--color-text);">{ev.repo}</span>
+								{#if ev.tag}
+									<span class="font-mono text-[10px]" style="color: var(--color-text-muted);">:{ev.tag}</span>
+								{/if}
+								<span class="rounded px-1 py-0.5 text-[9px] uppercase" style="background-color: {webhookEventStatusColor(ev.status)}20; color: {webhookEventStatusColor(ev.status)};">{ev.status}</span>
+							</div>
+							<div class="flex items-center gap-2 mt-0.5">
+								<span class="text-[10px]" style="color: var(--color-text-muted);">{ev.event_type}</span>
+								{#if ev.actor}
+									<span class="text-[10px]" style="color: var(--color-text-muted);">by {ev.actor}</span>
+								{/if}
+								<span class="text-[10px]" style="color: var(--color-text-muted);">{formatDate(ev.created_at)}</span>
+							</div>
+						</div>
+						<Icon icon={webhookEventStatusIcon(ev.status)} class="h-3.5 w-3.5 flex-shrink-0" style="color: {webhookEventStatusColor(ev.status)};" />
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="py-4 text-center">
+				<p class="text-xs" style="color: var(--color-text-muted);">No events recorded yet.</p>
+				<p class="text-[10px]" style="color: var(--color-text-muted);">Events will appear when images are pushed or deleted.</p>
+			</div>
+		{/if}
+	</div>
+	{/if}
+
 </div>
 
 <!-- User Modal (Add/Edit) -->
