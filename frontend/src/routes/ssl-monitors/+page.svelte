@@ -28,6 +28,10 @@
 	let checking = $state({});
 	let checkingAll = $state(false);
 
+	// Webhooks for notification config in add modal
+	let webhooks = $state([]);
+	let webhooksLoading = $state(false);
+
 	// Computed filter state
 	let hasFilters = $derived(searchQuery || statusFilter);
 
@@ -62,6 +66,7 @@
 
 	onMount(() => {
 		loadData();
+		loadWebhooks();
 	});
 
 	// ─── Filters ───
@@ -128,6 +133,17 @@
 	}
 
 	// ─── Modal ───
+	async function loadWebhooks() {
+		webhooksLoading = true;
+		try {
+			webhooks = await api.registryWebhooks.list() || [];
+		} catch (_) {
+			webhooks = [];
+		} finally {
+			webhooksLoading = false;
+		}
+	}
+
 	async function handleAdd(data) {
 		try {
 			await api.sslMonitors.create(data);
@@ -465,7 +481,7 @@
 				Monitor TLS certificate for any domain
 			</p>
 
-			<form onsubmit={(e) => { e.preventDefault(); const fd = new FormData(e.target); handleAdd({ domain: fd.get('domain'), port: parseInt(fd.get('port')) || 443, display_name: fd.get('display_name'), check_interval: fd.get('check_interval') || '1h', notify_before: fd.get('notify_before') || '14d', }); }}>
+			<form onsubmit={(e) => { e.preventDefault(); const fd = new FormData(e.target); const whIds = Array.from(fd.getAll('webhook_ids')); handleAdd({ domain: fd.get('domain'), port: parseInt(fd.get('port')) || 443, display_name: fd.get('display_name'), check_interval: fd.get('check_interval') || '1h', notify_before: fd.get('notify_before') || '14d', webhook_ids: whIds, }); }}>
 				<div class="mb-4">
 					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Domain *</label>
 					<input type="text" name="domain" required placeholder="app.example.com" class="input w-full" />
@@ -502,6 +518,29 @@
 						</select>
 					</div>
 				</div>
+
+				<!-- Notification Channels -->
+				<div class="mb-4">
+					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Notify Via</label>
+					{#if webhooksLoading}
+						<p class="text-xs" style="color: var(--color-text-muted);">Loading webhooks...</p>
+					{:else if webhooks.length === 0}
+						<p class="text-xs" style="color: var(--color-text-muted);">No webhooks configured. Create one in Registry.</p>
+					{:else}
+						<div class="space-y-1 max-h-40 overflow-y-auto">
+							{#each webhooks as wh}
+								<label class="flex cursor-pointer items-center gap-3 rounded-lg p-2 text-sm">
+									<input type="checkbox" name="webhook_ids" value={wh.id} class="h-4 w-4 rounded border-gray-300" />
+									<div>
+										<p class="text-sm" style="color: var(--color-text);">{wh.name || wh.url}</p>
+										<p class="text-xs" style="color: var(--color-text-muted);">{wh.platform}</p>
+									</div>
+								</label>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
 				<div class="flex items-center justify-end gap-3 pt-4">
 					<button type="button" class="btn-secondary" onclick={() => showAddModal = false}>Cancel</button>
 					<button type="submit" class="btn-primary">Add Monitor</button>

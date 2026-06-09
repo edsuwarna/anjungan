@@ -998,3 +998,26 @@ type SSLMonitorListResponse struct {
 	Limit      int                  `json:"limit"`
 	TotalPages int                  `json:"total_pages"`
 }
+
+// ─── SSL Check History ─────────────────────────────────────────────────
+
+type SSLCheckHistory struct {
+	ID             string    `json:"id"`
+	SSLMonitorID   string    `json:"ssl_monitor_id"`
+	CheckedAt      time.Time `json:"checked_at"`
+	Status         string    `json:"status"`
+	DaysRemaining  int       `json:"days_remaining"`
+	CipherGrade    string    `json:"cipher_grade"`
+	TLSVersion     string    `json:"tls_version"`
+	CipherSuite    string    `json:"cipher_suite"`
+	ResponseTimeMs *int      `json:"response_time_ms"`
+	Issuer         string    `json:"issuer"`
+	Subject        string    `json:"subject"`
+	ErrorMessage   string    `json:"error_message"`
+}
+
+type SSLCheckHistoryListResponse struct {
+	Entries    []SSLCheckHistory `json:"entries"`
+	Total      int               `json:"total"`
+	Limit      int               `json:"limit"`
+}

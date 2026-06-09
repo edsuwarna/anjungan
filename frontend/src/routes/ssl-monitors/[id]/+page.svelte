@@ -12,20 +12,56 @@
 	let showDeleteConfirm = $state(false);
 	let showEditModal = $state(false);
 
+	// History
+	let historyEntries = $state([]);
+	let historyTotal = $state(0);
+	let historyLoading = $state(false);
+	let historyLimit = $state(50);
+
+	// Webhooks for notification config
+	let webhooks = $state([]);
+	let webhooksLoading = $state(false);
+
 	const id = $derived($page.params.id);
 
 	onMount(() => {
 		loadMonitor();
+		loadWebhooks();
 	});
 
 	async function loadMonitor() {
 		loading = true;
 		try {
 			monitor = await api.sslMonitors.get(id);
+			loadHistory();
 		} catch (e) {
 			error = e.message;
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadHistory() {
+		historyLoading = true;
+		try {
+			const result = await api.sslMonitors.history(id, { limit: historyLimit });
+			historyEntries = result.entries || [];
+			historyTotal = result.total || 0;
+		} catch (_) {
+			historyEntries = [];
+		} finally {
+			historyLoading = false;
+		}
+	}
+
+	async function loadWebhooks() {
+		webhooksLoading = true;
+		try {
+			webhooks = await api.registryWebhooks.list() || [];
+		} catch (_) {
+			webhooks = [];
+		} finally {
+			webhooksLoading = false;
 		}
 	}
 
@@ -83,6 +119,62 @@
 
 	function infoRow(label, value, color = '') {
 		return { label, value, color };
+	}
+
+	// ─── Chart ──────────────────────────────────────────────────────────────
+
+	let chartEntries = $derived(historyEntries.filter(e => e.days_remaining != null).slice().reverse());
+
+	let chartConfig = $derived.by(() => {
+		const entries = chartEntries;
+		if (entries.length < 2) return null;
+
+		const values = entries.map(e => e.days_remaining);
+		const maxVal = Math.max(...values, 30);
+		const minVal = Math.min(...values, 0);
+		const range = maxVal - minVal || 1;
+		const w = 600;
+		const h = 120;
+		const px = 40;
+		const py = 10;
+		const cw = w - px * 2;
+		const ch = h - py * 2;
+
+		const points = values.map((v, i) => {
+			const x = px + (i / Math.max(entries.length - 1, 1)) * cw;
+			const y = py + ch - ((v - minVal) / range) * ch;
+			return `${x},${y}`;
+		});
+
+		const polyline = points.join(' ');
+		const area = `M${px},${py + ch} L${polyline} L${px + cw},${py + ch} Z`;
+
+		const yLabels = [];
+		const steps = 4;
+		for (let i = 0; i <= steps; i++) {
+			const val = Math.round(minVal + (range * i) / steps);
+			const y = py + ch - (i / steps) * ch;
+			yLabels.push({ val, y });
+		}
+
+		return { entries, w, h, px, py, cw, ch, polyline, area, yLabels, values };
+	});
+
+	function formatDate(iso) {
+		if (!iso) return '-';
+		const d = new Date(iso);
+		return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+	}
+
+	function formatDateShort(iso) {
+		if (!iso) return '-';
+		const d = new Date(iso);
+		return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+	}
+
+	// ─── Webhook helper ─────────────────────────────────────────────────────
+	function getWebhookName(id) {
+		return webhooks.find(w => w.id === id)?.name || id?.slice(0, 8) || 'Unknown';
 	}
 </script>
 
@@ -164,12 +256,12 @@
 							infoRow('Days Remaining', monitor.days_remaining > 0 ? `${monitor.days_remaining} days` : 'Expired', monitor.days_remaining <= 14 ? '#ef4444' : monitor.days_remaining <= 30 ? '#f59e0b' : ''),
 							{ label: 'Last Checked', value: monitor.last_check_at ? new Date(monitor.last_check_at).toLocaleString() : 'Never' },
 							{ label: 'Created', value: new Date(monitor.created_at).toLocaleString() },
-			] as row}
-				<div>
-					<p class="mb-0.5 text-xs font-medium" style="color: var(--color-text-muted);">{row.label}</p>
-					<p class="text-sm font-medium" style="color: {row.color || 'var(--color-text)'};">{row.value || '-'}</p>
-				</div>
-			{/each}
+						] as row}
+							<div>
+								<p class="mb-0.5 text-xs font-medium" style="color: var(--color-text-muted);">{row.label}</p>
+								<p class="text-sm font-medium" style="color: {row.color || 'var(--color-text)'};">{row.value || '-'}</p>
+							</div>
+						{/each}
 					</div>
 				</div>
 
@@ -317,12 +409,122 @@
 						</div>
 						<div class="flex justify-between">
 							<span style="color: var(--color-text-muted);">Enabled</span>
-							<span class="font-medium" style="color: {monitor.enabled ? '#10b981' : '#ef4444'};">
-								{monitor.enabled ? 'Yes' : 'No'}
-							</span>
+							<span class="font-medium" style="color: {monitor.enabled ? '#10b981' : '#ef4444'};">{monitor.enabled ? 'Yes' : 'No'}</span>
 						</div>
+						{#if monitor.webhook_ids?.length > 0}
+							<div>
+								<p class="mb-1 text-xs" style="color: var(--color-text-muted);">Notifications</p>
+								<div class="flex flex-wrap gap-1">
+									{#each monitor.webhook_ids as wid}
+										<span class="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs" style="background: var(--color-primary-subtle); color: var(--color-primary);">
+											<Icon icon="solar:notification-bold" class="h-3 w-3" />
+											{getWebhookName(wid)}
+										</span>
+									{/each}
+								</div>
+							</div>
+						{/if}
 					</div>
 				</div>
+			</div>
+		</div>
+
+		<!-- ─── Check History ──────────────────────────────────────────────── -->
+		<div class="mt-6">
+			<div class="card">
+				<h2 class="mb-4 text-lg font-bold" style="color: var(--color-text);">
+					<Icon icon="solar:clock-circle-bold" class="mr-2 inline h-5 w-5" />
+					Check History
+					{#if historyTotal > 0}
+						<span class="ml-2 text-sm font-normal" style="color: var(--color-text-muted);">({historyTotal} checks)</span>
+					{/if}
+				</h2>
+
+				<!-- Mini Chart -->
+				{#if chartConfig}
+					<div class="mb-6 overflow-x-auto">
+						<svg width={chartConfig.w} height={chartConfig.h} class="w-full" style="max-width: 100%;">
+							{#each chartConfig.yLabels as yl}
+								<line x1={chartConfig.px} y1={yl.y} x2={chartConfig.px + chartConfig.cw} y2={yl.y} stroke="rgba(148,163,184,0.12)" stroke-dasharray="4,4" />
+								<text x={chartConfig.px - 6} y={yl.y + 4} text-anchor="end" fill="rgba(148,163,184,0.5)" font-size="10">{yl.val}d</text>
+							{/each}
+							<path d={chartConfig.area} fill="url(#sslGradient)" opacity="0.15" />
+							<polyline points={chartConfig.polyline} fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+							{#each chartConfig.entries as e, i}
+								{@const val = chartConfig.values[i]}
+								{@const x = chartConfig.px + (i / Math.max(chartConfig.entries.length - 1, 1)) * chartConfig.cw}
+								{@const y = chartConfig.py + chartConfig.ch - ((val - Math.min(...chartConfig.values, 0)) / (Math.max(...chartConfig.values, 30) - Math.min(...chartConfig.values, 0) || 1)) * chartConfig.ch}
+								<circle cx={x} cy={y} r="3" fill={val <= 7 ? '#ef4444' : val <= 30 ? '#f59e0b' : '#10b981'} stroke="#1a1d23" stroke-width="1.5" />
+							{/each}
+							<defs>
+								<linearGradient id="sslGradient" x1="0" y1="0" x2="0" y2="1">
+									<stop offset="0%" stop-color="#10b981" />
+									<stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+								</linearGradient>
+							</defs>
+						</svg>
+						<div class="mt-1 flex justify-between px-10">
+							<span class="text-xs" style="color: var(--color-text-muted);">{formatDateShort(chartConfig.entries[0]?.checked_at)}</span>
+							<span class="text-xs" style="color: var(--color-text-muted);">{formatDateShort(chartConfig.entries[chartConfig.entries.length - 1]?.checked_at)}</span>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Timeline -->
+				{#if historyLoading}
+					<div class="flex items-center justify-center py-8">
+						<Icon icon="svg-spinners:180-ring" class="h-6 w-6" style="color: var(--color-primary);" />
+					</div>
+				{:else if historyEntries.length === 0}
+					<p class="py-6 text-center text-sm" style="color: var(--color-text-muted);">
+						No check history yet. Run your first check to see results here.
+					</p>
+				{:else}
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
+								<tr style="border-bottom: 1px solid var(--color-border);">
+									<th class="py-2 pr-4 text-left font-medium" style="color: var(--color-text-muted);">Time</th>
+									<th class="py-2 pr-4 text-left font-medium" style="color: var(--color-text-muted);">Status</th>
+									<th class="py-2 pr-4 text-right font-medium" style="color: var(--color-text-muted);">Days Left</th>
+									<th class="py-2 pr-4 text-center font-medium" style="color: var(--color-text-muted);">Grade</th>
+									<th class="py-2 text-right font-medium" style="color: var(--color-text-muted);">TLS</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each historyEntries as h (h.id)}
+									{@const sc = getConfig(h.status)}
+									<tr style="border-bottom: 1px solid var(--color-border);">
+										<td class="py-2 pr-4 whitespace-nowrap" style="color: var(--color-text);">{formatDate(h.checked_at)}</td>
+										<td class="py-2 pr-4">
+											<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium" style="background: {sc.color}15; color: {sc.color};">
+												<Icon icon={sc.icon} class="h-3 w-3" />
+												{sc.label}
+											</span>
+										</td>
+										<td class="py-2 pr-4 text-right font-mono font-medium" style="color: {h.days_remaining <= 7 ? '#ef4444' : h.days_remaining <= 30 ? '#f59e0b' : 'var(--color-text)'};">
+											{h.days_remaining != null ? `${h.days_remaining}d` : '-'}
+										</td>
+										<td class="py-2 pr-4 text-center font-mono font-bold" style="color: {cipherColor(h.cipher_grade)};">
+											{h.cipher_grade || '-'}
+										</td>
+										<td class="py-2 text-right font-mono text-xs" style="color: var(--color-text-secondary);">
+											{h.tls_version || '-'}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+					{#if historyTotal > historyEntries.length}
+						<div class="mt-3 text-center">
+							<button class="btn-ghost text-sm" onclick={() => { historyLimit += 50; loadHistory(); }}>
+								<Icon icon="solar:round-arrow-down-bold" class="h-4 w-4" />
+								Load more ({historyTotal - historyEntries.length} remaining)
+							</button>
+						</div>
+					{/if}
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -350,7 +552,19 @@
 		<div class="card w-full max-w-lg p-6" onclick={(e) => e.stopPropagation()}>
 			<h2 class="mb-1 text-lg font-bold" style="color: var(--color-text);">Monitor Settings</h2>
 			<p class="mb-5 text-sm" style="color: var(--color-text-secondary);">{monitor.domain}:{monitor.port}</p>
-			<form onsubmit={(e) => { e.preventDefault(); const fd = new FormData(e.target); handleEdit({ display_name: fd.get('display_name'), port: parseInt(fd.get('port')) || monitor.port, check_interval: fd.get('check_interval'), notify_before: fd.get('notify_before'), enabled: fd.get('enabled') === 'true', }); }}>
+			<form onsubmit={(e) => {
+				e.preventDefault();
+				const fd = new FormData(e.target);
+				const whIds = Array.from(fd.getAll('webhook_ids'));
+				handleEdit({
+					display_name: fd.get('display_name'),
+					port: parseInt(fd.get('port')) || monitor.port,
+					check_interval: fd.get('check_interval'),
+					notify_before: fd.get('notify_before'),
+					enabled: fd.get('enabled') === 'true',
+					webhook_ids: whIds,
+				});
+			}}>
 				<div class="mb-4 grid grid-cols-2 gap-4">
 					<div>
 						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Port</label>
@@ -383,6 +597,33 @@
 						</select>
 					</div>
 				</div>
+
+				<!-- Notification Channels -->
+				<div class="mb-4">
+					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Notify Via</label>
+					{#if webhooksLoading}
+						<p class="text-xs" style="color: var(--color-text-muted);">Loading webhooks...</p>
+					{:else if webhooks.length === 0}
+						<p class="text-xs" style="color: var(--color-text-muted);">
+							No webhooks configured.
+							<a href="/registry/webhooks" class="underline" style="color: var(--color-primary);">Create one</a>
+						</p>
+					{:else}
+						<div class="space-y-2">
+							{#each webhooks as wh}
+								{@const checked = monitor.webhook_ids?.includes(wh.id) || false}
+								<label class="flex cursor-pointer items-center gap-3 rounded-lg p-2" style="background: checked ? 'var(--color-primary-subtle)' : 'transparent';" role="checkbox" tabindex="0" aria-checked={checked}>
+									<input type="checkbox" name="webhook_ids" value={wh.id} checked={checked} class="h-4 w-4 rounded border-gray-300" />
+									<div>
+										<p class="text-sm font-medium" style="color: var(--color-text);">{wh.name || wh.url}</p>
+										<p class="text-xs" style="color: var(--color-text-muted);">{wh.platform}</p>
+									</div>
+								</label>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
 				<div class="mb-4">
 					<label class="flex items-center gap-3">
 						<input type="checkbox" name="enabled" value="true" checked={monitor.enabled} class="h-4 w-4 rounded border-gray-300" />

@@ -113,6 +113,10 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			r.Mount("/compliance", compliance.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
 			sslMonH := sslmonitor.NewHandler(repo)
 			r.Mount("/ssl-monitors", sslMonH.Routes())
+
+			// Start SSL monitor scheduler
+			sslSched := sslmonitor.NewScheduler(repo, sslMonH)
+			sslSched.Start(context.Background())
 			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
 			r.Mount("/settings", settingsH.Routes())
 			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)

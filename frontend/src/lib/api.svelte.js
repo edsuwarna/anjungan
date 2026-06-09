@@ -384,5 +384,16 @@ export const api = {
 		checkNow: (id) => request(`/ssl-monitors/${id}/check`, { method: 'POST' }),
 		checkAll: () => request('/ssl-monitors/check-all', { method: 'POST' }),
 		summary: () => request('/ssl-monitors/summary'),
+		history: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.offset) qs.set('offset', params.offset);
+			const q = qs.toString();
+			return request(`/ssl-monitors/${id}/history${q ? '?' + q : ''}`);
+		},
+	},
+
+	registryWebhooks: {
+		list: () => request('/registry/webhooks'),
 	},
 };
