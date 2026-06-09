@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — SSL Certificate Monitoring</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #10b981;
+    --primary-light: #d1fae5;
+    --primary-dark: #059669;
+    --bg: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-sidebar: #ffffff;
+    --text: #0f172a;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+    --shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px 0 rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+    --sidebar-w: 256px;
+    --topbar-h: 64px;
+    --green: #22c55e;
+    --green-bg: #dcfce7;
+    --amber: #f59e0b;
+    --amber-bg: #fef3c7;
+    --orange: #fb923c;
+    --orange-bg: #ffedd5;
+    --red: #ef4444;
+    --red-bg: #fee2e2;
+    --gray: #94a3b8;
+    --gray-bg: #f1f5f9;
+    --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  .dark {
+    --bg: #0f172a;
+    --bg-card: #1e293b;
+    --bg-sidebar: #1e293b;
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border: #334155;
+    --border-light: #1e293b;
+    --shadow: 0 1px 3px 0 rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+  }
+  html { font-size: 14px; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    transition: background 0.2s, color 0.2s;
+  }
+  .sidebar {
+    width: var(--sidebar-w);
+    height: 100vh;
+    position: fixed;
+    top: 0; left: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+  .sidebar-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sidebar-logo {
+    width: 32px; height: 32px;
+    background: var(--primary);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 16px;
+  }
+  .sidebar-title { font-weight: 600; font-size: 15px; }
+  .sidebar-nav { flex: 1; padding: 12px 12px; overflow-y: auto; }
+  .nav-section { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 16px 12px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 8px; font-size: 13px;
+    color: var(--text-secondary); text-decoration: none;
+    margin-bottom: 2px; cursor: pointer;
+  }
+  .nav-item:hover { background: var(--border-light); color: var(--text); }
+  .nav-item.active { background: var(--primary-light); color: var(--primary-dark); font-weight: 500; }
+  .nav-icon { width: 18px; text-align: center; font-size: 14px; }
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    min-height: 100vh;
+  }
+  .topbar {
+    height: var(--topbar-h);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    background: var(--bg-card);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .page-title { font-size: 18px; font-weight: 600; }
+  .page-subtitle { font-size: 13px; color: var(--text-secondary); }
+  .topbar-search {
+    padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font-size: 13px; width: 240px;
+    outline: none;
+  }
+  .topbar-search:focus { border-color: var(--primary); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .content { padding: 24px 32px; }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; box-shadow: var(--shadow); }
+  .kpi-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .kpi-value { font-size: 28px; font-weight: 700; }
+  .kpi-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .kpi-icon { float: right; font-size: 24px; opacity: 0.7; }
+  .action-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .action-left { display: flex; align-items: center; gap: 8px; }
+  .action-right { display: flex; gap: 8px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    border: 1px solid var(--border); cursor: pointer;
+    background: var(--bg-card); color: var(--text);
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--border-light); }
+  .btn-primary {
+    background: var(--primary); color: white; border-color: var(--primary);
+  }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-outline-primary { border-color: var(--primary); color: var(--primary); background: transparent; }
+  .btn-outline-primary:hover { background: var(--primary-light); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .filter-chips { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .chip {
+    padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    border: 1px solid var(--border); cursor: pointer;
+    color: var(--text-secondary); background: var(--bg-card);
+  }
+  .chip:hover { border-color: var(--primary); color: var(--primary); }
+  .chip.active { background: var(--primary-light); border-color: var(--primary); color: var(--primary-dark); }
+  .domain-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; box-shadow: var(--shadow);
+    display: flex; align-items: center;
+    margin-bottom: 8px; cursor: pointer; transition: all 0.15s;
+  }
+  .domain-card:hover { box-shadow: var(--shadow-md); border-color: var(--primary); }
+  .domain-status { width: 10px; height: 10px; border-radius: 50%; margin-right: 14px; flex-shrink: 0; }
+  .status-green { background: var(--green); }
+  .status-amber { background: var(--amber); box-shadow: 0 0 6px rgba(245,158,11,0.4); }
+  .status-red { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+  .status-gray { background: var(--gray); }
+  .domain-info { flex: 1; min-width: 0; }
+  .domain-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .domain-meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .domain-badges { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500;
+  }
+  .badge-green { background: var(--green-bg); color: #16a34a; }
+  .badge-amber { background: var(--amber-bg); color: #d97706; }
+  .badge-red { background: var(--red-bg); color: #dc2626; }
+  .badge-orange { background: var(--orange-bg); color: #ea580c; }
+  .badge-gray { background: var(--gray-bg); color: var(--text-muted); }
+  .domain-expiry { text-align: right; flex-shrink: 0; margin-left: 16px; }
+  .expiry-days { font-size: 20px; font-weight: 700; }
+  .expiry-days.green { color: var(--green); }
+  .expiry-days.amber { color: var(--amber); }
+  .expiry-days.red { color: var(--red); }
+  .expiry-label { font-size: 11px; color: var(--text-muted); }
+  .domain-actions { display: flex; gap: 4px; margin-left: 12px; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg-card); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 14px;
+  }
+  .icon-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+  /* Tabs for different views */
+  .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    padding: 10px 20px; font-size: 13px; font-weight: 500; cursor: pointer;
+    border: none; background: none; color: var(--text-secondary);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  /* Detail view */
+  .detail-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; }
+  .detail-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .detail-section-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .detail-row { display: flex; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { width: 120px; font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+  .detail-value { font-size: 13px; flex: 1; word-break: break-all; }
+  .chain-node { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; margin-bottom: 4px; }
+  .chain-node.valid { background: var(--green-bg); }
+  .chain-node.invalid { background: var(--red-bg); }
+  .chain-icon { font-size: 14px; }
+  .chain-info { font-size: 12px; }
+  .chain-sub { font-size: 11px; color: var(--text-muted); }
+  .grade-badge { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; font-size: 18px; font-weight: 700; }
+  .grade-aplus { background: var(--green-bg); color: #16a34a; }
+  .grade-a { background: var(--green-bg); color: #16a34a; }
+  .grade-b { background: var(--amber-bg); color: #d97706; }
+  .grade-c { background: var(--orange-bg); color: #ea580c; }
+  .grade-d { background: var(--red-bg); color: #dc2626; }
+  .grade-f { background: var(--red-bg); color: #dc2626; }
+  /* Form modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--bg-card); border-radius: 16px; width: 540px;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-title { font-size: 16px; font-weight: 600; }
+  .modal-close { width: 28px; height: 28px; border-radius: 6px; border: none; background: var(--border-light); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 16px; }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+  .form-input {
+    width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font-size: 13px; outline: none;
+  }
+  .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .theme-toggle {
+    background: none; border: 1px solid var(--border); width: 36px; height: 36px;
+    border-radius: 8px; cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .bell-btn { background: none; border: none; font-size: 18px; cursor: pointer; position: relative; }
+  .bell-dot { position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; background: var(--red); border-radius: 50%; }
+  /* History timeline */
+  .history-list { max-height: 300px; overflow-y: auto; }
+  .history-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
+  .history-time { font-size: 11px; color: var(--text-muted); width: 70px; flex-shrink: 0; }
+  .history-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .history-days { font-size: 13px; font-weight: 500; width: 40px; text-align: right; flex-shrink: 0; }
+  .history-grade { font-size: 11px; width: 24px; text-align: center; flex-shrink: 0; }
+  .mini-chart { margin-top: 12px; height: 60px; display: flex; align-items: flex-end; gap: 2px; }
+  .mini-bar { width: 8px; border-radius: 2px 2px 0 0; min-height: 4px; }
+  .mini-bar.green { background: var(--green); }
+  .mini-bar.amber { background: var(--amber); }
+  .mini-bar.red { background: var(--red); }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-text { font-size: 15px; font-weight: 500; }
+  .empty-sub { font-size: 13px; margin-top: 4px; }
+  @media (prefers-color-scheme: dark) { body { --bg: #0f172a; --bg-card: #1e293b; --bg-sidebar: #1e293b; --text: #f1f5f9; --text-secondary: #94a3b8; --text-muted: #64748b; --border: #334155; --border-light: #1e293b; } }
+</style>
+</head>
+<body>
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">A</div>
+    <span class="sidebar-title">Anjungan</span>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-section">Platform</div>
+    <a class="nav-item"><span class="nav-icon">📊</span> Dashboard</a>
+    <a class="nav-item"><span class="nav-icon">🖥</span> Servers</a>
+    <a class="nav-item"><span class="nav-icon">📦</span> Containers</a>
+    <a class="nav-item"><span class="nav-icon">📋</span> Compliance</a>
+    <div class="nav-section">Registry</div>
+    <a class="nav-item"><span class="nav-icon">📂</span> Repository</a>
+    <a class="nav-item"><span class="nav-icon">🔄</span> Deployments</a>
+    <div class="nav-section">Network</div>
+    <a class="nav-item"><span class="nav-icon">📡</span> Domains</a>
+    <a class="nav-item active"><span class="nav-icon">🔒</span> SSL Monitors</a>
+    <div class="nav-section">Admin</div>
+    <a class="nav-item"><span class="nav-icon">👥</span> Users</a>
+    <a class="nav-item"><span class="nav-icon">📜</span> Audit Log</a>
+    <a class="nav-item"><span class="nav-icon">🔑</span> SSH Keys</a>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="page-title">🔒 SSL Monitors</span>
+      <span class="page-subtitle">Certificate expiry monitoring for all domains</span>
+    </div>
+    <div class="topbar-right">
+      <input class="topbar-search" type="text" placeholder="Search domain..." value="">
+      <button class="bell-btn">🔔<span class="bell-dot"></span></button>
+      <button class="theme-toggle">🌙</button>
+      <div class="avatar">ES</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('list-view')">📋 All Monitors</button>
+      <button class="tab-btn" onclick="showTab('add-view')">➕ Add Monitor</button>
+      <button class="tab-btn" onclick="showTab('detail-view')">🔍 Domain Detail</button>
+    </div>
+
+    <!-- Tab 1: List View -->
+    <div class="tab-content active" id="list-view">
+      <!-- KPI Cards -->
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-icon">🟢</div>
+          <div class="kpi-label">Valid</div>
+          <div class="kpi-value">5</div>
+          <div class="kpi-sub">> 30 days remaining</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">🟡</div>
+          <div class="kpi-label">Expiring Soon</div>
+          <div class="kpi-value">2</div>
+          <div class="kpi-sub">7–30 days remaining</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">🔴</div>
+          <div class="kpi-label">Expired / Critical</div>
+          <div class="kpi-value">1</div>
+          <div class="kpi-sub">< 7 days or expired</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">⚪</div>
+          <div class="kpi-label">Error</div>
+          <div class="kpi-value">1</div>
+          <div class="kpi-sub">Connection failed</div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-chips">
+        <span class="chip active">All (9)</span>
+        <span class="chip">🟢 Valid (5)</span>
+        <span class="chip">🟡 Expiring (2)</span>
+        <span class="chip">🔴 Expired (1)</span>
+        <span class="chip">⚪ Error (1)</span>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="action-bar">
+        <div class="action-left">
+          <button class="btn btn-primary" onclick="showTab('add-view')">+ Add SSL Monitor</button>
+          <button class="btn btn-outline-primary btn-sm">🔃 Check All</button>
+        </div>
+        <div class="action-right">
+          <button class="btn btn-sm">📥 Export</button>
+          <button class="btn btn-sm">🔄 Auto-refresh: 1h</button>
+        </div>
+      </div>
+
+      <!-- Domain Cards -->
+      <div class="domain-card" onclick="showTab('detail-view')">
+        <div class="domain-status status-green"></div>
+        <div class="domain-info">
+          <div class="domain-name">
+            app1.edsuwarna.id
+            <span class="badge badge-green">A+</span>
+          </div>
+          <div class="domain-meta">Let's Encrypt R3 · TLS 1.3 · Checked 5m ago</div>
+          <div class="domain-badges">
+            <span class="badge badge-green">SAN ✅</span>
+            <span class="badge badge-green">Chain ✅</span>
+            <span class="badge badge-green">OCSP ✅</span>
+          </div>
+        </div>
+        <div class="domain-expiry">
+          <div class="expiry-days green">94d</div>
+          <div class="expiry-label">remaining</div>
+        </div>
+        <div class="domain-actions">
+          <button class="icon-btn" title="Check Now">🔃</button>
+          <button class="icon-btn" title="Edit">✏️</button>
+          <button class="icon-btn" title="Delete">🗑</button>
+        </div>
+      </div>
+
+      <div class="domain-card" onclick="showTab('detail-view')">
+        <div class="domain-status status-green"></div>
+        <div class="domain-info">
+          <div class="domain-name">
+            registry.edsuwarna.id
+            <span class="badge badge-green">A</span>
+          </div>
+          <div class="domain-meta">Let's Encrypt R3 · TLS 1.3 · Checked 12m ago</div>
+          <div class="domain-badges">
+            <span class="badge badge-green">SAN ✅</span>
+            <span class="badge badge-green">Chain ✅</span>
+            <span class="badge badge-green">OCSP ✅</span>
+          </div>
+        </div>
+        <div class="domain-expiry">
+          <div class="expiry-days green">67d</div>
+          <div class="expiry-label">remaining</div>
+        </div>
+        <div class="domain-actions">
+          <button class="icon-btn">🔃</button>
+          <button class="icon-btn">✏️</button>
+          <button class="icon-btn">🗑</button>
+        </div>
+      </div>
+
+      <div class="domain-card" onclick="showTab('detail-view')">
+        <div class="domain-status status-amber"></div>
+        <div class="domain-info">
+          <div class="domain-name">
+            staging.edsuwarna.id
+            <span class="badge badge-amber">B</span>
+            <span class="badge badge-amber">🔔 Expiring</span>
+          </div>
+          <div class="domain-meta">Let's Encrypt R3 · TLS 1.2 · Checked 30m ago</div>
+          <div class="domain-badges">
+            <span class="badge badge-green">SAN ✅</span>
+            <span class="badge badge-green">Chain ✅</span>
+            <span class="badge badge-amber">OCSP ⚠️</span>
+          </div>
+        </div>
+        <div class="domain-expiry">
+          <div class="expiry-days amber">11d</div>
+          <div class="expiry-label">remaining</div>
+        </div>
+        <div class="domain-actions">
+          <button class="icon-btn">🔃</button>
+          <button class="icon-btn">✏️</button>
+          <button class="icon-btn">🗑</button>
+        </div>
+      </div>
+
+      <div class="domain-card">
+        <div class="domain-status status-red"></div>
+        <div class="domain-info">
+          <div class="domain-name">
+            old-api.edsuwarna.id
+            <span class="badge badge-red">F</span>
+            <span class="badge badge-red">❌ Expired</span>
+          </div>
+          <div class="domain-meta">Self-signed · TLS 1.0 · Checked 1h ago</div>
+          <div class="domain-badges">
+            <span class="badge badge-red">SAN ❌ Mismatch</span>
+            <span class="badge badge-red">Chain ❌ Invalid</span>
+            <span class="badge badge-gray">OCSP N/A</span>
+          </div>
+        </div>
+        <div class="domain-expiry">
+          <div class="expiry-days red">-12d</div>
+          <div class="expiry-label">overdue</div>
+        </div>
+        <div class="domain-actions">
+          <button class="icon-btn">🔃</button>
+          <button class="icon-btn">✏️</button>
+          <button class="icon-btn">🗑</button>
+        </div>
+      </div>
+
+      <div class="domain-card">
+        <div class="domain-status status-gray"></div>
+        <div class="domain-info">
+          <div class="domain-name">
+            internal-tools.example.com
+            <span class="badge badge-gray">—</span>
+            <span class="badge badge-red">⛔ Error</span>
+          </div>
+          <div class="domain-meta">Unknown · Last checked: 2h ago</div>
+          <div class="domain-badges">
+            <span class="badge badge-red">❌ Connection refused</span>
+          </div>
+        </div>
+        <div class="domain-expiry">
+          <div class="expiry-label" style="color: var(--text-muted); font-size: 13px;">—</div>
+          <div class="expiry-label">unreachable</div>
+        </div>
+        <div class="domain-actions">
+          <button class="icon-btn">🔃</button>
+          <button class="icon-btn">✏️</button>
+          <button class="icon-btn">🗑</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Add Monitor -->
+    <div class="tab-content" id="add-view">
+      <div style="max-width: 640px; margin: 0 auto;">
+        <div class="detail-section">
+          <div class="detail-section-title">Add SSL Monitor</div>
+          <div class="form-group">
+            <label class="form-label">Domain *</label>
+            <input class="form-input" type="text" placeholder="e.g. app1.edsuwarna.id" value="">
+            <div class="form-hint">Domain name or subdomain to monitor</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Port</label>
+              <input class="form-input" type="number" placeholder="443" value="443">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Display Name</label>
+              <input class="form-input" type="text" placeholder="Optional label" value="">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Check Interval</label>
+              <select class="form-input">
+                <option>Every 30 minutes</option>
+                <option selected>Every 1 hour</option>
+                <option>Every 6 hours</option>
+                <option>Every 12 hours</option>
+                <option>Every 24 hours</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notify Before</label>
+              <select class="form-input">
+                <option>7 days</option>
+                <option selected>14 days</option>
+                <option>21 days</option>
+                <option>30 days</option>
+                <option>Never</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notify Via</label>
+            <select class="form-input">
+              <option>📢 All channels (Telegram + Discord + Slack)</option>
+              <option>📱 Telegram only</option>
+              <option>💬 Discord only</option>
+              <option>🔔 Slack only</option>
+              <option>🔕 No notification</option>
+            </select>
+          </div>
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+            <input type="checkbox" id="enabled" checked style="width: 16px; height: 16px;">
+            <label for="enabled" style="font-size: 13px;">Enable monitoring immediately</label>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button class="btn">Cancel</button>
+          <button class="btn btn-primary">+ Add Monitor & Check Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Domain Detail -->
+    <div class="tab-content" id="detail-view">
+      <div style="margin-bottom: 16px;">
+        <button class="btn btn-sm" onclick="showTab('list-view')">← Back to All Monitors</button>
+      </div>
+      <div class="detail-grid">
+        <div>
+          <!-- Cert Info -->
+          <div class="detail-section">
+            <div class="detail-section-title">
+              Certificate Info
+              <span class="badge badge-green">🟢 Valid</span>
+            </div>
+            <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value" style="font-weight: 600;">staging.edsuwarna.id</span></div>
+            <div class="detail-row"><span class="detail-label">Subject CN</span><span class="detail-value">staging.edsuwarna.id</span></div>
+            <div class="detail-row"><span class="detail-label">Issuer</span><span class="detail-value">R3 · Let's Encrypt</span></div>
+            <div class="detail-row"><span class="detail-label">Expires</span><span class="detail-value" style="color: #d97706; font-weight: 500;">21 Jun 2026 (11 days)</span></div>
+            <div class="detail-row"><span class="detail-label">Fingerprint</span><span class="detail-value" style="font-family: monospace; font-size: 11px;">A1:B2:C3:D4:E5:F6:...:FF</span></div>
+            <div class="detail-row">
+              <span class="detail-label">SANs</span>
+              <span class="detail-value">
+                ✅ staging.edsuwarna.id<br>
+                ✅ www.staging.edsuwarna.id<br>
+                <span style="color: var(--text-muted); font-size: 11px;">2 Subject Alternative Names</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Certificate Chain -->
+          <div class="detail-section">
+            <div class="detail-section-title">Certificate Chain</div>
+            <div class="chain-node valid">
+              <span class="chain-icon">🟢</span>
+              <div class="chain-info">
+                <strong>Leaf</strong>: staging.edsuwarna.id
+                <div class="chain-sub">Expires 21 Jun 2026 · SHA-256: A1:B2:...</div>
+              </div>
+            </div>
+            <div class="chain-node valid">
+              <span class="chain-icon">🟢</span>
+              <div class="chain-info">
+                <strong>Intermediate</strong>: R3
+                <div class="chain-sub">Let's Encrypt · Expires 15 Sep 2026</div>
+              </div>
+            </div>
+            <div class="chain-node valid">
+              <span class="chain-icon">🟢</span>
+              <div class="chain-info">
+                <strong>Root</strong>: ISRG Root X1
+                <div class="chain-sub">Self-signed · Expires 4 Jun 2035</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Check History -->
+          <div class="detail-section">
+            <div class="detail-section-title">
+              Check History
+              <span style="font-weight: 400; font-size: 11px; color: var(--text-muted);">Last 30 days</span>
+            </div>
+            <!-- Mini Chart -->
+            <div class="mini-chart">
+              <div class="mini-bar green" style="height: 42px;" title="Apr 10: 42d"></div>
+              <div class="mini-bar green" style="height: 38px;" title="Apr 12: 40d"></div>
+              <div class="mini-bar green" style="height: 35px;" title="Apr 14: 38d"></div>
+              <div class="mini-bar green" style="height: 32px;" title="Apr 16: 35d"></div>
+              <div class="mini-bar green" style="height: 28px;" title="Apr 18: 31d"></div>
+              <div class="mini-bar green" style="height: 26px;" title="Apr 20: 29d"></div>
+              <div class="mini-bar green" style="height: 22px;" title="Apr 22: 25d"></div>
+              <div class="mini-bar green" style="height: 19px;" title="Apr 24: 22d"></div>
+              <div class="mini-bar amber" style="height: 16px;" title="Apr 26: 19d"></div>
+              <div class="mini-bar amber" style="height: 14px;" title="Apr 28: 15d"></div>
+              <div class="mini-bar amber" style="height: 11px;" title="Apr 30: 11d"></div>
+            </div>
+            <div class="history-list">
+              <div class="history-item">
+                <span class="history-time">10:32</span>
+                <span class="history-status" style="background: var(--green);"></span>
+                <span class="history-days" style="color: var(--green);">11d</span>
+                <span class="history-grade">A</span>
+                <span style="font-size: 12px; color: var(--text-secondary);">TLS 1.2 · 234ms</span>
+              </div>
+              <div class="history-item">
+                <span class="history-time">09:32</span>
+                <span class="history-status" style="background: var(--green);"></span>
+                <span class="history-days" style="color: var(--green);">11d</span>
+                <span class="history-grade">A</span>
+                <span style="font-size: 12px; color: var(--text-secondary);">TLS 1.2 · 210ms</span>
+              </div>
+              <div class="history-item">
+                <span class="history-time">08:32</span>
+                <span class="history-status" style="background: var(--green);"></span>
+                <span class="history-days" style="color: var(--green);">11d</span>
+                <span class="history-grade">A</span>
+                <span style="font-size: 12px; color: var(--text-secondary);">TLS 1.2 · 198ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <!-- Cipher Quality -->
+          <div class="detail-section" style="text-align: center;">
+            <div class="detail-section-title">Cipher Quality</div>
+            <div class="grade-badge grade-a" style="margin: 8px auto;">A</div>
+            <div style="font-size: 13px; font-weight: 500; margin-top: 4px;">TLS 1.2</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</div>
+            <div style="margin-top: 12px; padding: 8px; background: var(--amber-bg); border-radius: 8px; font-size: 11px; color: #92400e;">
+              💡 Upgrade to TLS 1.3 for A+ grade
+            </div>
+          </div>
+
+          <!-- OCSP Status -->
+          <div class="detail-section">
+            <div class="detail-section-title">OCSP Status</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 24px;">🟡</span>
+              <div>
+                <div style="font-size: 13px; font-weight: 500;">Stapled Response</div>
+                <div style="font-size: 12px; color: var(--text-secondary);">Next Update: 11 Jun 2026 · Produced: 10 Jun 2026</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings -->
+          <div class="detail-section">
+            <div class="detail-section-title">Monitor Settings</div>
+            <div class="detail-row"><span class="detail-label">Interval</span><span class="detail-value">Every 1 hour</span></div>
+            <div class="detail-row"><span class="detail-label">Notify</span><span class="detail-value">14 days before expiry</span></div>
+            <div class="detail-row"><span class="detail-label">Channels</span><span class="detail-value">📢 Telegram + Discord</span></div>
+            <div class="detail-row"><span class="detail-label">Last Check</span><span class="detail-value">30 minutes ago</span></div>
+            <div class="detail-row"><span class="detail-label">Next Check</span><span class="detail-value">In ~30 minutes</span></div>
+            <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">10 Jun 2026 by Endang</span></div>
+          </div>
+
+          <!-- Actions -->
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="btn btn-primary" style="width: 100%; justify-content: center;">🔃 Check Now</button>
+            <button class="btn" style="width: 100%; justify-content: center;">✏️ Edit Monitor</button>
+            <button class="btn" style="width: 100%; justify-content: center; color: var(--red); border-color: var(--red-bg);">🗑 Remove Monitor</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  document.querySelector(`.tab-btn[onclick*="${tabId}"]`).classList.add('active');
+}
+</script>
+</body>
+</html>

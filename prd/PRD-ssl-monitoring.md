@@ -489,7 +489,27 @@ CREATE INDEX idx_ssl_monitors_enabled ON ssl_monitors(enabled);
 
 ---
 
-## 11. Future Considerations
+## 11. Mockup References
+
+UI mockups created for this feature are available in [`sketches/ssl-monitoring/`](../sketches/ssl-monitoring/):
+
+| Screenshot | Description |
+|------------|-------------|
+| [`ssl-monitor-list.png`](../sketches/ssl-monitoring/ssl-monitor-list.png) | Main dashboard — KPI cards, filter chips, domain list with status badges, expiry countdown, cipher grade, SAN/Chain/OCSP indicators |
+| [`ssl-monitor-add.png`](../sketches/ssl-monitoring/ssl-monitor-add.png) | Add SSL Monitor form — domain, port, display name, check interval, notify threshold, notif channel |
+| [`ssl-monitor-detail.png`](../sketches/ssl-monitoring/ssl-monitor-detail.png) | Domain detail — cert info, certificate chain (leaf → intermediate → root), cipher quality grade, OCSP status, check history mini chart, settings |
+
+### Mockup Views
+
+![SSL Monitor List](../sketches/ssl-monitoring/ssl-monitor-list.png)
+
+![Add Monitor](../sketches/ssl-monitoring/ssl-monitor-add.png)
+
+![Domain Detail](../sketches/ssl-monitoring/ssl-monitor-detail.png)
+
+---
+
+## 12. Future Considerations
 
 | Feature | Trigger |
 |---------|---------|
@@ -504,7 +524,7 @@ CREATE INDEX idx_ssl_monitors_enabled ON ssl_monitors(enabled);
 
 ---
 
-## 12. PRD Cross-References
+## 13. PRD Cross-References
 
 | Document | Relation |
 |----------|----------|
@@ -514,7 +534,7 @@ CREATE INDEX idx_ssl_monitors_enabled ON ssl_monitors(enabled);
 
 ---
 
-## 13. References
+## 14. References
 
 - [Go crypto/tls](https://pkg.go.dev/crypto/tls) — TLS handshake
 - [Go crypto/x509](https://pkg.go.dev/crypto/x509) — Certificate parsing
