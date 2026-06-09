@@ -74,8 +74,8 @@ Make infrastructure management accessible for ops teams AND application deployme
 | Domain | Backend | Frontend | Notes |
 --------|---------|----------|-------|
 | Auth (login, register, JWT, refresh) | ✅ Done | ✅ Done | Login, register, refresh, logout, me ✅ |
-| User Settings (Self-Service) | ✅ Done | ✅ Done | Profile update (name/email), change password (with current password validation), auto re-issue JWT on email change. Route `/settings` with sidebar/topbar access. Admin: registration toggle ✅ |
-| TOTP 2FA | ✅ Done | 🟡 Partial | Backend: verify endpoint ✅. Frontend: login input not yet fully integrated |
+|| User Settings (Self-Service) | ✅ Done | ✅ Done | Profile update (name/email), change password (with current password validation), auto re-issue JWT on email change. Route `/settings` with sidebar/topbar access. Admin: registration toggle ✅ |
+|| TOTP 2FA | ✅ Done | ✅ Done | Self-service setup/verify/disable, login TOTP challenge, admin reset. QR code + manual secret |
 | Dashboard | ✅ Done | ✅ Done | Summary API: server count, status dist, user count. StatCards + data |
 | Servers CRUD | ✅ Done | ✅ Done | List/Create/Get/Update/Delete ✅. Test connection, metrics, detect info, groups/regions/types |
 | Containers (per-server + global) | ✅ Done | ✅ Done | List, start/stop/restart, logs, inspect, exec (WebSocket), stats. Security report per container |
