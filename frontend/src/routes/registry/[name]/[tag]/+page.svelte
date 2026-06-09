@@ -15,6 +15,9 @@
 	let deleting = $state(false);
 	let deleteConfirm = $state(false);
 	let isAdmin = $derived($user?.role === 'admin');
+	let cveAvailable = $state(false);
+	let cveData = $state(null);
+	let cveLoading = $state(false);
 
 	onMount(() => {
 		loadDetail();
@@ -26,10 +29,28 @@
 		try {
 			const data = await api.registry.detail(name, tag);
 			detail = data;
+			// Check CVE availability
+			loadCve();
 		} catch (e) {
 			error = e.message || 'Failed to load image details';
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadCve() {
+		cveLoading = true;
+		try {
+			const check = await api.registry.cve.check();
+			if (check?.available) {
+				cveAvailable = true;
+				const data = await api.registry.cve.tagDetail(name, tag);
+				cveData = data?.cve || null;
+			}
+		} catch (e) {
+			cveAvailable = false;
+		} finally {
+			cveLoading = false;
 		}
 	}
 
@@ -97,6 +118,7 @@
 		{ id: 'config', label: 'Configuration', icon: 'solar:settings-outline' },
 		{ id: 'layers', label: 'Layers', icon: 'solar:layers-outline' },
 		{ id: 'history', label: 'History', icon: 'solar:clock-circle-outline' },
+		...(cveAvailable ? [{ id: 'cve', label: 'Vulnerabilities', icon: 'solar:shield-warning-outline' }] : []),
 	];
 
 	let pullCmd = $derived(`docker pull registry.anjungan.io/${name}:${tag}`);
@@ -425,6 +447,60 @@
 					</div>
 				{:else}
 					<div class="py-6 text-center text-xs" style="color: var(--color-text-muted);">No build history available.</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Tab: Vulnerabilities -->
+		{#if activeTab === 'cve' && cveAvailable}
+			<div class="card p-4">
+				<div class="mb-3 flex items-center justify-between">
+					<h3 class="text-xs font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">Vulnerability Scan</h3>
+					<span class="text-[10px]" style="color: var(--color-text-muted);">{cveLoading ? 'Loading...' : 'Zot CVE Extension'}</span>
+				</div>
+				{#if cveLoading}
+					<div class="flex items-center justify-center py-8">
+						<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
+					</div>
+				{:else if cveData}
+					{@const summary = cveData?.Summary || cveData?.summary || cveData}
+					{@const total = summary?.Total || summary?.total || 0}
+					{@const critical = summary?.Critical || summary?.critical || 0}
+					{@const high = summary?.High || summary?.high || 0}
+					{@const medium = summary?.Medium || summary?.medium || 0}
+					{@const low = summary?.Low || summary?.low || 0}
+					
+					{#if total > 0}
+						<div class="grid grid-cols-2 gap-3 mb-4">
+							<div class="rounded-lg p-4 text-center" style="background-color: rgba(239,68,68,0.1);">
+								<div class="text-2xl font-bold" style="color: #ef4444;">{critical}</div>
+								<div class="text-[10px]" style="color: #ef4444;">Critical</div>
+							</div>
+							<div class="rounded-lg p-4 text-center" style="background-color: rgba(249,115,22,0.1);">
+								<div class="text-2xl font-bold" style="color: #f97316;">{high}</div>
+								<div class="text-[10px]" style="color: #f97316;">High</div>
+							</div>
+							<div class="rounded-lg p-4 text-center" style="background-color: rgba(234,179,8,0.1);">
+								<div class="text-2xl font-bold" style="color: #eab308;">{medium}</div>
+								<div class="text-[10px]" style="color: #eab308;">Medium</div>
+							</div>
+							<div class="rounded-lg p-4 text-center" style="background-color: rgba(34,197,94,0.1);">
+								<div class="text-2xl font-bold" style="color: #22c55e;">{low}</div>
+								<div class="text-[10px]" style="color: #22c55e;">Low</div>
+							</div>
+						</div>
+						<p class="text-xs" style="color: var(--color-text-secondary);">Total: {total} vulnerabilities found</p>
+					{:else}
+						<div class="rounded-lg p-6 text-center" style="background-color: rgba(16,185,129,0.08);">
+							<Icon icon="solar:shield-check-bold" class="h-8 w-8 mx-auto mb-2" style="color: var(--color-success);" />
+							<p class="text-sm font-medium" style="color: var(--color-success);">No vulnerabilities found</p>
+							<p class="mt-1 text-xs" style="color: var(--color-text-muted);">This image has passed the vulnerability scan.</p>
+						</div>
+					{/if}
+				{:else}
+					<div class="py-6 text-center">
+						<p class="text-xs" style="color: var(--color-text-muted);">No CVE data available for this tag.</p>
+					</div>
 				{/if}
 			</div>
 		{/if}

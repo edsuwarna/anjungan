@@ -175,6 +175,11 @@ export const api = {
 		searchTags: (q) => {
 			return request(`/registry/search/tags?q=${encodeURIComponent(q)}`);
 		},
+		// CVE / Vulnerability
+		cve: {
+			check: () => request('/registry/cve/check'),
+			tagDetail: (name, tag) => request(`/registry/cve/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`),
+		},
 	},
 
 	repositories: {

@@ -132,6 +132,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Mount("/webhooks", h.webhookRoutes())
 	r.Mount("/protections", h.tagProtectionRoutes())
 	r.Get("/search/tags", h.SearchTags)
+	r.Get("/cve/check", h.CVECheck)
+	r.Get("/cve/{name}/{tag}", h.CVETagDetail)
 	return r
 }
 
@@ -1093,6 +1095,90 @@ func (h *Handler) TriggerGC(w http.ResponseWriter, r *http.Request) {
 		"gc_delay":     "168h",
 		"restart_cmd":  "docker restart anjungan-zot",
 	})
+}
+
+// ─── CVE/Vulnerability Check ────────────────────────────────────────────────
+
+// CVECheck checks if Zot's CVE extension is available and returns status.
+func (h *Handler) CVECheck(w http.ResponseWriter, r *http.Request) {
+	cveAvailable := false
+	var cveInfo struct {
+		Version string `json:"version,omitempty"`
+		DBDate  string `json:"db_date,omitempty"`
+		DBType  string `json:"db_type,omitempty"`
+	}
+
+	// Try Zot CVE extension endpoint
+	resp, err := h.zotRequest("/v2/_zot/ext/cve")
+	if err == nil && resp.StatusCode < 400 {
+		defer resp.Body.Close()
+		cveAvailable = true
+		body, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(body, &cveInfo)
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"available": cveAvailable,
+		"info":      cveInfo,
+	})
+}
+
+// CVETagDetail returns CVE details for a specific image tag.
+// Returns summary if available, or empty if CVE extension is not configured.
+func (h *Handler) CVETagDetail(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	tag := chi.URLParam(r, "tag")
+
+	// Try Zot CVE endpoint for this specific tag
+	resp, err := h.zotRequest("/v2/_zot/ext/cve/repos/" + name + "/tags/" + tag)
+	if err != nil {
+		common.Error(w, http.StatusNotFound, "no CVE extension or image not found")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 404 {
+		common.Error(w, http.StatusNotFound, "no CVE data for this tag")
+		return
+	}
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		common.Errorf(w, http.StatusBadGateway, "CVE error: %s — %s", resp.Status, string(body))
+		return
+	}
+
+	// Parse the response into a generic structure
+	var cveData map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&cveData); err != nil {
+		common.Errorf(w, http.StatusInternalServerError, "parse CVE data: %v", err)
+		return
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"repo": name,
+		"tag":  tag,
+		"cve":  cveData,
+	})
+}
+
+// cveSummaryForTag fetches CVE summary for a tag (used internally by ListTags enrichment).
+// Returns nil if unavailable or error.
+func (h *Handler) cveSummaryForTag(name, tag string) map[string]interface{} {
+	resp, err := h.zotRequest("/v2/_zot/ext/cve/repos/" + name + "/tags/" + tag)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return nil
+	}
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil
+	}
+	return data
 }
 
 // SearchTags searches for tags across all repositories that match a query.

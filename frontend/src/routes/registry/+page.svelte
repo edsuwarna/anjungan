@@ -75,6 +75,10 @@ let copiedTarget = $state('');
 	let tagSearchTotal = $state(0);
 	let tagSearchDebounce = $state(null);
 
+	// ─── CVE State ─────────────────────────────────────────────
+	let cveAvailable = $state(false);
+	let cveChecking = $state(false);
+
 	// ─── Derived ───
 	let isAdmin = $derived($user?.role === 'admin');
 	let filteredRepos = $derived.by(() => {
@@ -93,6 +97,7 @@ let copiedTarget = $state('');
 		loadUsers();
 		loadWebhooks();
 		loadProtections();
+		loadCveStatus();
 	});
 
 	async function loadConfig() {
@@ -559,6 +564,20 @@ let copiedTarget = $state('');
 			tagProtections = Array.isArray(data) ? data : [];
 		} catch (e) {
 			// ignore
+		}
+	}
+
+	// ─── CVE Functions ─────────────────────────────────────────
+
+	async function loadCveStatus() {
+		cveChecking = true;
+		try {
+			const data = await api.registry.cve.check();
+			cveAvailable = data?.available === true;
+		} catch (e) {
+			cveAvailable = false;
+		} finally {
+			cveChecking = false;
 		}
 	}
 
@@ -1053,6 +1072,11 @@ let copiedTarget = $state('');
 				<Icon icon={gcRunning ? 'solar:spinner-bold' : 'solar:refresh-bold'} class="h-3 w-3 {gcRunning ? 'animate-spin' : ''}" />
 				GC
 			</button>
+			<span class="h-3 w-px" style="background-color: var(--color-border);"></span>
+			<div class="inline-flex items-center gap-1 text-[10px]" style="color: {cveAvailable ? 'var(--color-success)' : 'var(--color-text-muted)'};" title="{cveAvailable ? 'CVE scanning enabled' : 'CVE scanning not available - enable Zot CVE extension'}">
+				<Icon icon={cveChecking ? 'solar:spinner-bold animate-spin' : cveAvailable ? 'solar:shield-check-bold' : 'solar:shield-outline'} class="h-3 w-3" />
+				{cveChecking ? 'CVE...' : cveAvailable ? 'CVE Active' : 'No CVE'}
+			</div>
 			{/if}
 		</div>
 	</div>
