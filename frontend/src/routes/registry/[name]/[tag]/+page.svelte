@@ -45,7 +45,7 @@
 			if (check?.available) {
 				cveAvailable = true;
 				const data = await api.registry.cve.tagDetail(name, tag);
-				cveData = data?.cve || null;
+				cveData = data?.summary || data?.cve || null;
 			}
 		} catch (e) {
 			cveAvailable = false;
@@ -113,13 +113,13 @@
 		}, 2000);
 	}
 
-	const tabs = [
+	const tabs = $derived([
 		{ id: 'info', label: 'Info', icon: 'solar:info-circle-outline' },
 		{ id: 'config', label: 'Configuration', icon: 'solar:settings-outline' },
 		{ id: 'layers', label: 'Layers', icon: 'solar:layers-outline' },
 		{ id: 'history', label: 'History', icon: 'solar:clock-circle-outline' },
 		...(cveAvailable ? [{ id: 'cve', label: 'Vulnerabilities', icon: 'solar:shield-warning-outline' }] : []),
-	];
+	]);
 
 	let pullCmd = $derived(`docker pull registry.anjungan.io/${name}:${tag}`);
 </script>

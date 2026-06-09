@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -122,6 +123,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/repos/{name}/{tag}", h.ImageDetail)
 	r.Delete("/repos/{name}/manifests/{digest}", h.requireAdmin(h.DeleteManifest))
 	r.Delete("/repos/{name}/tags/{tag}", h.requireAdmin(h.DeleteTag))
+	r.Delete("/repos/{name}", h.requireAdmin(h.DeleteRepo))
 	r.Post("/gc", h.requireAdmin(h.TriggerGC))
 	r.Get("/users", h.requireAdmin(h.ListUsers))
 	r.Post("/users", h.requireAdmin(h.CreateUser))
@@ -320,6 +322,23 @@ func (h *Handler) zotRequest(path string) (*http.Response, error) {
 		return nil, err
 	}
 	req.SetBasicAuth(h.cfg.AdminUser, h.cfg.AdminPass)
+	req.Header.Set("User-Agent", "anjungan/1.0")
+	return http.DefaultClient.Do(req)
+}
+
+// zotGraphQL sends a GraphQL POST query to the Zot search extension.
+func (h *Handler) zotGraphQL(query string) (*http.Response, error) {
+	body := map[string]string{"query": query}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", h.cfg.URL+"/v2/_zot/ext/search", bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(h.cfg.AdminUser, h.cfg.AdminPass)
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "anjungan/1.0")
 	return http.DefaultClient.Do(req)
 }
@@ -998,6 +1017,101 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// DeleteRepo deletes an entire repository including all tags.
+// Admin-only. Lists all tags, deletes each by digest, then triggers GC.
+func (h *Handler) DeleteRepo(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	// 1. List all tags for the repo
+	tagsResp, err := h.zotRequest("/v2/" + name + "/tags/list")
+	if err != nil {
+		common.Errorf(w, http.StatusBadGateway, "registry connection: %v", err)
+		return
+	}
+	defer tagsResp.Body.Close()
+
+	if tagsResp.StatusCode == 404 {
+		common.Error(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	if tagsResp.StatusCode >= 400 {
+		body, _ := io.ReadAll(tagsResp.Body)
+		common.Errorf(w, http.StatusBadGateway, "registry error: %s — %s", tagsResp.Status, string(body))
+		return
+	}
+
+	var tagList struct {
+		Name string   `json:"name"`
+		Tags []string `json:"tags"`
+	}
+	if err := json.NewDecoder(tagsResp.Body).Decode(&tagList); err != nil {
+		common.Errorf(w, http.StatusInternalServerError, "parse tag list: %v", err)
+		return
+	}
+
+	// 2. Delete each tag by digest (skip protected tags)
+	deleted := 0
+	skipped := 0
+	var errors []string
+
+	for _, tag := range tagList.Tags {
+		protected, _ := h.repo.IsTagProtected(r.Context(), name, tag)
+		if protected {
+			skipped++
+			continue
+		}
+
+		mResp, mErr := h.zotRequest("/v2/" + name + "/manifests/" + tag)
+		if mErr != nil {
+			errors = append(errors, fmt.Sprintf("%s: fetch failed: %v", tag, mErr))
+			continue
+		}
+		if mResp.StatusCode >= 400 {
+			mResp.Body.Close()
+			errors = append(errors, fmt.Sprintf("%s: status %d", tag, mResp.StatusCode))
+			continue
+		}
+		digest := mResp.Header.Get("Docker-Content-Digest")
+		mResp.Body.Close()
+		if digest == "" {
+			errors = append(errors, fmt.Sprintf("%s: no digest", tag))
+			continue
+		}
+
+		if dErr := h.zotDelete("/v2/" + name + "/manifests/" + digest); dErr != nil {
+			errors = append(errors, fmt.Sprintf("%s: delete failed: %v", tag, dErr))
+			continue
+		}
+		deleted++
+	}
+
+	// 3. Trigger GC (best effort)
+	_ = h.zotDelete("/v2/_zot/ext/mgmt/gc")
+
+	// 4. Audit log
+	if claims := auth.GetClaims(r.Context()); claims != nil {
+		meta, _ := json.Marshal(map[string]interface{}{
+			"repo":       name,
+			"tags_total": len(tagList.Tags),
+			"deleted":    deleted,
+			"skipped":    skipped,
+		})
+		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
+			"registry.repo.delete", "registry_repo", name,
+			fmt.Sprintf("Deleted repo %s: %d tags deleted, %d skipped", name, deleted, skipped),
+			json.RawMessage(meta))
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "deleted",
+		"repo":         name,
+		"tags_deleted": deleted,
+		"tags_skipped": skipped,
+		"tags_total":   len(tagList.Tags),
+		"errors":       errors,
+	})
+}
+
 // --- helpers ---
 
 func shortenDigest(d string) string {
@@ -1106,69 +1220,124 @@ func (h *Handler) TriggerGC(w http.ResponseWriter, r *http.Request) {
 // CVECheck checks if Zot's CVE extension is available and returns status.
 func (h *Handler) CVECheck(w http.ResponseWriter, r *http.Request) {
 	cveAvailable := false
-	var cveInfo struct {
-		Version string `json:"version,omitempty"`
-		DBDate  string `json:"db_date,omitempty"`
-		DBType  string `json:"db_type,omitempty"`
-	}
 
-	// Try Zot CVE extension endpoint
-	resp, err := h.zotRequest("/v2/_zot/ext/cve")
-	if err == nil && resp.StatusCode < 400 {
+	// Try GraphQL endpoint — if it responds, CVE extension is available
+	resp, err := h.zotGraphQL("{ __typename }")
+	if err == nil {
 		defer resp.Body.Close()
-		cveAvailable = true
-		body, _ := io.ReadAll(resp.Body)
-		json.Unmarshal(body, &cveInfo)
+		if resp.StatusCode == 200 {
+			cveAvailable = true
+		}
 	}
 
 	common.JSON(w, http.StatusOK, map[string]interface{}{
 		"available": cveAvailable,
-		"info":      cveInfo,
 	})
 }
 
 // CVETagDetail returns CVE details for a specific image tag.
-// Returns summary if available, or empty if CVE extension is not configured.
 func (h *Handler) CVETagDetail(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	tag := chi.URLParam(r, "tag")
 
-	// Try Zot CVE endpoint for this specific tag
-	resp, err := h.zotRequest("/v2/_zot/ext/cve/repos/" + name + "/tags/" + tag)
+	query := fmt.Sprintf(`{ CVEListForImage(image: "%s:%s", requestedPage: {limit: 50}) {
+		Tag
+		CVEList { Id Title Description Severity PackageList { Name InstalledVersion FixedVersion } }
+		Summary { MaxSeverity Count CriticalCount HighCount MediumCount LowCount UnknownCount }
+		Page { TotalCount }
+	} }`, name, tag)
+
+	resp, err := h.zotGraphQL(query)
 	if err != nil {
 		common.Error(w, http.StatusNotFound, "no CVE extension or image not found")
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 404 {
-		common.Error(w, http.StatusNotFound, "no CVE data for this tag")
-		return
-	}
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
 		common.Errorf(w, http.StatusBadGateway, "CVE error: %s — %s", resp.Status, string(body))
 		return
 	}
 
-	// Parse the response into a generic structure
-	var cveData map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&cveData); err != nil {
+	var gqlResp struct {
+		Data struct {
+			CVEListForImage *struct {
+				Tag      string `json:"Tag"`
+				CVEList  []map[string]interface{} `json:"CVEList"`
+				Summary  map[string]interface{}   `json:"Summary"`
+				Page     map[string]interface{}   `json:"Page"`
+			} `json:"CVEListForImage"`
+		} `json:"data"`
+		Errors []map[string]interface{} `json:"errors,omitempty"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&gqlResp); err != nil {
 		common.Errorf(w, http.StatusInternalServerError, "parse CVE data: %v", err)
 		return
 	}
 
+	if len(gqlResp.Errors) > 0 || gqlResp.Data.CVEListForImage == nil {
+		common.JSON(w, http.StatusOK, map[string]interface{}{
+			"repo": name,
+			"tag":  tag,
+			"cve":  nil,
+			"summary": map[string]interface{}{
+				"max_severity": "none",
+				"count":        0,
+				"critical":     0,
+				"high":         0,
+				"medium":       0,
+				"low":          0,
+			},
+		})
+		return
+	}
+
+	// Normalize Zot field names to frontend-expected format
+	summary := normalizeCVESummary(gqlResp.Data.CVEListForImage.Summary)
+
 	common.JSON(w, http.StatusOK, map[string]interface{}{
-		"repo": name,
-		"tag":  tag,
-		"cve":  cveData,
+		"repo":    name,
+		"tag":     tag,
+		"cve":     gqlResp.Data.CVEListForImage.CVEList,
+		"summary": summary,
 	})
+}
+
+// normalizeCVESummary maps Zot CVE summary field names to frontend-expected names.
+// Zot returns: Count, CriticalCount, HighCount, MediumCount, LowCount, UnknownCount, MaxSeverity
+// Frontend expects: total, critical, high, medium, low, unknown, max_severity
+func normalizeCVESummary(s map[string]interface{}) map[string]interface{} {
+	fieldMap := map[string]string{
+		"Count":         "total",
+		"CriticalCount": "critical",
+		"HighCount":     "high",
+		"MediumCount":   "medium",
+		"LowCount":      "low",
+		"UnknownCount":  "unknown",
+		"MaxSeverity":   "max_severity",
+	}
+	normalized := make(map[string]interface{}, len(s)+len(fieldMap))
+	for k, v := range s {
+		normalized[k] = v
+	}
+	for zotKey, feKey := range fieldMap {
+		if v, ok := s[zotKey]; ok {
+			normalized[feKey] = v
+		}
+	}
+	return normalized
 }
 
 // cveSummaryForTag fetches CVE summary for a tag (used internally by ListTags enrichment).
 // Returns nil if unavailable or error.
 func (h *Handler) cveSummaryForTag(name, tag string) map[string]interface{} {
-	resp, err := h.zotRequest("/v2/_zot/ext/cve/repos/" + name + "/tags/" + tag)
+	query := fmt.Sprintf(`{ CVEListForImage(image: "%s:%s", requestedPage: {limit: 1}) {
+		Summary { MaxSeverity Count CriticalCount HighCount MediumCount LowCount }
+	} }`, name, tag)
+
+	resp, err := h.zotGraphQL(query)
 	if err != nil {
 		return nil
 	}
@@ -1178,11 +1347,22 @@ func (h *Handler) cveSummaryForTag(name, tag string) map[string]interface{} {
 		return nil
 	}
 
-	var data map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	var gqlResp struct {
+		Data struct {
+			CVEListForImage *struct {
+				Summary map[string]interface{} `json:"Summary"`
+			} `json:"CVEListForImage"`
+		} `json:"data"`
+		Errors []map[string]interface{} `json:"errors,omitempty"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&gqlResp); err != nil {
 		return nil
 	}
-	return data
+
+	if len(gqlResp.Errors) > 0 || gqlResp.Data.CVEListForImage == nil {
+		return nil
+	}
+	return gqlResp.Data.CVEListForImage.Summary
 }
 
 // ─── Stats/Summary ──────────────────────────────────────────────────────────

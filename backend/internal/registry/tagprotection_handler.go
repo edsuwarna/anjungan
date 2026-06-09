@@ -19,9 +19,9 @@ func (h *Handler) tagProtectionRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.ListTagProtections)
 	r.Post("/", h.requireAdmin(h.CreateTagProtection))
+	r.Get("/check", h.CheckTagProtection)
+	r.Delete("/by-repo", h.requireAdmin(h.DeleteTagProtectionByRepoTag))
 	r.Delete("/{id}", h.requireAdmin(h.DeleteTagProtection))
-	r.Delete("/by-repo/{repo}/{tag}", h.requireAdmin(h.DeleteTagProtectionByRepoTag))
-	r.Get("/check/{repo}/{tag}", h.CheckTagProtection)
 	return r
 }
 
@@ -104,9 +104,15 @@ func (h *Handler) DeleteTagProtection(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteTagProtectionByRepoTag removes a tag protection by repo + tag.
+// Uses query params to avoid URL path issues with repo names containing slashes.
 func (h *Handler) DeleteTagProtectionByRepoTag(w http.ResponseWriter, r *http.Request) {
-	repo := chi.URLParam(r, "repo")
-	tag := chi.URLParam(r, "tag")
+	repo := r.URL.Query().Get("repo")
+	tag := r.URL.Query().Get("tag")
+
+	if repo == "" || tag == "" {
+		common.Error(w, http.StatusBadRequest, "repo and tag query parameters are required")
+		return
+	}
 
 	if err := h.repo.DeleteTagProtectionByRepoTag(r.Context(), repo, tag); err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to delete protection")
@@ -120,9 +126,10 @@ func (h *Handler) DeleteTagProtectionByRepoTag(w http.ResponseWriter, r *http.Re
 }
 
 // CheckTagProtection checks if a specific tag is protected.
+// Uses query params to avoid URL path issues with repo names containing slashes.
 func (h *Handler) CheckTagProtection(w http.ResponseWriter, r *http.Request) {
-	repo := chi.URLParam(r, "repo")
-	tag := chi.URLParam(r, "tag")
+	repo := r.URL.Query().Get("repo")
+	tag := r.URL.Query().Get("tag")
 
 	protected, err := h.repo.IsTagProtected(r.Context(), repo, tag)
 	if err != nil {

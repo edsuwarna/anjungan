@@ -140,6 +140,7 @@ export const api = {
 		detail: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`),
 		delete: (name, digest) => request(`/registry/repos/${encodeURIComponent(name)}/manifests/${encodeURIComponent(digest)}`, { method: 'DELETE' }),
 		deleteTag: (name, tag) => request(`/registry/repos/${encodeURIComponent(name)}/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
+		deleteRepo: (name) => request(`/registry/repos/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 		gc: () => request('/registry/gc', { method: 'POST' }),
 		users: () => request('/registry/users'),
 		createUser: (data) => request('/registry/users', { method: 'POST', body: JSON.stringify(data) }),
@@ -168,8 +169,8 @@ export const api = {
 			},
 			create: (data) => request('/registry/protections', { method: 'POST', body: JSON.stringify(data) }),
 			delete: (id) => request(`/registry/protections/${id}`, { method: 'DELETE' }),
-			deleteByRepoTag: (repo, tag) => request(`/registry/protections/by-repo/${encodeURIComponent(repo)}/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
-			check: (repo, tag) => request(`/registry/protections/check/${encodeURIComponent(repo)}/${encodeURIComponent(tag)}`),
+			deleteByRepoTag: (repo, tag) => request(`/registry/protections/by-repo?repo=${encodeURIComponent(repo)}&tag=${encodeURIComponent(tag)}`, { method: 'DELETE' }),
+			check: (repo, tag) => request(`/registry/protections/check?repo=${encodeURIComponent(repo)}&tag=${encodeURIComponent(tag)}`),
 		},
 		// Tag Search
 		searchTags: (q) => {

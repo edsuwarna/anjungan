@@ -32,6 +32,7 @@
 
 	// Delete modal
 	let deleteTarget = $state(null);
+	let protectedDeleteTarget = $state(null);
 
 	// User management modals
 	let showUserModal = $state(false);
@@ -263,7 +264,11 @@ let copiedTarget = $state('');
 	}
 
 	async function handleDelete(repo, tag, digest) {
-		deleteTarget = { repo, tag, digest };
+		if (isTagProtected(repo, tag)) {
+			protectedDeleteTarget = { repo, tag };
+		} else {
+			deleteTarget = { repo, tag, digest };
+		}
 	}
 
 	async function confirmDelete() {
@@ -693,6 +698,26 @@ let copiedTarget = $state('');
 		}
 	}
 
+	// ─── Delete Repo ──────────────────────────────────────────────
+	let deleteRepoTarget = $state(null);
+	let deleteRepoLoading = $state(false);
+	let deleteRepoResult = $state(null);
+
+	async function confirmDeleteRepo(name) {
+		if (!confirm(`Hapus seluruh repo "${name}" beserta semua tag-nya?`)) return;
+		deleteRepoLoading = true;
+		deleteRepoResult = null;
+		try {
+			const data = await api.registry.deleteRepo(name);
+			deleteRepoResult = data;
+			await loadRepos();
+		} catch (e) {
+			deleteRepoResult = { error: e.message || 'Delete failed' };
+		} finally {
+			deleteRepoLoading = false;
+		}
+	}
+
 	function isTagProtected(repo, tag) {
 		return tagProtectionsSet.has(`${repo}:${tag}`);
 	}
@@ -983,6 +1008,7 @@ let copiedTarget = $state('');
 		{#if webhooks.length > 0}
 			<div class="space-y-2">
 				{#each webhooks as hook}
+					{@const evts = Array.isArray(hook.events) ? hook.events : JSON.parse(hook.events || '[]')}
 					<div class="flex items-center justify-between rounded-lg p-3" style="background-color: var(--color-primary-subtle);">
 						<div class="flex items-center gap-3 min-w-0 flex-1">
 							<Icon icon={webhookPlatformIcon(hook.platform)} class="h-4 w-4 flex-shrink-0" style="color: var(--color-primary);" />
@@ -996,7 +1022,6 @@ let copiedTarget = $state('');
 								</div>
 								<p class="mt-0.5 truncate text-[10px]" style="color: var(--color-text-muted);">{hook.url}</p>
 								<div class="mt-1 flex items-center gap-1.5">
-									{@const evts = Array.isArray(hook.events) ? hook.events : JSON.parse(hook.events || '[]')}
 									{#each evts as ev}
 										<span class="rounded px-1.5 py-0.5 text-[9px]" style="background-color: rgba(59,130,246,0.1); color: var(--color-info, #3b82f6);">{ev}</span>
 									{/each}
@@ -1229,11 +1254,11 @@ let copiedTarget = $state('');
 					</div>
 				</div>
 
-				{#if statsSummary.top_repos?.length}
-					<h4 class="mb-2 text-xs font-medium" style="color: var(--color-text-secondary);">Top Repositories by Size</h4>
-					<div class="space-y-1.5">
-						{@const maxSize = statsSummary.top_repos[0]?.total_size || 1}
-						{#each statsSummary.top_repos as repo}
+        {#if statsSummary.top_repos?.length}
+          {@const maxSize = statsSummary.top_repos[0]?.total_size || 1}
+          <h4 class="mb-2 text-xs font-medium" style="color: var(--color-text-secondary);">Top Repositories by Size</h4>
+          <div class="space-y-1.5">
+            {#each statsSummary.top_repos as repo}
 							<div class="flex items-center gap-2">
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center justify-between mb-0.5">
@@ -1348,8 +1373,20 @@ let copiedTarget = $state('');
 							style="color: {expandedRepo === repo.name ? 'var(--color-primary)' : 'var(--color-text-muted)'};"
 						/>
 						<div class="min-w-0 flex-1">
-							<div class="flex items-center gap-2">
-								<span class="text-sm font-medium" style="color: var(--color-text);">{repo.name}</span>
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-sm font-medium truncate" style="color: var(--color-text);">{repo.name}</span>
+								<div class="flex items-center gap-1 flex-shrink-0">
+									{#if isAdmin}
+										<button
+											class="rounded-md p-1 transition-colors hover:opacity-80"
+											style="color: var(--color-text-muted);"
+											onclick={(e) => { e.stopPropagation(); confirmDeleteRepo(repo.name); }}
+											title="Delete repository and all its tags"
+										>
+											<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
+										</button>
+									{/if}
+								</div>
 							</div>
 							<div class="mt-0.5 flex items-center gap-2 text-xs" style="color: var(--color-text-muted);">
 								<span>{repo.tags_count || 0} tags</span>
@@ -1372,11 +1409,11 @@ let copiedTarget = $state('');
 							{:else if repoTags[repo.name]?.length}
 								<!-- Column headers -->
 								<div class="flex items-center gap-3 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--color-text-muted);">
-									<span class="flex-1">TAG</span>
-									<span class="w-20 text-right">SIZE</span>
-									<span class="w-24 text-right">CREATED</span>
-									<span class="w-28 text-right">DIGEST</span>
-									<span class="w-16 text-right">ACTIONS</span>
+									<span class="min-w-0 flex-1">TAG</span>
+									<span class="w-20 flex-shrink-0 text-right">SIZE</span>
+									<span class="w-24 flex-shrink-0 text-right">CREATED</span>
+									<span class="w-28 flex-shrink-0 text-right">DIGEST</span>
+									<span class="w-28 flex-shrink-0 text-right">ACTIONS</span>
 								</div>
 								{#each repoTags[repo.name] as tag}
 									<div class="flex items-center gap-3 border-t px-4 py-2.5 transition-colors" style="border-color: var(--color-border);">
@@ -1401,7 +1438,7 @@ let copiedTarget = $state('');
 										<span class="w-20 flex-shrink-0 text-right font-mono text-xs" style="color: var(--color-text-muted);">{formatSize(tag.layer_size || tag.size)}</span>
 										<span class="w-24 flex-shrink-0 text-right text-xs" style="color: var(--color-text-muted);">{formatDate(tag.created)}</span>
 										<span class="w-28 flex-shrink-0 truncate text-right font-mono text-[10px]" style="color: var(--color-text-muted);">{shortDigest(tag.digest)}</span>
-										<div class="flex w-24 flex-shrink-0 items-center justify-end gap-1">
+										<div class="flex w-28 flex-shrink-0 items-center justify-end gap-1">
 											{#if isAdmin && !isTagProtected(repo.name, tag.name)}
 												<button
 													class="rounded-md p-1.5 transition-colors"
@@ -1419,7 +1456,7 @@ let copiedTarget = $state('');
 													onclick={() => unprotectTag(repo.name, tag.name)}
 													title="Unprotect tag"
 												>
-													<Icon icon="solar:shield-down-bold" class="h-3.5 w-3.5" />
+													<Icon icon="solar:shield-minus-bold" class="h-3.5 w-3.5" />
 												</button>
 											{/if}
 											<button
@@ -1433,12 +1470,12 @@ let copiedTarget = $state('');
 											{#if copiedTarget === `pull-${repo.name}-${tag.name}`}
 												<span class="text-[10px]" style="color: var(--color-success);">✓</span>
 											{/if}
-										{#if isAdmin && !isTagProtected(repo.name, tag.name)}
+										{#if isAdmin}
 											<button
 												class="rounded-md p-1.5 transition-colors hover:opacity-80"
-												style="color: var(--color-text-muted);"
+												style="color: {isTagProtected(repo.name, tag.name) ? 'var(--color-warning)' : 'var(--color-text-muted)'};"
 												onclick={() => handleDelete(repo.name, tag.name, tag.digest)}
-												title="Delete tag"
+												title={isTagProtected(repo.name, tag.name) ? 'Protected \u2014 unprotect first' : 'Delete tag'}
 											>
 												<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
 											</button>
@@ -1924,6 +1961,62 @@ let copiedTarget = $state('');
 					{/if}
 					Delete Tag
 				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Protected Tag Delete Warning Modal -->
+{#if protectedDeleteTarget}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center"
+		style="background-color: rgba(0,0,0,0.6);"
+		onclick={() => protectedDeleteTarget = null}
+	>
+		<div
+			class="mx-4 w-full max-w-md rounded-xl border shadow-2xl"
+			style="background-color: var(--color-card); border-color: var(--color-border);"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="p-5">
+				<div class="flex items-start gap-3">
+					<div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style="background-color: rgba(245,158,11,0.15);">
+						<Icon icon="solar:shield-warning-bold" class="h-4.5 w-4.5" style="color: var(--color-warning);" />
+					</div>
+					<div class="min-w-0 flex-1">
+						<h3 class="text-sm font-semibold" style="color: var(--color-text);">Cannot Delete Protected Tag</h3>
+						<p class="mt-1 text-xs" style="color: var(--color-text-secondary);">
+							This tag is <strong>protected</strong> and cannot be deleted directly.
+						</p>
+
+						<div class="mt-4 rounded-lg p-3" style="background-color: var(--color-primary-subtle);">
+							<div class="flex items-center justify-between py-1">
+								<span class="text-xs" style="color: var(--color-text-muted);">Repository</span>
+								<span class="font-mono text-xs font-medium" style="color: var(--color-text);">{protectedDeleteTarget.repo}</span>
+							</div>
+							<div class="flex items-center justify-between py-1">
+								<span class="text-xs" style="color: var(--color-text-muted);">Tag</span>
+								<span class="font-mono text-xs font-medium" style="color: var(--color-warning);">{protectedDeleteTarget.tag}</span>
+							</div>
+						</div>
+
+						<div class="mt-3 rounded-lg border p-2.5" style="background-color: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2);">
+							<div class="flex items-start gap-2">
+								<Icon icon="solar:info-circle-bold" class="mt-0.5 h-3.5 w-3.5 flex-shrink-0" style="color: var(--color-warning);" />
+								<p class="text-xs" style="color: var(--color-text-secondary);">
+									Unprotect the tag first using the <strong>shield icon</strong> next to it, then you can delete it.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="flex items-center justify-end gap-2 rounded-b-xl border-t px-5 py-3" style="border-color: var(--color-border); background-color: var(--color-topbar-bg);">
+				<button
+					class="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+					style="background-color: var(--color-primary); color: white;"
+					onclick={() => protectedDeleteTarget = null}
+				>Got it</button>
 			</div>
 		</div>
 	</div>

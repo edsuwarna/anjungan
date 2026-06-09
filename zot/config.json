@@ -30,6 +30,14 @@
       }
     }
   },
+  "extensions": {
+    "search": {
+      "enable": true,
+      "cve": {
+        "updateInterval": "24h"
+      }
+    }
+  },
   "log": {
     "level": "info"
   }
