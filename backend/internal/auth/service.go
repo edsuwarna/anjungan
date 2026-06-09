@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,7 +20,11 @@ import (
 
 type UserRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
+	GetUserByID(ctx context.Context, id string) (*model.User, error)
 	CreateUser(ctx context.Context, user *model.User) error
+	UpdateUser(ctx context.Context, user *model.User) error
+	UpdateUserPassword(ctx context.Context, id, passwordHash string) error
+	GetSetting(ctx context.Context, key string) (*model.Settings, error)
 }
 
 // ─── Service ───────────────────────────────────────────────────────────────
@@ -101,6 +106,58 @@ func (s *Service) Register(ctx context.Context, email, name, password string) (*
 		return nil, err
 	}
 	return user, nil
+}
+
+func (s *Service) ChangePassword(ctx context.Context, email, currentPassword, newPassword string) error {
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	if len(newPassword) < s.securityCfg.MinPasswordLength {
+		return ErrPasswordTooShort
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	return s.users.UpdateUserPassword(ctx, user.ID, string(hash))
+}
+
+func (s *Service) UpdateProfile(ctx context.Context, email, newName, newEmail string) (*model.User, error) {
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+	if newName != "" && newName != user.Name {
+		user.Name = strings.TrimSpace(newName)
+	}
+	if newEmail != "" && newEmail != user.Email {
+		newEmail = strings.TrimSpace(strings.ToLower(newEmail))
+		existing, _ := s.users.GetUserByEmail(ctx, newEmail)
+		if existing != nil && existing.ID != user.ID {
+			return nil, errors.New("email already in use")
+		}
+		user.Email = newEmail
+	}
+	if err := s.users.UpdateUser(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *Service) IsRegistrationEnabled(ctx context.Context) bool {
+	setting, err := s.users.GetSetting(ctx, "registration.enabled")
+	if err != nil {
+		return false
+	}
+	return setting.Value == "true"
 }
 
 func (s *Service) ValidateAccessToken(tokenString string) (*Claims, error) {
