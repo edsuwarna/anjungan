@@ -1,7 +1,11 @@
 # Anjungan — Feature Implementation Tracking
 
 > Auto-tracked from `main` branch. Cross-references every PRD against implementation.
-> Last updated: June 2026 | 19 DB migrations | 11 backend handler packages | 20 frontend route pages
+> Last updated: June 10, 2026 | 19 DB migrations | 11 backend handler packages | 20 frontend route pages
+
+---
+
+> 📘 **New PRD:** [`PRD-ssl-monitoring.md`](PRD-ssl-monitoring.md) — SSL Certificate Monitoring (standalone)
 
 ---
 
@@ -151,8 +155,8 @@
 | Cluster Server Registry | PRD-domain-management.md §F6.1 | ❌ | ❌ | — | `cluster_servers` table — not implemented |
 | Domain CRUD | PRD-domain-management.md §F6.2 | ❌ | ❌ | — | `domains` table — not implemented |
 | Traefik Config Generator | PRD-domain-management.md §F6.3 | ❌ | ❌ | — | YAML generation + atomic write — not implemented |
-| SSL Certificate Monitoring | PRD-domain-management.md §F6.4 | ❌ | ❌ | — | Expiry tracking, daily check — not implemented |
-| Health Check Dashboard | PRD-domain-management.md §F6.5 | ❌ | ❌ | — | Per-domain health from Traefik API — not implemented |
+|| SSL Certificate Monitoring | PRD-domain-management.md §F6.4 | ➡️ | ➡️ | — | → Moved to standalone `PRD-ssl-monitoring.md` (manual entry, enhanced, in development) |
+|| Health Check Dashboard | PRD-domain-management.md §F6.5 | ❌ | ❌ | — | Per-domain health from Traefik API — not implemented |
 | WireGuard Integration | PRD-domain-management.md §F6.6 | ❌ | ❌ | — | Tunnel status, handshake age — not implemented |
 
 ---
@@ -171,7 +175,7 @@
 
 ---
 
-## 10. Service Templates & Scaffolding (PRD-templates-scaffolding.md)
+## 11. Service Templates & Scaffolding (PRD-templates-scaffolding.md)
 
 | Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
 |---------|-----------|---------|----------|-------------|-------|
@@ -184,7 +188,7 @@
 
 ---
 
-## 11. Phase 4 — Observability & Ecosystem (PRD.md Future)
+## 12. Phase 4 — Observability & Ecosystem (PRD.md Future)
 
 | Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
 |---------|-----------|---------|----------|-------------|-------|
@@ -198,7 +202,7 @@
 
 ---
 
-## 12. Database Migration Coverage
+## 13. Database Migration Coverage
 
 | # | Table | Status | PRD |
 |---|-------|--------|-----|
@@ -243,7 +247,9 @@
 | `api_keys` | Developer API tokens | PRD.md |
 | `agents` | Agent registrations | PRD-anj-agent.md |
 | `services` | Service catalog entries | PRD.md |
-| `notifications` | Notification channel config | PRD.md |
+|| `notification_channels` | Notification channel config | PRD.md |
+|| `ssl_monitors` | SSL certificate monitor entries | PRD-ssl-monitoring.md |
+|| `ssl_check_history` | SSL check result history | PRD-ssl-monitoring.md |
 | `resource_usage` | Resource usage snapshots | PRD-resource-usage-cost.md |
 | `resource_hourly` | Hourly aggregated trends | PRD-resource-usage-cost.md |
 | `cost_config` | Server cost configuration | PRD-resource-usage-cost.md |
@@ -259,10 +265,11 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Done (fully implemented) | **50** features |
-| 🟡 Partial (some gaps) | **3** features |
-| ❌ Not Started (PRD exists) | **42** features |
-| **Total PRD-documented features** | **95** |
+|| ✅ Done (fully implemented) | **50** features |
+|| 🟡 Partial (some gaps) | **3** features |
+|| 🟡 In Development | **1** feature |
+|| ❌ Not Started (PRD exists) | **41** features |
+|| **Total PRD-documented features** | **95** |
 
 ### By Domain
 
@@ -277,7 +284,8 @@
 | Container Image Scanning (PRD-container-image-scanning.md) | 0 | 0 | 6 |
 | Secret Scanning (PRD-secret-scanning.md) | 0 | 0 | 7 |
 | Agent System (PRD-anj-agent.md) | 0 | 0 | 10 |
-| Domain Management (PRD-domain-management.md) | 0 | 0 | 6 |
+|| Domain Management (PRD-domain-management.md) | 0 | 0 | 5 |
+|| SSL Monitoring (PRD-ssl-monitoring.md) | 0 | 1 🟡 | 0 |
 | Resource & Cost (PRD-resource-usage-cost.md) | 0 | 0 | 7 |
 | Templates (PRD-templates-scaffolding.md) | 0 | 0 | 6 |
 | Observability & Ecosystem (PRD.md future) | 0 | 1 | 6 |
@@ -306,7 +314,8 @@
 | `/admin/users` | ✅ | User management |
 | `/admin/audit-log` | ✅ | Audit log viewer |
 | `/ssh-keys` | ✅ | SSH key management |
-| `/infra/domains` | ❌ | Domain management — not created |
+|| `/infra/domains` | ❌ | Domain management — not created |
+|| `/ssl-monitors` | 🟡 | SSL monitoring — in development on `feat/ssl-monitoring` |
 | `/infra/resources` | ❌ | Resource dashboard — not created |
 | `/infra/templates` | ❌ | Template scaffold — not created |
 | `/agents` | ❌ | Agent management — not created |
