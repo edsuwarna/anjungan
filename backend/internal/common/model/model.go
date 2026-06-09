@@ -845,3 +845,156 @@ func (r *TagProtectionRequest) Validate() string {
 	}
 	return ""
 }
+
+// ─── SSL Monitor ─────────────────────────────────────────────────────────────
+
+type SSLMonitor struct {
+	ID        string `json:"id"`
+	Domain    string `json:"domain"`
+	Port      int    `json:"port"`
+	CreatedBy string `json:"created_by"`
+
+	// Core
+	DisplayName   string `json:"display_name"`
+	CheckInterval string `json:"check_interval"`
+	NotifyBefore  string `json:"notify_before"`
+	WebhookIDs    []string `json:"webhook_ids"`
+	Enabled       bool   `json:"enabled"`
+
+	// Last check results (TLS engine output)
+	LastStatus    string     `json:"last_status"`    // pending, valid, expiring_soon, expired, error
+	LastCheckAt   *time.Time `json:"last_check_at"`
+	LastError     string     `json:"last_error,omitempty"`
+
+	// Certificate info
+	Issuer         string     `json:"issuer"`
+	Subject        string     `json:"subject"`
+	CertExpiresAt  *time.Time `json:"cert_expires_at"`
+	DaysRemaining  int        `json:"days_remaining"`
+
+	// Chain validation
+	ChainValid *bool  `json:"chain_valid,omitempty"`
+	ChainError string `json:"chain_error,omitempty"`
+
+	// Cipher grade
+	CipherGrade string `json:"cipher_grade"`
+	CipherError string `json:"cipher_error,omitempty"`
+
+	// OCSP revocation
+	OCSPStatus string `json:"ocsp_status"`
+	OCSPError  string `json:"ocsp_error,omitempty"`
+
+	// SAN coverage
+	SANNames    []string `json:"san_names,omitempty"`
+	SANMismatch bool     `json:"san_mismatch"`
+
+	// Timestamps
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SSLMonitorResponse is the public API shape (safe, no internal fields)
+type SSLMonitorResponse struct {
+	ID        string `json:"id"`
+	Domain    string `json:"domain"`
+	Port      int    `json:"port"`
+	CreatedBy string `json:"created_by"`
+
+	DisplayName   string   `json:"display_name"`
+	CheckInterval string   `json:"check_interval"`
+	NotifyBefore  string   `json:"notify_before"`
+	WebhookIDs    []string `json:"webhook_ids"`
+	Enabled       bool     `json:"enabled"`
+
+	LastStatus    string     `json:"last_status"`
+	LastCheckAt   *time.Time `json:"last_check_at"`
+	LastError     string     `json:"last_error,omitempty"`
+
+	Issuer         string     `json:"issuer"`
+	Subject        string     `json:"subject"`
+	CertExpiresAt  *time.Time `json:"cert_expires_at"`
+	DaysRemaining  int        `json:"days_remaining"`
+
+	ChainValid *bool  `json:"chain_valid,omitempty"`
+	ChainError string `json:"chain_error,omitempty"`
+
+	CipherGrade string `json:"cipher_grade"`
+	CipherError string `json:"cipher_error,omitempty"`
+
+	OCSPStatus string `json:"ocsp_status"`
+	OCSPError  string `json:"ocsp_error,omitempty"`
+
+	SANNames    []string `json:"san_names,omitempty"`
+	SANMismatch bool     `json:"san_mismatch"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (m *SSLMonitor) ToResponse() SSLMonitorResponse {
+	return SSLMonitorResponse{
+		ID:           m.ID,
+		Domain:       m.Domain,
+		Port:         m.Port,
+		CreatedBy:    m.CreatedBy,
+		DisplayName:  m.DisplayName,
+		CheckInterval: m.CheckInterval,
+		NotifyBefore: m.NotifyBefore,
+		WebhookIDs:   m.WebhookIDs,
+		Enabled:      m.Enabled,
+		LastStatus:   m.LastStatus,
+		LastCheckAt:  m.LastCheckAt,
+		LastError:    m.LastError,
+		Issuer:        m.Issuer,
+		Subject:       m.Subject,
+		CertExpiresAt: m.CertExpiresAt,
+		DaysRemaining: m.DaysRemaining,
+		ChainValid:    m.ChainValid,
+		ChainError:    m.ChainError,
+		CipherGrade:   m.CipherGrade,
+		CipherError:   m.CipherError,
+		OCSPStatus:    m.OCSPStatus,
+		OCSPError:     m.OCSPError,
+		SANNames:      m.SANNames,
+		SANMismatch:   m.SANMismatch,
+		CreatedAt:     m.CreatedAt,
+		UpdatedAt:     m.UpdatedAt,
+	}
+}
+
+type CreateSSLMonitorRequest struct {
+	Domain        string   `json:"domain"`
+	Port          int      `json:"port"`
+	DisplayName   string   `json:"display_name,omitempty"`
+	CheckInterval string   `json:"check_interval,omitempty"`
+	NotifyBefore  string   `json:"notify_before,omitempty"`
+	WebhookIDs    []string `json:"webhook_ids,omitempty"`
+	Enabled       *bool    `json:"enabled,omitempty"`
+}
+
+type UpdateSSLMonitorRequest struct {
+	DisplayName   *string   `json:"display_name,omitempty"`
+	Port          *int      `json:"port,omitempty"`
+	CheckInterval *string   `json:"check_interval,omitempty"`
+	NotifyBefore  *string   `json:"notify_before,omitempty"`
+	WebhookIDs    *[]string `json:"webhook_ids,omitempty"`
+	Enabled       *bool     `json:"enabled,omitempty"`
+}
+
+// SSLSummary is the dashboard KPI card data
+type SSLSummary struct {
+	Total       int `json:"total"`
+	Valid       int `json:"valid"`
+	ExpiringSoon int `json:"expiring_soon"`
+	Expired     int `json:"expired"`
+	Error       int `json:"error"`
+}
+
+// SSLMonitorListResponse wraps paginated monitors
+type SSLMonitorListResponse struct {
+	Monitors   []SSLMonitorResponse `json:"monitors"`
+	Total      int                  `json:"total"`
+	Page       int                  `json:"page"`
+	Limit      int                  `json:"limit"`
+	TotalPages int                  `json:"total_pages"`
+}
