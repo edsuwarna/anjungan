@@ -1,9 +1,9 @@
 # Anjungan — PRD: Secret Scanning (TruffleHog)
 
-> **Version:** 1.0
+> **Version:** 1.1
 > **Status:** 🔴 Not Implemented — Proposed for Phase 3
 > **Author:** Endang Suwarna
-> **Last Updated:** June 5, 2026
+> **Last Updated:** June 11, 2026
 
 ---
 
@@ -453,15 +453,57 @@ CREATE TABLE secret_finding_status_history (
 
 ---
 
-## 9. References
+## 9. Notification Integration
+
+Secret scanning findings integrate with the shared notification target system for verified leaks.
+
+| Trigger | Action | Target |
+|---------|--------|--------|
+| New verified critical secret found | 🔴 Immediate alert | All notification targets with `security` scope |
+| New unverified high-confidence secret | 🟡 Digest (max 1x/day) | Admin targets |
+| Secret rotated/fixed (status → resolved) | ✅ Informational | Original finder |
+| Scan of critical repo scheduled/complete | ℹ️ Summary | Admin targets |
+| TruffleHog verification engine confirms active credential | 🚨 Priority alert | All admin notification targets |
+
+### Verified vs Unverified Notification Logic
+
+- **Verified findings** (credential confirmed active against the API) → Immediate alert, always
+- **Unverified high confidence** (>90% entropy + match) → Daily digest
+- **Unverified low confidence** → Dashboard only, no notification
+- **Rate limited verification** → Queue, notify when verification completes
+
+---
+
+## 10. Integration Points
+
+### Shared Notification Targets
+
+Reuses the existing `/notifications` system with `scope: ["secret-scanning"]`.
+
+### Related Security Features
+
+| Feature | Integration |
+|---------|-------------|
+| **PRD-security-events.md** | Active credential leak → auto-create security event |
+| **PRD-container-image-scanning.md** | Secrets found in container images → cross-reference with Trivy findings |
+| **PRD-login-activity.md** | User actions (reveal secret, dismiss finding) tracked |
+| **PRD-compliance.md** | Secret leaks in repos affect compliance score |
+| **PRD-uptime-monitoring.md** | Shared notification target system architecture |
+
+---
+
+## 11. References
 
 - [TruffleHog](https://github.com/trufflesecurity/trufflehog) — GitHub repo, 27K+ stars
 - [PRD-anj-agent.md](./PRD-anj-agent.md) — Agent system
 - [PRD-container-image-scanning.md](./PRD-container-image-scanning.md) — Trivy vulnerability scanning
+- [PRD-security-events.md](./PRD-security-events.md) — CrowdSec security events
+- [PRD-login-activity.md](./PRD-login-activity.md) — Auth security monitoring
 - [PRD-compliance.md](./PRD-compliance.md) — CIS hardening (sister module)
 - [PRD-repositories-deployments.md](./PRD-repositories-deployments.md) — Repository management
+- [PRD-uptime-monitoring.md](./PRD-uptime-monitoring.md) — Shared notification target system
 
-## 10. Mockup References
+## 12. Mockup References
 
 The following mockup screenshots were created to visualize the Secret Scanning feature UI:
 

@@ -1,6 +1,6 @@
 <script>
 	import Icon from '@iconify/svelte';
-	import { sidebarCollapsed, theme, user } from '$lib/stores/auth.js';
+	import { sidebarCollapsed, theme, user, currentProject } from '$lib/stores/auth.js';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api.svelte.js';
@@ -33,13 +33,11 @@
 			name: 'Artifact',
 			items: [
 				{ href: '/registry', icon: 'solar:archive-down-minimlistic-bold', label: 'Registry' },
-				{ href: '/repositories', icon: 'solar:code-square-bold', label: 'Repositories' },
 			],
 		},
 		{
 			name: 'Ops',
 			items: [
-				{ href: '/deployments', icon: 'solar:rocket-bold', label: 'Deployments' },
 				{ href: '/uptime', icon: 'solar:chart-2-bold', label: 'Uptime' },
 				{ href: '/notifications', icon: 'solar:bell-bold', label: 'Notifications' },
 			],
@@ -60,13 +58,29 @@
 		},
 	];
 
-	// Filter out admin-only items for non-admin users, then remove empty categories
+	const DEFAULT_PROJECT_ID = '00000000-0000-0000-0000-000000000001';
+
+	// Filter out admin-only items for non-admin users, then remove empty categories.
+	// When a project is selected (non-default), prefix resource links with /projects/{slug}.
 	let categories = $derived(allCategories
 		.map(cat => ({
 			...cat,
-			items: $user?.role === 'admin'
-				? cat.items
-				: cat.items.filter(item => !item.adminOnly),
+			items: (($user?.role === 'admin' ? cat.items : cat.items.filter(item => !item.adminOnly)))
+				.map(item => {
+					const isProjectScoped = $currentProject && $currentProject.id !== DEFAULT_PROJECT_ID;
+					const prefix = isProjectScoped ? `/projects/${$currentProject.slug}` : '';
+
+					// Admin-only items keep their original href (e.g., /admin/users)
+					if (item.adminOnly) return item;
+
+					// Dashboard/Overview
+					if (item.href === '/') {
+						return { ...item, href: isProjectScoped ? prefix : '/' };
+					}
+
+					// Other resource items get prefixed if a project is selected
+					return { ...item, href: isProjectScoped ? `${prefix}${item.href}` : item.href };
+				}),
 		}))
 		.filter(cat => cat.items.length > 0)
 	);

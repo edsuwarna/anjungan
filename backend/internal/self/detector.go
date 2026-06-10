@@ -110,6 +110,7 @@ func (d *Detector) DetectAndRegister(ctx context.Context) {
 		Tags:           []string{"self", "anjungan-host"},
 		ServerType:     "docker-host",
 		Monitoring:     true,
+		ProjectID:      "00000000-0000-0000-0000-000000000001",
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
