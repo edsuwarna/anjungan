@@ -1,9 +1,9 @@
 # Anjungan — PRD: Uptime Monitoring
 
-> **Version:** 1.1
+> **Version:** 1.2
 > **Status:** 🟡 Active — Branch `feat/uptime-monitoring`
 > **Author:** Endang Suwarna
-> **Last Updated:** June 10, 2026
+> **Last Updated:** June 11, 2026
 
 ---
 
@@ -605,3 +605,69 @@ WHERE checked_at < NOW() - INTERVAL '30 days';
 ### Notification Targets (Shared with SSL)
 
 ![Uptime Notification Targets](../sketches/uptime-monitoring/uptime-notification-targets.png)
+
+---
+
+## 9. Integration Points
+
+### Shared Notification Target System
+
+This feature pioneered the shared `notification_targets` table that also serves SSL monitoring. See §5 Database Schema → 000031 migration for the unified table design.
+
+Scopes used: `scope: ["uptime"]` for uptime-specific notification targets.
+
+### Related Security Features
+
+| Feature | Integration |
+|---------|-------------|
+| **PRD-security-events.md** | Uptime downtime + concurrent security event spike → correlated incident |
+| **PRD-login-activity.md** | User actions on uptime monitors tracked in auth events |
+| **PRD-container-security.md** | Container downtime → cross-reference with container security posture |
+| **PRD-ssl-monitoring.md** | Shared notification target system (both use `notification_targets` table) |
+| **PRD-incidents-timeline.md** (future) | Uptime incidents feed into incident correlation engine |
+
+### Notification Delivery Matrix
+
+| Trigger | Channel | Scope |
+|---------|---------|-------|
+| Service UP→DOWN | All assigned targets | `uptime` |
+| Service DOWN→UP (recovery) | All assigned targets | `uptime` |
+| First check after creation | Admin targets only | `uptime` |
+| Service flapping (3+ changes in 1h) | Admin targets with digest | `uptime` + `security` |
+| Multiple simultaneous DOWN events | All admin targets (priority) | `uptime` + `security` |
+
+---
+
+## 10. Future Considerations
+
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| **Scheduled maintenance window** | P2 | Suppress alerts during planned maintenance |
+| **Public status page** | P3 | `status.yourdomain.com` — powered by Anjungan uptime data |
+| **Multi-region probing** | P3 | Check from multiple geo-locations (requires external relay agents) |
+| **Security event overlay on downtime** | P2 | If a server goes down and CrowdSec shows an attack spike at same time → flag incident |
+| **Slack/Discord rich notifications** | P2 | Embed status badges, response time chart in notification message |
+| **Uptime SLA calculation** | P3 | Monthly uptime % per monitor, automated SLA report |
+| **ICMP/ping checks** | P4 | Requires privileged Docker access or separate agent |
+
+---
+
+## 11. PRD Cross-References
+
+| PRD | Relationship |
+|-----|-------------|
+| **PRD-ssl-monitoring.md** | Sister feature — shared notification target infrastructure |
+| **PRD-security-events.md** | Uptime + security events correlation |
+| **PRD-login-activity.md** | Auth audit for uptime monitor CRUD operations |
+| **PRD-container-security.md** | Container health ↔ container security posture mapping |
+| **PRD-container-image-scanning.md** | Vulerable image + service down → potential exploit |
+| **PRD-compliance.md** | Uptime as part of operational compliance reporting |
+
+---
+
+## 12. References
+
+- [Uptime Monitor Mockups](../sketches/uptime-monitoring/) — Interactive HTML + Playwright screenshots
+- [PRD-ssl-monitoring.md](./PRD-ssl-monitoring.md) — SSL Certificate Monitoring (shared notification pattern)
+- [PRD-security-events.md](./PRD-security-events.md) — CrowdSec Security Events
+- [PRD-container-security.md](./PRD-container-security.md) — Container Runtime Security Posture

@@ -1,9 +1,9 @@
 # Anjungan — PRD: Container Image Vulnerability Scanning (Trivy)
 
-> **Version:** 1.0
-|> **Status:** 🔴 Not Implemented — Proposed for Phase 3
-|> **Author:** Endang Suwarna
-|> **Last Updated:** June 5, 2026
+> **Version:** 1.1
+> **Status:** 🔴 Not Implemented — Proposed for Phase 3
+> **Author:** Endang Suwarna
+> **Last Updated:** June 11, 2026
 
 ---
 
@@ -514,11 +514,54 @@ CREATE TABLE image_scan_schedules (
 
 ---
 
-## 9. References
+## 9. Notification Integration
+
+Container vulnerability findings must integrate with the shared notification target system.
+
+| Trigger | Action | Target |
+|---------|--------|--------|
+| New critical CVE in running container | Send alert | All notification targets with `security` scope |
+| New high-severity CVE (3+ in one scan) | Send digest | Admin targets only |
+| Fix version available for critical CVE | Send advisory | All security targets |
+| Scan failure (agent offline) | Warning notification | Admin targets |
+| First scan of new container | Informational | Admin targets |
+
+### Notification Priority Levels
+
+| Severity | Notify? | Repeat |
+|----------|---------|--------|
+| Critical CVE | ✅ Immediate | Every scan until fixed |
+| High CVE | ✅ Digest (max 1x/day) | Daily if unchanged |
+| Medium CVE | ❌ No notify | Dashboard only |
+| Low CVE | ❌ No notify | Dashboard only |
+
+---
+
+## 10. Integration Points
+
+### Shared Notification Targets
+
+Reuses the existing `/notifications` system with `scope: ["container-scanning"]`. See PRD-uptime-monitoring.md for the notification target architecture.
+
+### Related Security Features
+
+| Feature | Integration |
+|---------|-------------|
+| **PRD-security-events.md** | Critical CVE findings → auto-create security events in timeline |
+| **PRD-container-security.md** | Image vulns (Trivy) + runtime posture (container-security) → combined risk score |
+| **PRD-login-activity.md** | User actions related to scanning (trigger, view findings) tracked in auth events |
+| **PRD-compliance.md** | Vulnerability findings feed into overall security compliance score |
+
+---
+
+## 11. References
 
 - [PRD-anj-agent.md](./PRD-anj-agent.md) — Agent system (execution layer)
 - [PRD-compliance.md](./PRD-compliance.md) — Existing CIS hardening + Container Security
 - [PRD-secret-scanning.md](./PRD-secret-scanning.md) — TruffleHog secret detection
+- [PRD-security-events.md](./PRD-security-events.md) — CrowdSec security events (cross-ref for critical findings)
+- [PRD-container-security.md](./PRD-container-security.md) — Container runtime security posture
+- [PRD-uptime-monitoring.md](./PRD-uptime-monitoring.md) — Shared notification target system
 - [Trivy](https://github.com/aquasecurity/trivy) — Vulnerability scanner by Aqua Security
 - [sketches/container-compliance/](../sketches/container-compliance/) — Interactive HTML mockups (tab switching, theme toggle)
 - [Mockup Screenshots](../prd/assets/container-scanning/) — Pre-rendered PNG screenshots (see section 8)

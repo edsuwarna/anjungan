@@ -115,9 +115,8 @@
 		const rc = project.resource_count || {};
 		const parts = [];
 		if (rc.servers > 0) parts.push(`${rc.servers} servers`);
-		if (rc.ssl > 0) parts.push(`${rc.ssl} SSL`);
-		if (rc.uptime > 0) parts.push(`${rc.uptime} uptime`);
-		if (rc.deployments > 0) parts.push(`${rc.deployments} deploys`);
+		if (rc.ssl_monitors > 0) parts.push(`${rc.ssl_monitors} SSL`);
+		if (rc.uptime_monitors > 0) parts.push(`${rc.uptime_monitors} uptime`);
 		return parts.length > 0 ? parts.join(', ') : '—';
 	}
 </script>

@@ -8,7 +8,7 @@
 
 	let project = $state(null);
 	let loading = $state(true);
-	let error = $state('');
+	let error = '';
 
 	onMount(async () => {
 		await loadProject();
@@ -57,34 +57,30 @@
 			</button>
 		</div>
 	{:else if project}
-		<!-- Breadcrumb -->
 		<nav class="breadcrumb">
 			<a href="/">Dashboard</a>
 			<span class="crumb-sep">›</span>
 			<a href="/projects/{slug}">{project.name}</a>
 			<span class="crumb-sep">›</span>
-			<span class="current">Deployments</span>
+			<span class="current">Compliance</span>
 		</nav>
 
-		<!-- Header -->
 		<div class="flex items-start justify-between flex-wrap gap-3 mb-6">
 			<div>
-				<h1 class="page-title">Deployments</h1>
-				<p class="page-subtitle mt-1">Deployments scoped to {project.name}</p>
+				<h1 class="page-title">Compliance</h1>
+				<p class="page-subtitle mt-1">Compliance scans scoped to {project.name}</p>
 			</div>
 		</div>
 
-		<!-- Placeholder -->
 		<div class="rounded-xl border px-6 py-12 text-center" style="background-color: var(--color-card); border-color: var(--color-border-light);">
-			<Icon icon="solar:rocket-bold" class="mb-3 inline-block h-12 w-12" style="color: var(--color-text-muted);" />
-			<h3 class="mb-2 text-base font-semibold" style="color: var(--color-text);">Project-scoped Deployments</h3>
+			<Icon icon="solar:shield-check-bold" class="mb-3 inline-block h-12 w-12" style="color: var(--color-text-muted);" />
+			<h3 class="mb-2 text-base font-semibold" style="color: var(--color-text);">No Compliance Scans Yet</h3>
 			<p class="mx-auto max-w-md text-sm" style="color: var(--color-text-secondary);">
-				Deployment list for <strong>{project.name}</strong> will appear here once the scoped API client is integrated.
-				The backend endpoints at <code class="text-xs">/api/v1/projects/{slug}/deployments</code> are functional — the frontend integration will follow.
+				This project doesn't have any compliance scans yet. Run your first scan to get started.
 			</p>
-			<button onclick={() => goto(`/projects/${slug}`)} class="btn-secondary mt-6 inline-flex items-center gap-2 text-sm">
-				<Icon icon="solar:arrow-left-bold" class="h-4 w-4" />
-				Back to Project Overview
+			<button onclick={() => goto('/compliance')} class="btn-primary mt-6 inline-flex items-center gap-2 text-sm">
+				<Icon icon="solar:add-circle-bold" class="h-4 w-4" />
+				Run Compliance Scan
 			</button>
 		</div>
 	{/if}

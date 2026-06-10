@@ -1,6 +1,5 @@
 <script>
 	import Icon from '@iconify/svelte';
-	import StatCard from '$lib/components/charts/StatCard.svelte';
 	import { api } from '$lib/api.svelte.js';
 	import { currentProject } from '$lib/stores/auth.js';
 	import { page } from '$app/stores';
@@ -9,7 +8,7 @@
 
 	let project = $state(null);
 	let loading = $state(true);
-	let error = $state('');
+	let error = '';
 
 	onMount(async () => {
 		await loadProject();
@@ -58,51 +57,33 @@
 			</button>
 		</div>
 	{:else if project}
-		<!-- Breadcrumb -->
 		<nav class="breadcrumb">
 			<a href="/">Dashboard</a>
 			<span class="crumb-sep">›</span>
-			<span class="current">{project.name}</span>
+			<a href="/projects/{slug}">{project.name}</a>
+			<span class="crumb-sep">›</span>
+			<span class="current">Registry</span>
 		</nav>
 
-		<!-- Header -->
 		<div class="flex items-start justify-between flex-wrap gap-3 mb-6">
 			<div>
-				<h1 class="page-title">{project.name}</h1>
-				{#if project.description}
-					<p class="page-subtitle mt-1">{project.description}</p>
-				{/if}
+				<h1 class="page-title">Registry</h1>
+				<p class="page-subtitle mt-1">Container registry scoped to {project.name}</p>
 			</div>
-			<button
-				onclick={() => goto(`/projects/${slug}/settings`)}
-				class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:opacity-80"
-				style="background-color: var(--color-primary-subtle); color: var(--color-primary);"
-				title="Project Settings"
-			>
-				<Icon icon="solar:settings-bold" class="h-4 w-4" />
-				<span class="hidden sm:inline">Settings</span>
-			</button>
 		</div>
 
-		<!-- KPI Cards -->
-		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-			<StatCard
-				title="Servers"
-				value={project.resource_count?.servers ?? 0}
-				icon="solar:server-square-bold"
-			/>
-			<StatCard
-				title="SSL Monitors"
-				value={project.resource_count?.ssl_monitors ?? 0}
-				icon="solar:shield-check-bold"
-			/>
-			<StatCard
-				title="Uptime Monitors"
-				value={project.resource_count?.uptime_monitors ?? 0}
-				icon="solar:chart-2-bold"
-\t\t\t/>
-\t\t</div>
-\t{/if}
+		<div class="rounded-xl border px-6 py-12 text-center" style="background-color: var(--color-card); border-color: var(--color-border-light);">
+			<Icon icon="solar:archive-down-minimlistic-bold" class="mb-3 inline-block h-12 w-12" style="color: var(--color-text-muted);" />
+			<h3 class="mb-2 text-base font-semibold" style="color: var(--color-text);">No Registry Images Yet</h3>
+			<p class="mx-auto max-w-md text-sm" style="color: var(--color-text-secondary);">
+				This project doesn't have any registry images yet. Push an image to get started.
+			</p>
+			<button onclick={() => goto('/registry')} class="btn-primary mt-6 inline-flex items-center gap-2 text-sm">
+				<Icon icon="solar:add-circle-bold" class="h-4 w-4" />
+				Browse Registry
+			</button>
+		</div>
+	{/if}
 </div>
 
 <style>

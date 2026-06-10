@@ -6,8 +6,6 @@
 	import { api } from '$lib/api.svelte.js';
 	import Icon from '@iconify/svelte';
 
-	const DEFAULT_PROJECT_ID = '00000000-0000-0000-0000-000000000001';
-
 	let dropdownOpen = $state(false);
 	let projectDropdownOpen = $state(false);
 	let projects = $state([]);
@@ -17,8 +15,7 @@
 		'/servers': 'Servers',
 		'/containers': 'Containers',
 		'/registry': 'Registry',
-		'/repositories': 'Repositories',
-		'/deployments': 'Deployments',
+		'/ssl-monitors': 'SSL Monitors',
 		'/admin/users': 'User Management'
 	};
 
@@ -26,7 +23,8 @@
 
 	onMount(async () => {
 		try {
-			projects = await api.projects.list();
+			const data = await api.projects.list();
+			projects = data?.projects || [];
 		} catch (_) {
 			projects = [];
 		}
@@ -42,12 +40,12 @@
 
 	function switchProject(project) {
 		projectDropdownOpen = false;
-		if (!project || project.id === DEFAULT_PROJECT_ID) {
+		if (!project) {
 			currentProject.set(null);
 			goto('/');
 		} else {
 			currentProject.set(project);
-			goto(`/projects/${project.slug}/servers`);
+			goto(`/projects/${project.slug}`);
 		}
 	}
 
@@ -144,24 +142,26 @@
 					<div class="border-t" style="border-color: var(--color-border-light);"></div>
 				{/if}
 
-				<button
-					onclick={() => switchProject(null)}
-					class="flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:opacity-80"
-					style="color: var(--color-text);"
-				>
-					<span class="flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full" style="background-color: var(--color-text-muted);">
-					</span>
-					<span class="flex-1 text-left">All Projects</span>
-					{#if !$currentProject}
-						<Icon icon="solar:check-circle-bold" class="h-4 w-4" style="color: var(--color-primary);" />
-					{/if}
-				</button>
+				{#if $user?.role === 'admin'}
+					<button
+						onclick={() => switchProject(null)}
+						class="flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:opacity-80"
+						style="color: var(--color-text);"
+					>
+						<span class="flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full" style="background-color: var(--color-text-muted);">
+						</span>
+						<span class="flex-1 text-left">All Projects</span>
+						{#if !$currentProject}
+							<Icon icon="solar:check-circle-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+						{/if}
+					</button>
+				{/if}
 
 				<div class="border-t" style="border-color: var(--color-border-light);"></div>
 
 				{#if $user?.role === 'admin'}
 					<a
-						href="/projects"
+						href="/admin/projects"
 						onclick={() => projectDropdownOpen = false}
 						class="flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:opacity-80"
 						style="color: var(--color-text);"

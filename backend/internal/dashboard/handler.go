@@ -74,27 +74,16 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		statusCounts = map[string]int{}
 	}
 
-	// Admin-only fields (deployments, users, activity)
-	var deploymentCount int
+	// Admin-only fields (users, activity)
 	var userCount int
-	var deploymentStatus map[string]int
 	var entries []struct {
 		Type      string `json:"type"`
 		Message   string `json:"message"`
 		Timestamp string `json:"timestamp"`
 	}
-	var depBriefs []struct {
-		ID         string `json:"id"`
-		Name       string `json:"name"`
-		Status     string `json:"status"`
-		ServerName string `json:"server_name"`
-		DeployedAt string `json:"deployed_at"`
-	}
 
 	if isAdmin {
-		deploymentCount, _ = h.repo.CountDeployments(r.Context())
 		userCount, _ = h.repo.CountUsers(r.Context())
-		deploymentStatus, _ = h.repo.CountDeploymentsByStatus(r.Context())
 
 		activity, _ := h.repo.ListRecentActivity(r.Context(), 10)
 		if activity == nil {
@@ -120,38 +109,6 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 				Timestamp: a.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 			}
 		}
-
-		if deploymentStatus == nil {
-			deploymentStatus = map[string]int{}
-		}
-
-		recentDeployments, _ := h.repo.ListRecentDeployments(r.Context(), 5)
-		depBriefs = make([]struct {
-			ID         string `json:"id"`
-			Name       string `json:"name"`
-			Status     string `json:"status"`
-			ServerName string `json:"server_name"`
-			DeployedAt string `json:"deployed_at"`
-		}, 0)
-		for _, d := range recentDeployments {
-			srvName := ""
-			if d.ServerName != nil {
-				srvName = *d.ServerName
-			}
-			depBriefs = append(depBriefs, struct {
-				ID         string `json:"id"`
-				Name       string `json:"name"`
-				Status     string `json:"status"`
-				ServerName string `json:"server_name"`
-				DeployedAt string `json:"deployed_at"`
-			}{
-				ID:         d.ID,
-				Name:       d.Name,
-				Status:     d.Status,
-				ServerName: srvName,
-				DeployedAt: d.DeployedAt.Format("2006-01-02T15:04:05Z07:00"),
-			})
-		}
 	}
 
 	if entries == nil {
@@ -159,18 +116,6 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 			Type      string `json:"type"`
 			Message   string `json:"message"`
 			Timestamp string `json:"timestamp"`
-		}{}
-	}
-	if deploymentStatus == nil {
-		deploymentStatus = map[string]int{}
-	}
-	if depBriefs == nil {
-		depBriefs = []struct {
-			ID         string `json:"id"`
-			Name       string `json:"name"`
-			Status     string `json:"status"`
-			ServerName string `json:"server_name"`
-			DeployedAt string `json:"deployed_at"`
 		}{}
 	}
 
@@ -219,11 +164,8 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		"server_status":      statusCounts,
 		"compliance":         comp,
 		"server_scores":      serverScores,
-		"deployments":        deploymentCount,
 		"users":              userCount,
-		"deployment_status":  deploymentStatus,
 		"recent_activity":    entries,
-		"recent_deployments": depBriefs,
 		"ssl_summary":        sslSummary,
 		"uptime_summary":     uptimeSummary,
 	})

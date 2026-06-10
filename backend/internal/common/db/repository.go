@@ -1,8 +1,8 @@
 package db
 
 import (
-	"context"
 	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -632,58 +632,6 @@ func (r *Repository) SumContainerCount(ctx context.Context) (int, error) {
 	return count, err
 }
 
-func (r *Repository) CountDeployments(ctx context.Context) (int, error) {
-	var count int
-	err := r.db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM deployments").Scan(&count)
-	return count, err
-}
-
-func (r *Repository) CountDeploymentsByStatus(ctx context.Context) (map[string]int, error) {
-	rows, err := r.db.Pool.Query(ctx, `SELECT status, COUNT(*) FROM deployments GROUP BY status`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := map[string]int{}
-	for rows.Next() {
-		var status string
-		var count int
-		if err := rows.Scan(&status, &count); err != nil {
-			return nil, err
-		}
-		result[status] = count
-	}
-	return result, nil
-}
-
-func (r *Repository) ListRecentDeployments(ctx context.Context, limit int) ([]*model.Deployment, error) {
-	rows, err := r.db.Pool.Query(ctx,
-		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
-			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
-			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
-			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
-			FROM deployments d
-			LEFT JOIN environments e ON e.id = d.environment_id
-			LEFT JOIN servers s ON s.id = d.server_id
-			ORDER BY d.deployed_at DESC LIMIT $1`, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var deps []*model.Deployment
-	for rows.Next() {
-		d := &model.Deployment{}
-		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
-			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
-			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
-			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
-			return nil, err
-		}
-		deps = append(deps, d)
-	}
-	return deps, nil
-}
-
 // ─── Server Metrics Repository ─────────────────────────────────────────────
 
 func (r *Repository) SaveMetrics(ctx context.Context, m *model.ServerMetricsPoint) error {
@@ -698,6 +646,8 @@ func (r *Repository) SaveMetrics(ctx context.Context, m *model.ServerMetricsPoin
 	)
 	return err
 }
+// ─── Server Metrics Repository ─────────────────────────────────────────────
+
 
 func (r *Repository) GetHistoricalMetrics(ctx context.Context, serverID string, since time.Time, limit int) ([]*model.ServerMetricsPoint, error) {
 	if limit < 1 {
@@ -733,7 +683,6 @@ func (r *Repository) GetHistoricalMetrics(ctx context.Context, serverID string, 
 	}
 	return points, nil
 }
-
 // ─── Alerts Repository ─────────────────────────────────────────────────────
 
 func (r *Repository) CreateAlert(ctx context.Context, a *model.Alert) error {
@@ -2370,320 +2319,6 @@ func (r *Repository) DeleteRegistryUser(ctx context.Context, id string) error {
 	return err
 }
 
-// ─── Environment Repository ─────────────────────────────────────────────────
-
-func (r *Repository) ListEnvironments(ctx context.Context, projectID string) ([]*model.Environment, error) {
-	var rows pgx.Rows
-	var err error
-	if projectID != "" {
-		rows, err = r.db.Pool.Query(ctx,
-			`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at, COALESCE(project_id::text, '')
-			 FROM environments WHERE project_id = $1::uuid ORDER BY is_protected DESC, name ASC`, projectID)
-	} else {
-		rows, err = r.db.Pool.Query(ctx,
-			`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at, COALESCE(project_id::text, '')
-			 FROM environments ORDER BY is_protected DESC, name ASC`)
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var envs []*model.Environment
-	for rows.Next() {
-		e := &model.Environment{}
-		if err := rows.Scan(&e.ID, &e.Name, &e.Color, &e.Description, &e.IsProtected, &e.CreatedAt, &e.UpdatedAt, &e.ProjectID); err != nil {
-			return nil, err
-		}
-		envs = append(envs, e)
-	}
-	return envs, nil
-}
-
-func (r *Repository) GetEnvironment(ctx context.Context, id string) (*model.Environment, error) {
-	e := &model.Environment{}
-	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at, COALESCE(project_id::text, '')
-		 FROM environments WHERE id = $1`, id,
-	).Scan(&e.ID, &e.Name, &e.Color, &e.Description, &e.IsProtected, &e.CreatedAt, &e.UpdatedAt, &e.ProjectID)
-	if err != nil {
-		return nil, err
-	}
-	return e, nil
-}
-
-func (r *Repository) CreateEnvironment(ctx context.Context, e *model.Environment) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO environments (id, name, color, description, is_protected, created_at, updated_at, project_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8, '')::uuid)`,
-		e.ID, e.Name, e.Color, e.Description, e.IsProtected, e.CreatedAt, e.UpdatedAt, e.ProjectID,
-	)
-	return err
-}
-
-func (r *Repository) UpdateEnvironment(ctx context.Context, e *model.Environment) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`UPDATE environments SET name=$1, color=$2, description=$3, updated_at=NOW() WHERE id=$4`,
-		e.Name, e.Color, e.Description, e.ID,
-	)
-	return err
-}
-
-func (r *Repository) DeleteEnvironment(ctx context.Context, id string) error {
-	_, err := r.db.Pool.Exec(ctx, `DELETE FROM environments WHERE id = $1`, id)
-	return err
-}
-
-// ─── Repo Connection Repository ─────────────────────────────────────────────
-
-func (r *Repository) ListRepoConnections(ctx context.Context, userID string) ([]*model.RepoConnection, error) {
-	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, user_id, provider, COALESCE(label,''), COALESCE(base_url,''), token_encrypted, is_active, COALESCE(affiliations,'owner,collaborator,organization_member'), created_at, updated_at
-		 FROM repo_connections WHERE user_id = $1 ORDER BY created_at DESC`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var conns []*model.RepoConnection
-	for rows.Next() {
-		c := &model.RepoConnection{}
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Provider, &c.Label, &c.BaseURL, &c.TokenEncrypted, &c.IsActive, &c.Affiliations, &c.CreatedAt, &c.UpdatedAt); err != nil {
-			return nil, err
-		}
-		conns = append(conns, c)
-	}
-	return conns, nil
-}
-
-func (r *Repository) CreateRepoConnection(ctx context.Context, c *model.RepoConnection) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO repo_connections (id, user_id, provider, label, base_url, token_encrypted, is_active, affiliations, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		c.ID, c.UserID, c.Provider, c.Label, c.BaseURL, c.TokenEncrypted, c.IsActive, c.Affiliations, c.CreatedAt, c.UpdatedAt,
-	)
-	return err
-}
-
-func (r *Repository) DeleteRepoConnection(ctx context.Context, id, userID string) error {
-	_, err := r.db.Pool.Exec(ctx, `DELETE FROM repo_connections WHERE id = $1 AND user_id = $2`, id, userID)
-	return err
-}
-
-// ─── Repo Selection Repository ──────────────────────────────────────────────
-
-func (r *Repository) GetRepoSelections(ctx context.Context, userID string) ([]*model.RepoSelection, error) {
-	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, user_id, provider, owner, repo_name, selected, created_at, updated_at
-		 FROM repo_selections WHERE user_id = $1`,
-		userID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var selections []*model.RepoSelection
-	for rows.Next() {
-		s := &model.RepoSelection{}
-		if err := rows.Scan(&s.ID, &s.UserID, &s.Provider, &s.Owner, &s.RepoName, &s.Selected, &s.CreatedAt, &s.UpdatedAt); err != nil {
-			return nil, err
-		}
-		selections = append(selections, s)
-	}
-	return selections, nil
-}
-
-func (r *Repository) BulkSetRepoSelections(ctx context.Context, userID string, items []model.RepoSelectionItem) error {
-	tx, err := r.db.Pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	for _, item := range items {
-		_, err := tx.Exec(ctx,
-			`INSERT INTO repo_selections (id, user_id, provider, owner, repo_name, selected, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-			 ON CONFLICT (user_id, provider, owner, repo_name)
-			 DO UPDATE SET selected = $6, updated_at = NOW()`,
-			uuid.New().String(), userID, item.Provider, item.Owner, item.RepoName, item.Selected,
-		)
-		if err != nil {
-			return fmt.Errorf("upsert selection %s/%s/%s: %w", item.Provider, item.Owner, item.RepoName, err)
-		}
-	}
-
-	return tx.Commit(ctx)
-}
-
-// ─── Deployment Repository ──────────────────────────────────────────────────
-
-func (r *Repository) ListDeployments(ctx context.Context, environmentID string, projectID string) ([]*model.Deployment, error) {
-	query := `SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
-		d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
-		d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
-		d.project_id,
-		COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
-		FROM deployments d
-		LEFT JOIN environments e ON e.id = d.environment_id
-		LEFT JOIN servers s ON s.id = d.server_id`
-	var args []interface{}
-	argIdx := 1
-	var conditions []string
-	if environmentID != "" {
-		conditions = append(conditions, fmt.Sprintf("d.environment_id = $%d", argIdx))
-		args = append(args, environmentID)
-		argIdx++
-	}
-	if projectID != "" {
-		conditions = append(conditions, fmt.Sprintf("d.project_id = $%d::uuid", argIdx))
-		args = append(args, projectID)
-		argIdx++
-	}
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-	query += ` ORDER BY d.deployed_at DESC`
-
-	rows, err := r.db.Pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var deps []*model.Deployment
-	for rows.Next() {
-		d := &model.Deployment{}
-		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
-			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
-			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
-			&d.ProjectID,
-			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
-			return nil, err
-		}
-		deps = append(deps, d)
-	}
-	return deps, nil
-}
-
-func (r *Repository) GetDeployment(ctx context.Context, id string) (*model.Deployment, error) {
-	d := &model.Deployment{}
-	err := r.db.Pool.QueryRow(ctx,
-		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
-			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
-			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
-			d.project_id,
-			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
-			FROM deployments d
-			LEFT JOIN environments e ON e.id = d.environment_id
-			LEFT JOIN servers s ON s.id = d.server_id
-			WHERE d.id = $1`, id,
-	).Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
-		&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
-		&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
-		&d.ProjectID,
-		&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName)
-	if err != nil {
-		return nil, err
-	}
-	return d, nil
-}
-
-func (r *Repository) CreateDeployment(ctx context.Context, d *model.Deployment) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO deployments (id, name, environment_id, repo_provider, repo_owner, repo_name,
-			branch, commit_sha, server_id, service_name, image, status, deployed_by, deployed_at, updated_at, project_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-		d.ID, d.Name, d.EnvironmentID, d.RepoProvider, d.RepoOwner, d.RepoName,
-		d.Branch, d.CommitSHA, d.ServerID, d.ServiceName, d.Image, d.Status,
-		d.DeployedBy, d.DeployedAt, d.UpdatedAt, d.ProjectID,
-	)
-	return err
-}
-
-func (r *Repository) UpdateDeploymentStatus(ctx context.Context, id, status, message string) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`UPDATE deployments SET status=$1, updated_at=NOW() WHERE id=$2`,
-		status, id,
-	)
-	if err != nil {
-		return err
-	}
-	// Record history entry
-	_, err = r.db.Pool.Exec(ctx,
-		`INSERT INTO deployment_history (id, deployment_id, status, message, created_at)
-		 VALUES (gen_random_uuid(), $1, $2, $3, NOW())`,
-		id, status, message,
-	)
-	return err
-}
-
-func (r *Repository) RollbackDeployment(ctx context.Context, id, rollbackFromID string) error {
-	// Copy the old deployment data into current
-	_, err := r.db.Pool.Exec(ctx,
-		`UPDATE deployments SET rollback_from=$1, updated_at=NOW() WHERE id=$2`,
-		rollbackFromID, id,
-	)
-	if err != nil {
-		return err
-	}
-	_, err = r.db.Pool.Exec(ctx,
-		`INSERT INTO deployment_history (id, deployment_id, status, message, created_at)
-		 VALUES (gen_random_uuid(), $1, 'rolled_back', 'Rolled back', NOW())`,
-		id,
-	)
-	return err
-}
-
-func (r *Repository) ListDeploymentHistory(ctx context.Context, deploymentID string) ([]*model.DeploymentHistory, error) {
-	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, deployment_id, status, COALESCE(message,''), created_at
-		 FROM deployment_history WHERE deployment_id = $1 ORDER BY created_at DESC`, deploymentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var hist []*model.DeploymentHistory
-	for rows.Next() {
-		h := &model.DeploymentHistory{}
-		if err := rows.Scan(&h.ID, &h.DeploymentID, &h.Status, &h.Message, &h.CreatedAt); err != nil {
-			return nil, err
-		}
-		hist = append(hist, h)
-	}
-	return hist, nil
-}
-
-func (r *Repository) ListDeploymentsByRepo(ctx context.Context, provider, owner, name string) ([]*model.Deployment, error) {
-	rows, err := r.db.Pool.Query(ctx,
-		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
-			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
-			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
-			d.project_id,
-			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
-			FROM deployments d
-			LEFT JOIN environments e ON e.id = d.environment_id
-			LEFT JOIN servers s ON s.id = d.server_id
-			WHERE d.repo_provider = $1 AND d.repo_owner = $2 AND d.repo_name = $3
-			ORDER BY d.deployed_at DESC`,
-		provider, owner, name)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var deps []*model.Deployment
-	for rows.Next() {
-		d := &model.Deployment{}
-		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
-			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
-			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
-			&d.ProjectID,
-			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
-			return nil, err
-		}
-		deps = append(deps, d)
-	}
-	return deps, nil
-}
-
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 func (r *Repository) GetSetting(ctx context.Context, key string) (*model.Settings, error) {
@@ -2720,6 +2355,9 @@ func (r *Repository) UpsertSetting(ctx context.Context, key, value, description 
 		key, value, description)
 	return err
 }
+
+
+
 
 // ─── Registry Webhook CRUD ──────────────────────────────────────────────────
 
@@ -3547,7 +3185,7 @@ func (r *Repository) ListUptimeMonitors(ctx context.Context, page, limit int, st
 		 COALESCE(notification_target_ids, '{}'), status, last_status,
 		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
 		 last_check_at, COALESCE(created_by, ''), created_at, updated_at,
-		 COALESCE(project_id, '')
+		COALESCE(project_id::text, '')
 		 FROM uptime_monitors %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
 		whereClause, sortCol, orderDir, argIdx, argIdx+1)
 	args = append(args, limit, offset)
@@ -3590,7 +3228,7 @@ func (r *Repository) GetUptimeMonitor(ctx context.Context, id string) (*model.Up
 		 COALESCE(notification_target_ids, '{}'), status, last_status,
 		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
 		 last_check_at, COALESCE(created_by, ''), created_at, updated_at,
-		 COALESCE(project_id, '')
+		 COALESCE(project_id::text, '')
 		 FROM uptime_monitors WHERE id = $1`, id).
 		Scan(&m.ID, &m.Name, &m.URL, &m.CheckType, &m.IntervalSeconds, &m.TimeoutSeconds,
 			&m.ExpectedStatusMin, &m.ExpectedStatusMax, &m.ExpectedBody, &m.Enabled,
@@ -3652,7 +3290,7 @@ func (r *Repository) ListEnabledUptimeMonitors(ctx context.Context) ([]model.Upt
 		 COALESCE(notification_target_ids, '{}'), status, last_status,
 		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
 		 last_check_at, COALESCE(created_by, ''), created_at, updated_at,
-		 COALESCE(project_id, '')
+		COALESCE(project_id::text, '')
 		 FROM uptime_monitors WHERE enabled = true`)
 	if err != nil {
 		return nil, err
@@ -4052,7 +3690,7 @@ func (r *Repository) ListNotificationTargets(ctx context.Context, scope string, 
 	var args []interface{}
 	query := `SELECT id, name, url, platform, COALESCE(webhook_secret, ''), enabled,
 		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at,
-		 COALESCE(project_id, '')
+		 COALESCE(project_id::text, '')
 		 FROM notification_targets WHERE enabled=true`
 	if scope != "" {
 		query += ` AND scopes @> ARRAY[$1]`
@@ -4093,7 +3731,7 @@ func (r *Repository) GetNotificationTarget(ctx context.Context, id string) (*mod
 	err := r.db.Pool.QueryRow(ctx,
 		`SELECT id, name, url, platform, COALESCE(webhook_secret, ''), enabled,
 		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at,
-		 COALESCE(project_id, '')
+		 COALESCE(project_id::text, '')
 		 FROM notification_targets WHERE id = $1`, id).
 		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &t.ProjectID)
 	if err != nil {
@@ -4542,11 +4180,9 @@ func (r *Repository) GetProjectResourceCount(ctx context.Context, projectID stri
 	if err != nil {
 		return nil, err
 	}
-	err = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM deployments WHERE project_id = $1`, projectID).Scan(&counts.Deployments)
 	if err != nil {
 		return nil, err
 	}
-	err = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM environments WHERE project_id = $1`, projectID).Scan(&counts.Environments)
 	if err != nil {
 		return nil, err
 	}
@@ -4590,17 +4226,26 @@ func (r *Repository) GetProjectMemberRole(ctx context.Context, projectID, userID
 func (r *Repository) MoveProjectResources(ctx context.Context, fromProjectID, toProjectID string) (*model.ProjectResourceCount, error) {
 	moved := &model.ProjectResourceCount{}
 
-	tables := []string{"servers", "ssl_monitors", "uptime_monitors", "deployments", "environments", "notification_targets"}
-	counts := []*int{&moved.Servers, &moved.SSLMonitors, &moved.UptimeMonitors, &moved.Deployments, &moved.Environments, &moved.NotificationTargets}
+	type tableField struct {
+		table string
+		field *int
+	}
 
-	for i, table := range tables {
+	mappings := []tableField{
+		{"servers", &moved.Servers},
+		{"ssl_monitors", &moved.SSLMonitors},
+		{"uptime_monitors", &moved.UptimeMonitors},
+		{"notification_targets", &moved.NotificationTargets},
+	}
+
+	for _, m := range mappings {
 		tag, err := r.db.Pool.Exec(ctx,
-			fmt.Sprintf(`UPDATE %s SET project_id = $1 WHERE project_id = $2`, table),
+			fmt.Sprintf(`UPDATE %s SET project_id = $1 WHERE project_id = $2`, m.table),
 			toProjectID, fromProjectID)
 		if err != nil {
 			return nil, err
 		}
-		*counts[i] = int(tag.RowsAffected())
+		*m.field = int(tag.RowsAffected())
 	}
 
 	return moved, nil

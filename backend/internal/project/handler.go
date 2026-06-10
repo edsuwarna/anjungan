@@ -43,6 +43,7 @@ func (h *Handler) Routes() chi.Router {
 
 // authorizeProjectAccess checks if the user has the required role in the project.
 // Super-admin (global admin role) bypasses membership check.
+// Default Project is accessible to all authenticated users.
 func (h *Handler) authorizeProjectAccess(ctx context.Context, projectID string, minRole string) bool {
 	claims := auth.GetClaims(ctx)
 	if claims == nil {
@@ -50,6 +51,10 @@ func (h *Handler) authorizeProjectAccess(ctx context.Context, projectID string, 
 	}
 	// Super-admin bypass
 	if claims.Role == model.RoleAdmin {
+		return true
+	}
+	// Default Project is accessible to all authenticated users
+	if projectID == defaultProjectID {
 		return true
 	}
 	role, err := h.repo.GetProjectMemberRole(ctx, projectID, claims.UserID)
@@ -81,6 +86,22 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		projects, err = h.repo.ListProjects(r.Context())
 	} else {
 		projects, err = h.repo.ListProjectsByUser(r.Context(), claims.UserID)
+		if err == nil {
+			// Ensure Default Project is always included
+			hasDefault := false
+			for _, p := range projects {
+				if p.ID == defaultProjectID {
+					hasDefault = true
+					break
+				}
+			}
+			if !hasDefault {
+				defaultProj, getErr := h.repo.GetProjectByID(r.Context(), defaultProjectID)
+				if getErr == nil && defaultProj != nil {
+					projects = append([]*model.Project{defaultProj}, projects...)
+				}
+			}
+		}
 	}
 
 	if err != nil {
