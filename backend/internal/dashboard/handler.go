@@ -41,6 +41,31 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	statusCounts, _ := h.repo.CountServersByStatusByGroups(r.Context(), allowedGroups)
 	compliance, _ := h.repo.GetComplianceSummary(r.Context(), allowedGroups)
 
+	// SSL Summary (admin only for now, shows all monitors)
+	var sslSummary model.SSLSummary
+	if isAdmin {
+		byStatus, _ := h.repo.CountSSLMonitorsByStatus(r.Context())
+		if byStatus != nil {
+			total := 0
+			for _, c := range byStatus {
+				total += c
+			}
+			sslSummary = model.SSLSummary{Total: total}
+			for status, count := range byStatus {
+				switch status {
+				case "valid":
+					sslSummary.Valid = count
+				case "expiring_soon":
+					sslSummary.ExpiringSoon = count
+				case "expired":
+					sslSummary.Expired = count
+				default:
+					sslSummary.Error += count
+				}
+			}
+		}
+	}
+
 	if statusCounts == nil {
 		statusCounts = map[string]int{}
 	}
@@ -195,5 +220,6 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		"deployment_status":  deploymentStatus,
 		"recent_activity":    entries,
 		"recent_deployments": depBriefs,
+		"ssl_summary":        sslSummary,
 	})
 }

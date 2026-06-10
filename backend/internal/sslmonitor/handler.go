@@ -553,9 +553,9 @@ func formatDiscordNotification(payload map[string]interface{}) ([]byte, error) {
 		"description": fmt.Sprintf("**%s** — %s", domain, status),
 		"color":       color,
 		"fields": []map[string]interface{}{
-			{"name": "Domain", "value": domain, "inline": true},
-			{"name": "Status", "value": status, "inline": true},
-			{"name": "Days Remaining", "value": fmt.Sprintf("%d", days), "inline": true},
+			{"name": "Domain", "value": domain, "inline": false},
+			{"name": "Status", "value": status, "inline": false},
+			{"name": "Days Remaining", "value": fmt.Sprintf("%d", days), "inline": false},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
