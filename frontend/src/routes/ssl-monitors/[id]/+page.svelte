@@ -3,6 +3,8 @@
 	import { api } from '$lib/api.svelte.js';
 	import Icon from '@iconify/svelte';
 	import { page } from '$app/stores';
+	import TrendChart from '$lib/components/ssl/TrendChart.svelte';
+	import CRTShLookup from '$lib/components/ssl/CRTShLookup.svelte';
 	import { goto } from '$app/navigation';
 
 	let monitor = $state(null);
@@ -465,35 +467,11 @@
 					{/if}
 				</h2>
 
-				<!-- Mini Chart -->
-				{#if chartConfig}
-					<div class="mb-6 overflow-x-auto">
-						<svg width={chartConfig.w} height={chartConfig.h} class="w-full" style="max-width: 100%;">
-							{#each chartConfig.yLabels as yl}
-								<line x1={chartConfig.px} y1={yl.y} x2={chartConfig.px + chartConfig.cw} y2={yl.y} stroke="rgba(148,163,184,0.12)" stroke-dasharray="4,4" />
-								<text x={chartConfig.px - 6} y={yl.y + 4} text-anchor="end" fill="rgba(148,163,184,0.5)" font-size="10">{yl.val}d</text>
-							{/each}
-							<path d={chartConfig.area} fill="url(#sslGradient)" opacity="0.15" />
-							<polyline points={chartConfig.polyline} fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
-							{#each chartConfig.entries as e, i}
-								{@const val = chartConfig.values[i]}
-								{@const x = chartConfig.px + (i / Math.max(chartConfig.entries.length - 1, 1)) * chartConfig.cw}
-								{@const y = chartConfig.py + chartConfig.ch - ((val - Math.min(...chartConfig.values, 0)) / (Math.max(...chartConfig.values, 30) - Math.min(...chartConfig.values, 0) || 1)) * chartConfig.ch}
-								<circle cx={x} cy={y} r="3" fill={val <= 7 ? '#ef4444' : val <= 30 ? '#f59e0b' : '#10b981'} stroke="#1a1d23" stroke-width="1.5" />
-							{/each}
-							<defs>
-								<linearGradient id="sslGradient" x1="0" y1="0" x2="0" y2="1">
-									<stop offset="0%" stop-color="#10b981" />
-									<stop offset="100%" stop-color="#10b981" stop-opacity="0" />
-								</linearGradient>
-							</defs>
-						</svg>
-						<div class="mt-1 flex justify-between px-10">
-							<span class="text-xs" style="color: var(--color-text-muted);">{formatDateShort(chartConfig.entries[0]?.checked_at)}</span>
-							<span class="text-xs" style="color: var(--color-text-muted);">{formatDateShort(chartConfig.entries[chartConfig.entries.length - 1]?.checked_at)}</span>
-						</div>
-					</div>
-				{/if}
+				<!-- Trend Chart -->
+				<TrendChart monitorId={monitor.id} />
+
+				<!-- CRT.sh Lookup -->
+				<CRTShLookup monitorId={monitor.id} domain={monitor.domain} />
 
 				<!-- Timeline -->
 				{#if historyLoading}

@@ -3,6 +3,7 @@
 	import { api } from '$lib/api.svelte.js';
 	import Icon from '@iconify/svelte';
 	import { goto } from '$app/navigation';
+	import DiscoveryModal from '$lib/components/ssl/DiscoveryModal.svelte';
 
 	let monitors = $state([]);
 	let loading = $state(true);
@@ -1003,6 +1004,12 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Discovery Modal -->
+<DiscoveryModal show={showDiscovery} onClose={(refresh) => {
+  showDiscovery = false;
+  if (refresh) loadData();
+}} />
 
 <style>
 	.page-container {
