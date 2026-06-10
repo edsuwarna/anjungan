@@ -1105,3 +1105,121 @@ func (r *SSLNotificationTargetRequest) Validate() string {
 	}
 	return ""
 }
+
+// ─── Uptime Monitoring ─────────────────────────────────────────────────────
+
+type UptimeMonitor struct {
+	ID                    string     `json:"id"`
+	Name                  string     `json:"name"`
+	URL                   string     `json:"url"`
+	CheckType             string     `json:"check_type"`
+	IntervalSeconds       int        `json:"interval_seconds"`
+	TimeoutSeconds        int        `json:"timeout_seconds"`
+	ExpectedStatusMin     int        `json:"expected_status_min"`
+	ExpectedStatusMax     int        `json:"expected_status_max"`
+	ExpectedBody          string     `json:"expected_body"`
+	Enabled               bool       `json:"enabled"`
+	NotificationTargetIDs []string   `json:"notification_target_ids"`
+	Status                string     `json:"status"`
+	LastStatus            string     `json:"last_status"`
+	LastStatusCode        *int       `json:"last_status_code"`
+	LastResponseTimeMs    *int       `json:"last_response_time_ms"`
+	LastError             string     `json:"last_error"`
+	LastCheckAt           *time.Time `json:"last_check_at"`
+	CreatedBy             string     `json:"created_by"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+}
+
+type UptimeMaintenanceWindow struct {
+	ID          string    `json:"id"`
+	MonitorID   string    `json:"monitor_id"`
+	Description string    `json:"description"`
+	StartsAt    time.Time `json:"starts_at"`
+	EndsAt      time.Time `json:"ends_at"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// IsActive returns true if the maintenance window is currently active.
+func (mw *UptimeMaintenanceWindow) IsActive() bool {
+	now := time.Now()
+	return now.After(mw.StartsAt) && now.Before(mw.EndsAt)
+}
+
+type UptimeCheckHistory struct {
+	ID             string    `json:"id"`
+	MonitorID      string    `json:"monitor_id"`
+	CheckedAt      time.Time `json:"checked_at"`
+	Status         string    `json:"status"`
+	StatusCode     *int      `json:"status_code"`
+	ResponseTimeMs *int      `json:"response_time_ms"`
+	ErrorMessage   string    `json:"error_message"`
+}
+
+type UptimeDailySummary struct {
+	MonitorID     string   `json:"monitor_id"`
+	Date          string   `json:"date"`
+	TotalChecks   int      `json:"total_checks"`
+	UpCount       int      `json:"up_count"`
+	DownCount     int      `json:"down_count"`
+	AvgResponseMs *int     `json:"avg_response_ms"`
+	MinResponseMs *int     `json:"min_response_ms"`
+	MaxResponseMs *int     `json:"max_response_ms"`
+	UptimePercent *float64 `json:"uptime_percent"`
+}
+
+type UptimeSummary struct {
+	Total  int `json:"total"`
+	Up     int `json:"up"`
+	Down   int `json:"down"`
+	Paused int `json:"paused"`
+}
+
+// ─── Notification Targets (shared — SSL + Uptime) ─────────────────────────
+
+type NotificationTarget struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	URL           string    `json:"url"`
+	Platform      string    `json:"platform"`
+	WebhookSecret string    `json:"webhook_secret,omitempty"`
+	Enabled       bool      `json:"enabled"`
+	Scopes        []string  `json:"scopes"`
+	CreatedBy     string    `json:"created_by"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type NotificationTargetRequest struct {
+	Name          string   `json:"name"`
+	URL           string   `json:"url"`
+	Platform      string   `json:"platform"`
+	WebhookSecret string   `json:"webhook_secret"`
+	Enabled       *bool    `json:"enabled,omitempty"`
+	Scopes        []string `json:"scopes"`
+}
+
+func (r *NotificationTargetRequest) Validate() string {
+	if r.Name == "" {
+		return "name is required"
+	}
+	if r.URL == "" {
+		return "URL is required"
+	}
+	if r.Platform == "" {
+		r.Platform = "generic"
+	}
+	validPlatforms := map[string]bool{"telegram": true, "discord": true, "slack": true, "generic": true}
+	if !validPlatforms[r.Platform] {
+		return "platform must be telegram, discord, slack, or generic"
+	}
+	for _, s := range r.Scopes {
+		validScopes := map[string]bool{"ssl": true, "uptime": true}
+		if !validScopes[s] {
+			return "scope must be ssl or uptime"
+		}
+	}
+	return ""
+}

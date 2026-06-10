@@ -12,6 +12,10 @@ type ctxKey string
 
 const claimsKey ctxKey = "claims"
 
+// ClaimsKey is the context key for storing JWT claims.
+// Exported so other packages can inject claims into context (e.g. SSE endpoints).
+const ClaimsKey ctxKey = "claims"
+
 func GetClaims(ctx context.Context) *Claims {
 	c, _ := ctx.Value(claimsKey).(*Claims)
 	return c

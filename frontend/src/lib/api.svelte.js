@@ -402,13 +402,67 @@ export const api = {
 		batchImport: (data) => request('/ssl-monitors/import', { method: 'POST', body: JSON.stringify(data) }),
 	},
 
+	uptime: {
+		list: (params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.page) qs.set('page', params.page);
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.status) qs.set('status', params.status);
+			if (params.search) qs.set('search', params.search);
+			if (params.sort) qs.set('sort', params.sort);
+			if (params.order) qs.set('order', params.order);
+			const q = qs.toString();
+			return request(`/uptime-monitors${q ? '?' + q : ''}`);
+		},
+		get: (id) => request(`/uptime-monitors/${id}`),
+		create: (data) => request('/uptime-monitors', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/uptime-monitors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/uptime-monitors/${id}`, { method: 'DELETE' }),
+		summary: () => request('/uptime-monitors/summary'),
+		checkNow: (id) => request(`/uptime-monitors/${id}/check`, { method: 'POST' }),
+		checkAll: () => request('/uptime-monitors/check-all', { method: 'POST' }),
+		pause: (id) => request(`/uptime-monitors/${id}/pause`, { method: 'POST' }),
+		resume: (id) => request(`/uptime-monitors/${id}/resume`, { method: 'POST' }),
+		history: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.offset) qs.set('offset', params.offset);
+			const q = qs.toString();
+			return request(`/uptime-monitors/${id}/history${q ? '?' + q : ''}`);
+		},
+		trend: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.period) qs.set('period', params.period);
+			const q = qs.toString();
+			return request(`/uptime-monitors/${id}/trend${q ? '?' + q : ''}`);
+		},
+		incidents: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.offset) qs.set('offset', params.offset);
+			const q = qs.toString();
+			return request(`/uptime-monitors/${id}/incidents${q ? '?' + q : ''}`);
+		},
+		testNotification: (id) => request(`/uptime-monitors/${id}/test-notification`, { method: 'POST' }),
+		maintenance: {
+			list: (id) => request(`/uptime-monitors/${id}/maintenance`),
+			create: (id, data) => request(`/uptime-monitors/${id}/maintenance`, { method: 'POST', body: JSON.stringify(data) }),
+			delete: (id, mwId) => request(`/uptime-monitors/${id}/maintenance/${mwId}`, { method: 'DELETE' }),
+		},
+	},
+
 	notificationTargets: {
-		list: () => request('/ssl-monitors/notification-targets'),
-		get: (id) => request(`/ssl-monitors/notification-targets/${id}`),
-		create: (data) => request('/ssl-monitors/notification-targets', { method: 'POST', body: JSON.stringify(data) }),
-		update: (id, data) => request(`/ssl-monitors/notification-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-		delete: (id) => request(`/ssl-monitors/notification-targets/${id}`, { method: 'DELETE' }),
-		test: (id) => request(`/ssl-monitors/notification-targets/${id}/test`, { method: 'POST' }),
+		list: (scope = '') => {
+			const qs = new URLSearchParams();
+			if (scope) qs.set('scope', scope);
+			const q = qs.toString();
+			return request(`/notification-targets${q ? '?' + q : ''}`);
+		},
+		get: (id) => request(`/notification-targets/${id}`),
+		create: (data) => request('/notification-targets', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/notification-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/notification-targets/${id}`, { method: 'DELETE' }),
+		test: (id) => request(`/notification-targets/${id}/test`, { method: 'POST' }),
 	},
 
 	registryWebhooks: {

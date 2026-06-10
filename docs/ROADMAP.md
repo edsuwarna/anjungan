@@ -89,11 +89,12 @@ Setiap user bisa punya satu atau kedua peran tergantung RBAC. Dashboard-nya beru
 ## 📊 Phase 4 — Observability & Intelligence
 
 - [ ] **Service Dependency Graph** — visual map: Service A → DB → Redis → Service B
-- [ ] **Health Dashboard** — per-service: uptime, response time, error rate (bukan cuma CPU/RAM per VPS)
-- [ ] **Alert Routing** — service down → notify owner/team via Telegram, email, Slack
+- [x] **Health Dashboard** — per-service: uptime, response time charts, error rate via uptime monitoring (F1-F10)
+- [x] **Alert Routing** — service down → notify via Telegram/Discord/Slack/Webhook (F5)
+- [x] **Response Time Stats** — min/avg/max/p95 per 24h/7d/30d (F9)
+- [x] **Incident Timeline** — auto-group consecutive down/error, paginated timeline (F10)
 - [ ] **SLO / SLI Tracking** — apakah service memenuhi target uptime/response time
 - [ ] **Centralized Logs per Service** — filter log by service name, bukan per-system
-- [ ] **Incident Timeline** — kapan mulai down, kapan detect, kapan fix, root cause
 - [ ] **Postmortem Template** — standard template untuk blameless postmortem
 
 ---
