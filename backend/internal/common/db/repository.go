@@ -4362,3 +4362,224 @@ type UptimeIncident struct {
 	FailureCount int       `json:"failure_count"`
 	ErrorMessage string    `json:"error_message"`
 }
+
+// ─── Projects Repository ──────────────────────────────────────────────────────
+
+func (r *Repository) CreateProject(ctx context.Context, p *model.Project) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO projects (id, name, slug, description, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		p.ID, p.Name, p.Slug, p.Description, p.CreatedBy, p.CreatedAt, p.UpdatedAt)
+	return err
+}
+
+func (r *Repository) ListProjects(ctx context.Context) ([]*model.Project, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, name, slug, description, created_by, created_at, updated_at
+		 FROM projects ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []*model.Project
+	for rows.Next() {
+		p := &model.Project{}
+		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Description, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		projects = append(projects, p)
+	}
+	return projects, nil
+}
+
+func (r *Repository) ListProjectsByUser(ctx context.Context, userID string) ([]*model.Project, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT p.id, p.name, p.slug, p.description, p.created_by, p.created_at, p.updated_at
+		 FROM projects p
+		 JOIN project_members pm ON pm.project_id = p.id
+		 WHERE pm.user_id = $1
+		 ORDER BY p.name`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []*model.Project
+	for rows.Next() {
+		p := &model.Project{}
+		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Description, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		projects = append(projects, p)
+	}
+	return projects, nil
+}
+
+func (r *Repository) GetProjectByID(ctx context.Context, id string) (*model.Project, error) {
+	p := &model.Project{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, slug, description, created_by, created_at, updated_at
+		 FROM projects WHERE id = $1`, id).
+		Scan(&p.ID, &p.Name, &p.Slug, &p.Description, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return p, nil
+}
+
+func (r *Repository) GetProjectBySlug(ctx context.Context, slug string) (*model.Project, error) {
+	p := &model.Project{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, slug, description, created_by, created_at, updated_at
+		 FROM projects WHERE slug = $1`, slug).
+		Scan(&p.ID, &p.Name, &p.Slug, &p.Description, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return p, nil
+}
+
+func (r *Repository) UpdateProject(ctx context.Context, p *model.Project) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE projects SET name=$1, slug=$2, description=$3, updated_at=$4 WHERE id=$5`,
+		p.Name, p.Slug, p.Description, p.UpdatedAt, p.ID)
+	return err
+}
+
+func (r *Repository) DeleteProject(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM projects WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) GetProjectResourceCount(ctx context.Context, projectID string) (*model.ProjectResourceCount, error) {
+	counts := &model.ProjectResourceCount{}
+	err := r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM servers WHERE project_id = $1`, projectID).Scan(&counts.Servers)
+	if err != nil {
+		return nil, err
+	}
+	err = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM ssl_monitors WHERE project_id = $1`, projectID).Scan(&counts.SSLMonitors)
+	if err != nil {
+		return nil, err
+	}
+	err = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM uptime_monitors WHERE project_id = $1`, projectID).Scan(&counts.UptimeMonitors)
+	if err != nil {
+		return nil, err
+	}
+	err = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM deployments WHERE project_id = $1`, projectID).Scan(&counts.Deployments)
+	if err != nil {
+		return nil, err
+	}
+	err = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM environments WHERE project_id = $1`, projectID).Scan(&counts.Environments)
+	if err != nil {
+		return nil, err
+	}
+	err = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM notification_targets WHERE project_id = $1`, projectID).Scan(&counts.NotificationTargets)
+	if err != nil {
+		return nil, err
+	}
+	return counts, nil
+}
+
+func (r *Repository) GetProjectMemberCount(ctx context.Context, projectID string) (int, error) {
+	var count int
+	err := r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM project_members WHERE project_id = $1`, projectID).Scan(&count)
+	return count, err
+}
+
+func (r *Repository) IsProjectMember(ctx context.Context, projectID, userID string) (bool, error) {
+	var exists bool
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2)`,
+		projectID, userID).Scan(&exists)
+	return exists, err
+}
+
+func (r *Repository) GetProjectMemberRole(ctx context.Context, projectID, userID string) (string, error) {
+	var role string
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2`,
+		projectID, userID).Scan(&role)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return role, nil
+}
+
+// MoveProjectResources moves all resources from one project to another.
+// Returns a count of resources moved per type.
+func (r *Repository) MoveProjectResources(ctx context.Context, fromProjectID, toProjectID string) (*model.ProjectResourceCount, error) {
+	moved := &model.ProjectResourceCount{}
+
+	tables := []string{"servers", "ssl_monitors", "uptime_monitors", "deployments", "environments", "notification_targets"}
+	counts := []*int{&moved.Servers, &moved.SSLMonitors, &moved.UptimeMonitors, &moved.Deployments, &moved.Environments, &moved.NotificationTargets}
+
+	for i, table := range tables {
+		tag, err := r.db.Pool.Exec(ctx,
+			fmt.Sprintf(`UPDATE %s SET project_id = $1 WHERE project_id = $2`, table),
+			toProjectID, fromProjectID)
+		if err != nil {
+			return nil, err
+		}
+		*counts[i] = int(tag.RowsAffected())
+	}
+
+	return moved, nil
+}
+
+// ─── Project Members Repository ───────────────────────────────────────────────
+
+func (r *Repository) ListProjectMembers(ctx context.Context, projectID string) ([]*model.ProjectMember, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT pm.project_id, pm.user_id, u.name, u.email, pm.role, pm.created_at
+		 FROM project_members pm
+		 JOIN users u ON u.id = pm.user_id
+		 WHERE pm.project_id = $1
+		 ORDER BY u.name`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var members []*model.ProjectMember
+	for rows.Next() {
+		m := &model.ProjectMember{}
+		if err := rows.Scan(&m.ProjectID, &m.UserID, &m.UserName, &m.UserEmail, &m.Role, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		members = append(members, m)
+	}
+	return members, nil
+}
+
+func (r *Repository) AddProjectMember(ctx context.Context, member *model.ProjectMember) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO project_members (project_id, user_id, role, created_at)
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (project_id, user_id) DO UPDATE SET role = $3`,
+		member.ProjectID, member.UserID, member.Role, member.CreatedAt)
+	return err
+}
+
+func (r *Repository) UpdateProjectMemberRole(ctx context.Context, projectID, userID, role string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE project_members SET role = $1 WHERE project_id = $2 AND user_id = $3`,
+		role, projectID, userID)
+	return err
+}
+
+func (r *Repository) RemoveProjectMember(ctx context.Context, projectID, userID string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`,
+		projectID, userID)
+	return err
+}

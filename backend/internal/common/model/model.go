@@ -1223,3 +1223,78 @@ func (r *NotificationTargetRequest) Validate() string {
 	}
 	return ""
 }
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
+
+type Project struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Slug        string    `json:"slug"`
+	Description string    `json:"description"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ProjectResponse struct {
+	ID            string               `json:"id"`
+	Name          string               `json:"name"`
+	Slug          string               `json:"slug"`
+	Description   string               `json:"description"`
+	ResourceCount *ProjectResourceCount `json:"resource_count,omitempty"`
+	MemberCount   int                  `json:"member_count,omitempty"`
+	CreatedBy     string               `json:"created_by"`
+	CreatedAt     time.Time            `json:"created_at"`
+	UpdatedAt     time.Time            `json:"updated_at"`
+}
+
+type ProjectResourceCount struct {
+	Servers             int `json:"servers"`
+	SSLMonitors         int `json:"ssl_monitors"`
+	UptimeMonitors      int `json:"uptime_monitors"`
+	Deployments         int `json:"deployments"`
+	Environments        int `json:"environments"`
+	NotificationTargets int `json:"notification_targets"`
+}
+
+type ProjectListResponse struct {
+	Projects []ProjectResponse `json:"projects"`
+	Total    int               `json:"total"`
+}
+
+type CreateProjectRequest struct {
+	Name        string `json:"name"`
+	Slug        string `json:"slug"`
+	Description string `json:"description,omitempty"`
+}
+
+type UpdateProjectRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Slug        *string `json:"slug,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+type ProjectMember struct {
+	ProjectID string    `json:"project_id"`
+	UserID    string    `json:"user_id"`
+	UserName  string    `json:"user_name,omitempty"`
+	UserEmail string    `json:"user_email,omitempty"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AddProjectMemberRequest struct {
+	UserID string `json:"user_id"`
+	Role   string `json:"role"`
+}
+
+type UpdateProjectMemberRequest struct {
+	Role string `json:"role"`
+}
+
+type ProjectDeleteResponse struct {
+	ProjectID      string               `json:"project_id"`
+	ProjectName    string               `json:"project_name"`
+	ResourcesMoved *ProjectResourceCount `json:"resources_moved"`
+	MovedToProject string               `json:"moved_to_project_name"`
+}

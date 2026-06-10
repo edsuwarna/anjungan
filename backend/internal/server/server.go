@@ -21,6 +21,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/dashboard"
 	"github.com/edsuwarna/anjungan/internal/deployment"
 	"github.com/edsuwarna/anjungan/internal/infra"
+	"github.com/edsuwarna/anjungan/internal/project"
 	"github.com/edsuwarna/anjungan/internal/ratelimit"
 	"github.com/edsuwarna/anjungan/internal/registry"
 	repoapi "github.com/edsuwarna/anjungan/internal/repository"
@@ -137,6 +138,16 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
 			r.Mount("/settings", settingsH.Routes())
 			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
+
+			// Projects
+			projectH := project.NewHandler(repo)
+			r.Mount("/projects", projectH.Routes())
+
+			// Project-scoped resource routes (Phase 2)
+			r.Route("/projects/{slug}", func(r chi.Router) {
+				r.Use(project.ProjectContextMiddleware(repo))
+				// Scoped resource routes will be mounted here in Phase 2
+			})
 		})
 	})
 

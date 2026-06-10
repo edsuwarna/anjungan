@@ -468,4 +468,19 @@ export const api = {
 	registryWebhooks: {
 		list: () => request('/registry/webhooks'),
 	},
+
+	projects: {
+		list: () => request('/projects'),
+		get: (id) => request(`/projects/${id}`),
+		create: (data) => request('/projects', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
+		resourceCount: (id) => request(`/projects/${id}/resource-count`),
+		members: {
+			list: (id) => request(`/projects/${id}/members`),
+			add: (id, data) => request(`/projects/${id}/members`, { method: 'POST', body: JSON.stringify(data) }),
+			update: (id, userId, data) => request(`/projects/${id}/members/${userId}`, { method: 'PUT', body: JSON.stringify(data) }),
+			remove: (id, userId) => request(`/projects/${id}/members/${userId}`, { method: 'DELETE' }),
+		},
+	},
 };
