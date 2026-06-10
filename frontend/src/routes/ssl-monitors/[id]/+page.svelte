@@ -145,45 +145,6 @@
 		return { label, value, color };
 	}
 
-	// ─── Chart ──────────────────────────────────────────────────────────────
-
-	let chartEntries = $derived(historyEntries.filter(e => e.days_remaining != null).slice().reverse());
-
-	let chartConfig = $derived.by(() => {
-		const entries = chartEntries;
-		if (entries.length < 2) return null;
-
-		const values = entries.map(e => e.days_remaining);
-		const maxVal = Math.max(...values, 30);
-		const minVal = Math.min(...values, 0);
-		const range = maxVal - minVal || 1;
-		const w = 600;
-		const h = 120;
-		const px = 40;
-		const py = 10;
-		const cw = w - px * 2;
-		const ch = h - py * 2;
-
-		const points = values.map((v, i) => {
-			const x = px + (i / Math.max(entries.length - 1, 1)) * cw;
-			const y = py + ch - ((v - minVal) / range) * ch;
-			return `${x},${y}`;
-		});
-
-		const polyline = points.join(' ');
-		const area = `M${px},${py + ch} L${polyline} L${px + cw},${py + ch} Z`;
-
-		const yLabels = [];
-		const steps = 4;
-		for (let i = 0; i <= steps; i++) {
-			const val = Math.round(minVal + (range * i) / steps);
-			const y = py + ch - (i / steps) * ch;
-			yLabels.push({ val, y });
-		}
-
-		return { entries, w, h, px, py, cw, ch, polyline, area, yLabels, values };
-	});
-
 	function formatDate(iso) {
 		if (!iso) return '-';
 		const d = new Date(iso);
