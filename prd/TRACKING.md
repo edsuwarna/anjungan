@@ -1,7 +1,7 @@
 # Anjungan — Feature Implementation Tracking
 
 > Auto-tracked from `main` branch. Cross-references every PRD against implementation.
-> Last updated: June 10, 2026 | 19 DB migrations | 11 backend handler packages | 20 frontend route pages
+> Last updated: June 10, 2026 | 24 DB migrations | 11 backend handler packages | 20 frontend route pages
 
 ---
 
@@ -179,6 +179,23 @@
 
 ---
 
+## 11. Uptime Monitoring (PRD-uptime-monitoring.md)
+
+> Branch: `feat/uptime-monitoring` | Last updated: June 10, 2026
+
+| Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
+|---------|-----------|---------|----------|-------------|-------|
+| F1 — Uptime Monitor CRUD | PRD-uptime-monitoring.md §F1 | ✅ | ✅ | 000028 | List/create/get/update/delete with search/filter/sort, unique (name+url) |
+| F2 — HTTP(S) Health Check | PRD-uptime-monitoring.md §F2 | ✅ | ✅ | — | `net/http` client, status code range validation, body regex |
+| F3 — TCP Port Health Check | PRD-uptime-monitoring.md §F3 | ✅ | ✅ | — | `net.DialTimeout` connect test |
+| F4 — Automated Scheduled Checks | PRD-uptime-monitoring.md §F4 | ✅ | ✅ | — | Background goroutine scheduler, per-monitor interval, manual Check All |
+| F5 — Notification Integration | PRD-uptime-monitoring.md §F5 | ✅ | ✅ | — | On status change dispatch to notification targets, test endpoint |
+| F6 — Check History & Trend Chart | PRD-uptime-monitoring.md §F6 | ✅ | ✅ | 000029 | Paginated history, SVG line chart (uPlot), 24h/7d/30d tabs |
+| F7 — Daily Summary | PRD-uptime-monitoring.md §F7 | ✅ | ✅ | 000030 | `uptime_daily_summary` table, hourly aggregation cron |
+| F8 — Notification Targets Generalisation | PRD-uptime-monitoring.md §F8 | ✅ | ✅ | 000031 | Unified `notification_targets` table with scopes, shared with SSL |
+| F9 — Response Time Stats | PRD-uptime-monitoring.md §F9 | ✅ | ✅ | — | Min/avg/max/p95 per 24h/7d/30d, embedded in detail response |
+| F10 — Incidents Timeline | PRD-uptime-monitoring.md §F10 | ✅ | ✅ | — | Group consecutive down/error into incidents, paginated timeline |
+
 ## 10. Resource Usage & Cost Tracking (PRD-resource-usage-cost.md)
 
 | Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
@@ -249,8 +266,11 @@
 | 000025 | `ssl_check_history` | ✅ | PRD-ssl-monitoring.md |
 | 000026 | `ssl_notification_targets` | ✅ | PRD-ssl-monitoring.md |
 | 000027 | — (ssl_monitors ALTER) | ✅ | PRD-ssl-monitoring.md |
-
-### ❌ Missing Tables (Planned in PRDs, Not Migrated)
+| 000028 | `uptime_monitors` | ✅ | PRD-uptime-monitoring.md |
+| 000029 | `uptime_check_history` | ✅ | PRD-uptime-monitoring.md |
+| 000030 | `uptime_daily_summary` | ✅ | PRD-uptime-monitoring.md |
+| 000031 | `notification_targets` | ✅ | PRD-uptime-monitoring.md |
+| 000032 | — (drop `ssl_notification_targets`) | ❌ | PRD-uptime-monitoring.md | (Planned in PRDs, Not Migrated)
 
 | Table | Purpose | PRD |
 |-------|---------|-----|
@@ -284,11 +304,11 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Done (fully implemented) | **57** features |
+| ✅ Done (fully implemented) | **67** features |
 | 🟡 Partial (some gaps) | **3** features |
 | 🟡 In Development | **0** features |
 | ❌ Not Started (PRD exists) | **41** features |
-| **Total PRD-documented features** | **101** |
+| **Total PRD-documented features** | **111** |
 
 ### By Domain
 
@@ -304,8 +324,9 @@
 | Secret Scanning (PRD-secret-scanning.md) | 0 | 0 | 7 |
 | Agent System (PRD-anj-agent.md) | 0 | 0 | 10 |
 || Domain Management (PRD-domain-management.md) | 0 | 0 | 5 |
-| SSL Monitoring (PRD-ssl-monitoring.md) | 10 | 0 | 0 |
-| Resource & Cost (PRD-resource-usage-cost.md) | 0 | 0 | 7 |
+|| SSL Monitoring (PRD-ssl-monitoring.md) | 10 | 0 | 0 |
+|| Uptime Monitoring (PRD-uptime-monitoring.md) | 10 | 0 | 0 |
+|| Resource & Cost (PRD-resource-usage-cost.md) | 0 | 0 | 7 |
 | Templates (PRD-templates-scaffolding.md) | 0 | 0 | 6 |
 | Observability & Ecosystem (PRD.md future) | 0 | 1 | 6 |
 
@@ -334,8 +355,10 @@
 | `/admin/audit-log` | ✅ | Audit log viewer |
 | `/ssh-keys` | ✅ | SSH key management |
 || `/infra/domains` | ❌ | Domain management — not created |
-| `/ssl-monitors` | ✅ | SSL monitoring — F1-F8 complete: CRUD, TLS check, cipher grade, scheduler, notifications, history+trend, notification targets, server-side discovery |
-| `/infra/resources` | ❌ | Resource dashboard — not created |
+|| `/ssl-monitors` | ✅ | SSL monitoring — F1-F8 complete: CRUD, TLS check, cipher grade, scheduler, notifications, history+trend, notification targets, server-side discovery |
+| `/uptime` | ✅ | Uptime monitoring — F1-F10: monitor list, CRUD, summary KPIs, Check All, search/filter |
+| `/uptime/[id]` | ✅ | Uptime detail — status, chart, response time stats, check history, incidents, notifications, maintenance |
+|| `/infra/resources` | ❌ | Resource dashboard — not created |
 | `/infra/templates` | ❌ | Template scaffold — not created |
 | `/agents` | ❌ | Agent management — not created |
 | `/services` | ❌ | Service catalog — not created |

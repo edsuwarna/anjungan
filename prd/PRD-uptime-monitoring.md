@@ -1,7 +1,7 @@
 # Anjungan — PRD: Uptime Monitoring
 
-> **Version:** 1.0
-> **Status:** 🔴 Draft — Branch `feat/uptime-monitoring`
+> **Version:** 1.1
+> **Status:** 🟡 Active — Branch `feat/uptime-monitoring`
 > **Author:** Endang Suwarna
 > **Last Updated:** June 10, 2026
 
@@ -174,6 +174,22 @@ Unlike SSL monitoring which has its own `ssl_notification_targets` table, this f
 | **Frontend** | Single "Notification Targets" modal — create/edit/delete + test. Each target has checkboxes for which features use it (SSL, Uptime, both). |
 | **UX** | Unified UX — user sets up webhook once, uses across features. |
 
+### F9 — Response Time Stats (P1) ✅ Implemented
+
+| | |
+|---|---|
+| **Backend** | `GetUptimeResponseTimeStats()` query in `repository.go` — computes min/avg/max/p95 response time from raw `uptime_check_history` for 24h, and from `uptime_daily_summary` for 7d and 30d periods. Returns embedded in `GET /{id}` response as `response_time_stats`. |
+| **Frontend** | Detail page → **Response Time Stats** section below chart. 3-column card layout: 24h / 7d / 30d. Each column shows Min, Avg, Max values. 24h also shows P95 (95th percentile). |
+| **UX** | Values in ms with unit. Responsive — stacks to single column on mobile (<768px). |
+
+### F10 — Incidents Timeline (P2) ✅ Implemented
+
+| | |
+|---|---|
+| **Backend** | `GetUptimeIncidents()` — scans `uptime_check_history` ascending, groups consecutive `down`/`error` results into incidents. Each incident: `started_at`, `ended_at`, `duration_seconds`, `failure_count`, `error_message`. `GET /{id}/incidents` endpoint with pagination (`?limit=&offset=`). |
+| **Frontend** | Detail page → **Incidents** section below Check History. Each incident card: 🔴 red dot + duration (bold), time range, error message (monospace, red bg). |
+| **UX** | Empty state when no incidents. Loading spinner. Newest first. Error message shown in code block for readability. |
+
 ---
 
 ## 4. API Design
@@ -194,6 +210,7 @@ POST   /api/v1/uptime-monitors/{id}/resume               // Resume
 GET    /api/v1/uptime-monitors/{id}/history              // Paginated history (?limit=&offset=)
 GET    /api/v1/uptime-monitors/{id}/trend                // Trend data for chart (?period=7d)
 POST   /api/v1/uptime-monitors/{id}/test-notification    // Send test notification
+GET    /api/v1/uptime-monitors/{id}/incidents            // Incidents timeline (?limit=&offset=)
 ```
 
 ### Response Format
@@ -239,6 +256,11 @@ POST   /api/v1/uptime-monitors/{id}/test-notification    // Send test notificati
     "last_error": "",
     "last_check_at": "2026-06-10T10:00:00Z",
     "notification_target_ids": ["uuid-nt-1"],
+    "response_time_stats": {
+      "24h": { "min_ms": 120, "avg_ms": 155, "max_ms": 320, "p95_ms": 280 },
+      "7d":  { "min_ms": 110, "avg_ms": 148, "max_ms": 502 },
+      "30d": { "min_ms": 105, "avg_ms": 152, "max_ms": 800 }
+    },
     "created_at": "2026-06-10T10:00:00Z",
     "updated_at": "2026-06-10T10:00:00Z"
   }
@@ -510,54 +532,54 @@ WHERE checked_at < NOW() - INTERVAL '30 days';
 
 ## 7. Implementation Roadmap
 
-### 🟢 Phase 1 — Core (Sprint 1)
+### ✅ Phase 1 — Core (Sprint 1) — COMPLETE
 
 **Goal:** Add monitors, run HTTP/TCP checks, see status in UI
 
-| Order | Feature | Effort | Dependencies |
-|-------|---------|--------|-------------|
-| 1 | Migration 000028: `uptime_monitors` table | 0.5 day | — |
-| 2 | Backend: Uptime monitor CRUD (handler + repo + model) | 1 day | #1 |
-| 3 | Backend: HTTP check engine (`net/http` client) | 1 day | #2 |
-| 4 | Backend: TCP check engine (`net.DialTimeout`) | 0.5 day | #2 |
-| 5 | Backend: Uptime summary endpoint | 0.5 day | #3 |
-| 6 | Frontend: Route `/uptime` + monitor list + status badges | 1 day | #2 |
-| 7 | Frontend: Add/Edit uptime monitor form | 0.5 day | #6 |
-| 8 | Frontend: Monitor detail page (status, response info) | 0.5 day | #3, #6 |
-| 9 | Frontend: Dashboard StatCard | 0.25 day | #5 |
-| 10 | Frontend: Pause/Resume UI | 0.25 day | #6 |
-| | **Total** | **6 days** | |
+| Order | Feature | Effort | Status |
+|-------|---------|--------|--------|
+| 1 | Migration 000028: `uptime_monitors` table | 0.5 day | ✅ |
+| 2 | Backend: Uptime monitor CRUD (handler + repo + model) | 1 day | ✅ |
+| 3 | Backend: HTTP check engine (`net/http` client) | 1 day | ✅ |
+| 4 | Backend: TCP check engine (`net.DialTimeout`) | 0.5 day | ✅ |
+| 5 | Backend: Uptime summary endpoint | 0.5 day | ✅ |
+| 6 | Frontend: Route `/uptime` + monitor list + status badges | 1 day | ✅ |
+| 7 | Frontend: Add/Edit uptime monitor form | 0.5 day | ✅ |
+| 8 | Frontend: Monitor detail page (status, response info) | 0.5 day | ✅ |
+| 9 | Frontend: Dashboard StatCard | 0.25 day | ✅ |
+| 10 | Frontend: Pause/Resume UI | 0.25 day | ✅ |
+| | **Total** | **6 days** | ✅ |
 
-### 🟡 Phase 2 — History, Charts & Notifications (Sprint 2)
+### ✅ Phase 2 — History, Charts & Notifications (Sprint 2) — COMPLETE
 
 **Goal:** Auto-check, response time chart, notifications
 
-| Order | Feature | Effort | Dependencies |
-|-------|---------|--------|-------------|
-| 11 | Migration 000029: `uptime_check_history` | 0.25 day | — |
-| 12 | Backend: History endpoint + auto-purge | 0.5 day | #11 |
-| 13 | Backend: Scheduler (background goroutine) | 1 day | #3, #4 |
-| 14 | Backend: Notification engine (on status change) | 1 day | #13 |
-| 15 | Backend: Trend endpoint + test-notification | 0.5 day | #12 |
-| 16 | Frontend: Response time SVG line chart | 1 day | #15 |
-| 17 | Frontend: History timeline | 0.5 day | #12 |
-| 18 | Frontend: Notification config in monitor form | 0.5 day | #14 |
-| | **Total** | **5 days** | |
+| Order | Feature | Effort | Status |
+|-------|---------|--------|--------|
+| 11 | Migration 000029: `uptime_check_history` | 0.25 day | ✅ |
+| 12 | Backend: History endpoint + auto-purge | 0.5 day | ✅ |
+| 13 | Backend: Scheduler (background goroutine) | 1 day | ✅ |
+| 14 | Backend: Notification engine (on status change) | 1 day | ✅ |
+| 15 | Backend: Trend endpoint + test-notification | 0.5 day | ✅ |
+| 16 | Frontend: Response time SVG line chart | 1 day | ✅ |
+| 17 | Frontend: History timeline | 0.5 day | ✅ |
+| 18 | Frontend: Notification config in monitor form | 0.5 day | ✅ |
+| | **Total** | **5 days** | ✅ |
 
-### ✅ Phase 3 — Enhancements
+### ✅ Phase 3 — Enhancements (In Progress)
 
-| Order | Feature | Effort | Priority |
-|-------|---------|--------|----------|
-| 19 | Migration 000030: `uptime_daily_summary` table | 0.25 day | P2 |
-| 20 | Backend: Daily summary aggregation cron | 0.5 day | P2 |
-| 21 | Frontend: Uptime percentage card (24h/7d/30d tabs) | 0.5 day | P2 |
-| 22 | Migration 000031: `notification_targets` migration + generalisation | 1 day | P1 |
-| 23 | Backend: Update SSL monitoring to use new unified table | 1 day | P1 |
-| 24 | Frontend: Update Notification Targets modal for scopes | 0.5 day | P1 |
-| 25 | Migration 000032: Drop `ssl_notification_targets` | 0.25 day | P2 |
-| 26 | Export CSV (`GET /api/v1/uptime-monitors/export/csv`) | 0.25 day | P2 |
-| 27 | Batch import (`POST /api/v1/uptime-monitors/import`) | 0.5 day | P2 |
-| | **Total** | **4.75 days** | |
+| Order | Feature | Effort | Priority | Status |
+|-------|---------|--------|----------|--------|
+| 19 | Migration 000030: `uptime_daily_summary` table | 0.25 day | P2 | ✅ |
+| 20 | Backend: Daily summary aggregation cron | 0.5 day | P2 | ✅ |
+| 21 | Frontend: Response time stats cards (24h/7d/30d) + incidents timeline | 0.5 day | P2 | ✅ |
+| 22 | Migration 000031: `notification_targets` migration + generalisation | 1 day | P1 | ✅ |
+| 23 | Backend: Update SSL monitoring to use new unified table | 1 day | P1 | ✅ |
+| 24 | Frontend: Update Notification Targets modal for scopes | 0.5 day | P1 | ✅ |
+| 25 | Migration 000032: Drop `ssl_notification_targets` | 0.25 day | P2 | ❌ |
+| 26 | Export CSV (`GET /api/v1/uptime-monitors/export/csv`) | 0.25 day | P2 | ❌ |
+| 27 | Batch import (`POST /api/v1/uptime-monitors/import`) | 0.5 day | P2 | ❌ |
+| | **Total** | **4.75 days** | | **5/9 done** |
 
 ### Total Estimated Effort: ~15.75 days (All 3 phases)
 
