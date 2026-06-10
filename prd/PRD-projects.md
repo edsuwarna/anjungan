@@ -1,7 +1,7 @@
 # Anjungan — PRD: Projects (Multi-Tenant Isolation)
 
-> **Version:** 1.0
-> **Status:** 🟡 Active — Branch `feat/projects`
+> **Version:** 1.1
+> **Status:** 🟢 Mockup Complete
 > **Author:** Endang Suwarna
 > **Last Updated:** June 10, 2026
 
@@ -461,7 +461,43 @@ Admin → "/admin/projects" → Click trash icon
 
 ---
 
-## 7. Implementation Roadmap
+## 7. Mockup Screenshots
+
+> Mockup interactive HTML & screenshot script in `sketches/projects/`. Generated on branch `feat/projects`.
+
+### 7.1 — Admin Project List (`/admin/projects`)
+
+![Admin Project List](../sketches/projects/projects-admin-list.png)
+
+Table listing all projects with resource counts (servers, SSL, uptime, deployments), created date, and actions. "Default Project" marked as system-protected (no delete button). "New Project" button in top-right. Each row shows member count and links to project settings.
+
+### 7.2 — Project Switcher (Top Bar Dropdown)
+
+![Project Switcher](../sketches/projects/projects-switcher.png)
+
+Dropdown from top bar showing current project with checkmark, other accessible projects, separator, and "Manage Projects" link (admin only). Each project entry shows color dot + name. Switcher updates all sidebar links and page content to reflect the selected project context.
+
+### 7.3 — Project Overview Dashboard (`/projects/acme-corp`)
+
+![Project Overview](../sketches/projects/projects-overview.png)
+
+Landing page after selecting a project. KPI cards row (servers, SSL monitors, uptime monitors, deployments) with counts. Recent deployments timeline on the left. Project member avatars on the right. Breadcrumb navigation at top. Settings gear icon for project admin.
+
+### 7.4 — Scoped Servers (`/projects/acme-corp/servers`)
+
+![Scoped Servers](../sketches/projects/projects-servers.png)
+
+Server list filtered to the active project. Breadcrumb shows `Projects → Acme Corp → Servers`. Filter bar above the table. All columns (name, host, status, group, tags, last seen) carried over from global server list, but now project-scoped. Pagination at bottom.
+
+### 7.5 — Project Settings & Danger Zone
+
+![Project Settings](../sketches/projects/projects-settings.png)
+
+Two sections: **General** (edit name, slug, description) and **Members** (table with user name, email, role dropdown, remove button). **Danger Zone** at bottom with delete section — shows resource count that will be rehomed, requires typing "delete" to confirm. Modal confirmation with full resource breakdown.
+
+---
+
+## 8. Implementation Roadmap
 
 ### Phase 1 — Foundation (P0)
 
@@ -510,7 +546,7 @@ Admin → "/admin/projects" → Click trash icon
 
 ---
 
-## 8. Non-Functional Requirements
+## 9. Non-Functional Requirements
 
 | Requirement | Target |
 |-------------|--------|
@@ -523,7 +559,7 @@ Admin → "/admin/projects" → Click trash icon
 
 ---
 
-## 9. Dependencies & Integration Points
+## 10. Dependencies & Integration Points
 
 | Dependency | Type | Notes |
 |-----------|------|-------|
@@ -535,7 +571,7 @@ Admin → "/admin/projects" → Click trash icon
 
 ---
 
-## 10. Edge Cases & Error Handling
+## 11. Edge Cases & Error Handling
 
 | Scenario | Behavior |
 |----------|----------|
@@ -550,7 +586,7 @@ Admin → "/admin/projects" → Click trash icon
 
 ---
 
-## 11. Future Considerations
+## 12. Future Considerations
 
 | Feature | When | Why Skip Now |
 |---------|------|-------------|
@@ -563,7 +599,7 @@ Admin → "/admin/projects" → Click trash icon
 
 ---
 
-## 12. PRD Cross-References
+## 13. PRD Cross-References
 
 | PRD | Relationship |
 |-----|-------------|
@@ -574,7 +610,7 @@ Admin → "/admin/projects" → Click trash icon
 
 ---
 
-## 13. References
+## 14. References
 
 - **Google Cloud Projects:** https://cloud.google.com/docs/overview#projects
 - **AWS Organizations:** https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html
