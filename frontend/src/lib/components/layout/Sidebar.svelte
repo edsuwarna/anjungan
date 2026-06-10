@@ -45,6 +45,7 @@
 		{
 			name: 'Security',
 			items: [
+				{ href: '/ssl-monitors', icon: 'solar:shield-check-bold', label: 'SSL Monitors' },
 				{ href: '/compliance', icon: 'solar:shield-check-bold', label: 'Compliance' },
 			],
 		},

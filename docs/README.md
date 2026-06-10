@@ -12,6 +12,8 @@ Anjungan provides a single-pane-of-glass for DevOps teams:
 - **Container registry** — integrated Zot private registry with self-service user credentials
 - **Deployments** — track and manage deployments across environments
 - **Repository management** — GitHub & Forgejo repository integration
+- **SSL Certificate Monitoring** — monitor SSL/TLS certificate expiry for any domain, with automated TLS checks, cipher grading, chain validation, OCSP status, check history with trend chart, and deduped notifications via Telegram/Discord/Slack
+- **Server-side certificate discovery** — auto-detect SSL certs from connected servers (Traefik, Nginx, Caddy, Let's Encrypt, filesystem scan)
 - **Admin console** — user management, audit logging
 
 ## Tech Stack
@@ -64,7 +66,7 @@ anjungan/
 ├── docs/                     # Documentation
 ├── zot/                      # Zot configuration
 │   ├── config.json           # Zot config with htpasswd auth
-│   └── htpasswd              # Docker registry credentials
+│   ├── htpasswd.example      # Example htpasswd format (auto-generated at runtime)
 ├── docker-compose.yml        # All services
 ├── Dockerfile.backend        # Multi-stage Go build
 ├── Dockerfile.frontend       # Nginx static SPA (npm build)

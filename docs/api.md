@@ -252,3 +252,88 @@ Threshold payload:
 {"compliant": 90, "warning": 70}
 ```
 Validation: `compliant > warning > 0`. Default: compliant=90, warning=70.
+
+---
+
+## SSL Monitoring
+
+### Monitors CRUD
+
+```
+GET    /api/v1/ssl-monitors                          — List (?page=&limit=&search=&status=&sort=&order=&all=)
+POST   /api/v1/ssl-monitors                          — Create monitor
+GET    /api/v1/ssl-monitors/summary                  — KPI counts (total, valid, expiring_soon, expired, error)
+GET    /api/v1/ssl-monitors/export/csv                — Export as CSV
+POST   /api/v1/ssl-monitors/import                   — Batch import [{domain, port, display_name}]
+POST   /api/v1/ssl-monitors/check-all                — Check all enabled monitors
+POST   /api/v1/ssl-monitors/discover                 — Server-side discovery {server_id, provider}
+POST   /api/v1/ssl-monitors/discover/import           — Import discovered domains
+GET    /api/v1/ssl-monitors/{id}                     — Get detail
+PUT    /api/v1/ssl-monitors/{id}                     — Update
+DELETE /api/v1/ssl-monitors/{id}                     — Delete
+POST   /api/v1/ssl-monitors/{id}/check               — Manual TLS check
+GET    /api/v1/ssl-monitors/{id}/history             — Paginated check history (?limit=&offset=)
+GET    /api/v1/ssl-monitors/{id}/trend               — Trend chart data (?limit=90, default 90)
+```
+
+Create monitor payload:
+```json
+{
+  "domain": "app1.edsuwarna.id",
+  "port": 443,
+  "display_name": "App 1 Production",
+  "check_interval": "1h",
+  "notify_before": "14d",
+  "webhook_ids": ["target-uuid"],
+  "enabled": true
+}
+```
+
+Summary response:
+```json
+{
+  "total": 8,
+  "valid": 5,
+  "expiring_soon": 2,
+  "expired": 0,
+  "error": 1
+}
+```
+
+### Notification Targets
+
+```
+GET    /api/v1/ssl-monitors/notification-targets             — List all
+POST   /api/v1/ssl-monitors/notification-targets             — Create
+GET    /api/v1/ssl-monitors/notification-targets/{id}        — Get
+PUT    /api/v1/ssl-monitors/notification-targets/{id}        — Update
+DELETE /api/v1/ssl-monitors/notification-targets/{id}        — Delete
+POST   /api/v1/ssl-monitors/notification-targets/{id}/test   — Send test notification
+```
+
+Platforms: `telegram`, `discord`, `slack`, `generic`. Formatting is auto-applied per platform.
+
+### Discover
+
+```
+POST /api/v1/ssl-monitors/discover
+```
+```json
+{
+  "server_id": "server-uuid",
+  "provider": "auto"
+}
+```
+Providers: `auto`, `traefik`, `nginx`, `caddy`, `letsencrypt`, `filesystem`.
+
+```
+POST /api/v1/ssl-monitors/discover/import
+```
+```json
+{
+  "domains": [
+    {"domain": "app1.edsuwarna.id", "port": 443, "display_name": "App 1", "source_provider": "traefik", "server_id": "server-uuid"}
+  ],
+  "enabled": true
+}
+```

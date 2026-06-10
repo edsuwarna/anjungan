@@ -218,12 +218,16 @@ http:
 
 #### F6.4 — SSL Certificate Monitoring
 
+> ⚠️ **SUPERSEDED:** This feature has moved to a standalone implementation in [`PRD-ssl-monitoring.md`](PRD-ssl-monitoring.md).
+> The new approach uses **manual domain entry** (not auto-detection from Traefik) for flexibility — monitor domains
+> on any host. See the new PRD for full specs. This section is kept for historical reference only.
+
 | | |
 |---|---|
-| **Priority** | P1 |
+| **Priority** | P1 → Moved to standalone PRD |
 | **Backend** | Scan each domain → check `cert_expires_at`. If < 30 days: update status to `expiring_soon`. If expired: status `expired`. Cron job: daily SSL expiry check. Notification trigger if < 14 days. Endpoint: `GET /api/v1/domains/ssl-summary` — count active, expiring_soon, expired. |
-| **Frontend** | Badge in domain list: 🟢 Active (68d), 🟡 Expiring (10d), 🔴 Expired. SSL summary card on dashboard: "2 certs expiring within 30 days". Click → filter domain list. |
-| **UX** | Badge color matches urgency. If < 30 days show warning icon. If expired — bright red + tooltip "Traefik cert expired — auto-renew via ACME" or "Custom cert — manual renew". |
+| **Frontend** | Badge in domain list: 🟢 Active (68d), 🟡 Expiring (10d), 🔴 Expired. SSL summary card on dashboard: &quot;2 certs expiring within 30 days&quot;. Click → filter domain list. |
+| **UX** | Badge color matches urgency. If < 30 days show warning icon. If expired — bright red + tooltip &quot;Traefik cert expired — auto-renew via ACME&quot; or &quot;Custom cert — manual renew&quot;. |
 
 ---
 

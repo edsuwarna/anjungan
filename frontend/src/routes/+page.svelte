@@ -14,6 +14,9 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 	let showActivity = $state(false);
 	let hoveredServer = $state(null);
 
+	let sslSummary = $derived(stats.ssl_summary || { total: 0, valid: 0, expiring_soon: 0, expired: 0, error: 0 });
+	let sslExpiringCount = $derived(sslSummary.expiring_soon + sslSummary.expired);
+
 	let compliance = $derived(stats.compliance || { total_servers: 0, scanned_servers: 0, average_score: null, by_status: {} });
 	let deploymentStatus = $derived(stats.deployment_status || {});
 	let activeDeployments = $derived(deploymentStatus['running'] || 0);
@@ -159,7 +162,7 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 		</div>
 
 		<!-- Stat Cards -->
-		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
 			<StatCard title="Servers" value={stats.servers} icon="solar:server-square-bold"
 				subtitle={onlineCount > 0 || offlineCount > 0 ? `${onlineCount} online · ${offlineCount} offline` : ''} />
 			<StatCard title="Containers" value={stats.containers} icon="solar:box-bold"
@@ -167,6 +170,10 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 			<StatCard title="Deployments" value={stats.deployments} icon="solar:rocket-bold"
 				subtitle={activeDeployments > 0 ? `${activeDeployments} running` : deploymentStatus['completed'] ? `${deploymentStatus['completed']} completed` : ''} />
 			<StatCard title="Users" value={stats.users} icon="solar:users-group-rounded-bold" />
+			<button class="text-left" onclick={() => goto('/ssl-monitors')}>
+				<StatCard title="SSL Certs" value={sslSummary.valid ?? '—'} icon="solar:shield-check-bold"
+					subtitle={sslExpiringCount > 0 ? `${sslExpiringCount} expiring` : sslSummary.total > 0 ? `${sslSummary.total} monitored` : 'no monitors'} />
+			</button>
 			<StatCard title="Compliance" value={compliance.average_score != null ? compliance.average_score + '%' : '—'} icon="solar:shield-check-bold"
 				subtitle={compliance.scanned_servers > 0 ? `${compliance.scanned_servers} scanned` : 'no scans'} />
 		</div>

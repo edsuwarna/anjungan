@@ -30,6 +30,8 @@ type UserRepository interface {
 	UpdateUserPassword(ctx context.Context, id, passwordHash string) error
 	UpdateUserTOTPSecret(ctx context.Context, id, secret string) error
 	UpdateUserTOTPEnabled(ctx context.Context, id string, enabled bool) error
+	UpdateUserLockout(ctx context.Context, userID string, lockedUntil *time.Time, failedAttempts int) error
+	ResetUserLockout(ctx context.Context, userID string) error
 	GetSetting(ctx context.Context, key string) (*model.Settings, error)
 }
 
@@ -74,12 +76,21 @@ func (s *Service) Login(ctx context.Context, email, password, totpCode, ip strin
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		// Record the failed attempt — may trigger lockout
 		s.rateLimiter.RecordFailed(ctx, ip, email)
+
+		// If account just got locked, persist lock state to DB for audit trail
+		if locked, remaining, _ := s.rateLimiter.IsLocked(ctx, email); locked {
+			now := time.Now()
+			lockedUntil := now.Add(remaining)
+			s.users.UpdateUserLockout(ctx, user.ID, &lockedUntil, s.securityCfg.RateLimitMaxAttempts)
+		}
+
 		// Return vague error to avoid revealing account existence or lock state
 		return nil, ErrInvalidCredentials
 	}
 
-	// 3. Clear rate limit counters on successful login
+	// 3. Clear rate limit + lockout on successful login
 	s.rateLimiter.RecordSuccess(ctx, ip, email)
+	s.users.ResetUserLockout(ctx, user.ID)
 
 	if user.TOTPEnabled && totpCode == "" {
 		return nil, ErrTOTPRequired
@@ -112,6 +123,16 @@ func (s *Service) Register(ctx context.Context, email, name, password string) (*
 		return nil, err
 	}
 	return user, nil
+}
+
+// IsLocked checks if an account is currently locked due to failed login attempts.
+func (s *Service) IsLocked(ctx context.Context, email string) (bool, error) {
+	locked, _, err := s.rateLimiter.IsLocked(ctx, email)
+	return locked, err
+}
+
+func (s *Service) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
+	return s.users.GetUserByEmail(ctx, email)
 }
 
 func (s *Service) ChangePassword(ctx context.Context, email, currentPassword, newPassword string) error {

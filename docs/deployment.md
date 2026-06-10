@@ -155,7 +155,7 @@ cat > zot/config.json << 'EOF'
   "log": {"level": "info"}
 }
 EOF
-touch zot/htpasswd
+touch zot/htpasswd  # auto-generated if missing (gitignored — backend syncZotHtpasswd() populates it on first run)
 ```
 
 Create `.env` and start:

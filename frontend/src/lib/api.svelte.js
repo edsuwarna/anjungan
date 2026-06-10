@@ -363,4 +363,55 @@ export const api = {
 		registration: () => request('/settings/registration'),
 		updateRegistration: (data) => request('/settings/registration', { method: 'PUT', body: JSON.stringify(data) }),
 	},
+
+	sslMonitors: {
+		list: (params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.all) qs.set('all', 'true');
+			if (params.page) qs.set('page', params.page);
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.search) qs.set('search', params.search);
+			if (params.status) qs.set('status', params.status);
+			if (params.sort) qs.set('sort', params.sort);
+			if (params.order) qs.set('order', params.order);
+			const q = qs.toString();
+			return request(`/ssl-monitors${q ? '?' + q : ''}`);
+		},
+		get: (id) => request(`/ssl-monitors/${id}`),
+		create: (data) => request('/ssl-monitors', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/ssl-monitors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/ssl-monitors/${id}`, { method: 'DELETE' }),
+		checkNow: (id) => request(`/ssl-monitors/${id}/check`, { method: 'POST' }),
+		checkAll: () => request('/ssl-monitors/check-all', { method: 'POST' }),
+		summary: () => request('/ssl-monitors/summary'),
+		history: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.offset) qs.set('offset', params.offset);
+			const q = qs.toString();
+			return request(`/ssl-monitors/${id}/history${q ? '?' + q : ''}`);
+		},
+		trend: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			const q = qs.toString();
+			return request(`/ssl-monitors/${id}/trend${q ? '?' + q : ''}`);
+		},
+		toggle: (id, enabled) =>
+			request(`/ssl-monitors/${id}`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
+		batchImport: (data) => request('/ssl-monitors/import', { method: 'POST', body: JSON.stringify(data) }),
+	},
+
+	notificationTargets: {
+		list: () => request('/ssl-monitors/notification-targets'),
+		get: (id) => request(`/ssl-monitors/notification-targets/${id}`),
+		create: (data) => request('/ssl-monitors/notification-targets', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/ssl-monitors/notification-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/ssl-monitors/notification-targets/${id}`, { method: 'DELETE' }),
+		test: (id) => request(`/ssl-monitors/notification-targets/${id}/test`, { method: 'POST' }),
+	},
+
+	registryWebhooks: {
+		list: () => request('/registry/webhooks'),
+	},
 };

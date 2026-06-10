@@ -73,7 +73,7 @@ func (r *Repository) CountRecentFailedLogins(ctx context.Context, since time.Tim
 
 func (r *Repository) ListUsers(ctx context.Context) ([]*model.User, error) {
 	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, email, name, role, totp_enabled, created_at, updated_at FROM users ORDER BY created_at DESC`,
+		`SELECT id, email, name, role, totp_enabled, locked_until, failed_login_attempts, created_at, updated_at FROM users ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (r *Repository) ListUsers(ctx context.Context) ([]*model.User, error) {
 	var users []*model.User
 	for rows.Next() {
 		u := &model.User{}
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.TOTPEnabled, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.TOTPEnabled, &u.LockedUntil, &u.FailedLoginAttempts, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -1975,7 +1975,7 @@ func (r *Repository) GetComplianceSummary(ctx context.Context, allowedGroups []s
 	}
 
 	// Total servers
-	countQuery := "SELECT COUNT(*) FROM servers " + groupFilter
+	countQuery := "SELECT COUNT(*) FROM servers s " + groupFilter
 	var countArgs []interface{}
 	countArgs = append(countArgs, args...)
 	err := r.db.Pool.QueryRow(ctx, countQuery, countArgs...).Scan(&summary.TotalServers)
@@ -2807,6 +2807,38 @@ func (r *Repository) ListEnabledRegistryWebhooks(ctx context.Context) ([]*model.
 	return hooks, nil
 }
 
+func (r *Repository) ListRegistryWebhooksByIDs(ctx context.Context, ids []string) ([]*model.RegistryWebhook, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, name, url, platform, events, enabled, created_at, updated_at
+		 FROM registry_webhooks WHERE id IN (`+strings.Join(placeholders, ",")+`) AND enabled = TRUE`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var hooks []*model.RegistryWebhook
+	for rows.Next() {
+		h := &model.RegistryWebhook{}
+		if err := rows.Scan(&h.ID, &h.Name, &h.URL, &h.Platform, &h.Events, &h.Enabled, &h.CreatedAt, &h.UpdatedAt); err != nil {
+			return nil, err
+		}
+		hooks = append(hooks, h)
+	}
+	return hooks, nil
+}
+
 // ─── Registry Tag Protection ────────────────────────────────────────────────
 
 func (r *Repository) ListTagProtections(ctx context.Context, repo string) ([]*model.RegistryTagProtection, error) {
@@ -2878,4 +2910,520 @@ func (r *Repository) DeleteTagProtectionByRepoTag(ctx context.Context, repo, tag
 	_, err := r.db.Pool.Exec(ctx,
 		`DELETE FROM registry_tag_protections WHERE repo = $1 AND tag = $2`, repo, tag)
 	return err
+}
+
+// ─── SSL Monitor Repository ───────────────────────────────────────────────────
+
+const sslMonitorColumns = `id, domain, port, COALESCE(display_name, ''), COALESCE(check_interval, '1h'),
+	COALESCE(notify_before, '14d'), COALESCE(webhook_ids, '{}'),
+	COALESCE(last_status, 'pending'), last_check_at, COALESCE(last_error, ''),
+	COALESCE(issuer, ''), COALESCE(subject, ''), cert_expires_at,
+	COALESCE(days_remaining, 0), chain_valid, COALESCE(chain_error, ''),
+	COALESCE(cipher_grade, ''), COALESCE(cipher_error, ''),
+	COALESCE(ocsp_status, ''), COALESCE(ocsp_error, ''),
+	COALESCE(san_names, '{}'), COALESCE(san_mismatch, false),
+	COALESCE(created_by, ''), COALESCE(enabled, true),
+	COALESCE(server_id::text, ''), COALESCE(source_provider, 'manual'),
+	created_at, updated_at`
+
+func scanSSLMonitor(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*model.SSLMonitor, error) {
+	m := &model.SSLMonitor{}
+	err := scanner.Scan(
+		&m.ID, &m.Domain, &m.Port, &m.DisplayName, &m.CheckInterval,
+		&m.NotifyBefore, &m.WebhookIDs,
+		&m.LastStatus, &m.LastCheckAt, &m.LastError,
+		&m.Issuer, &m.Subject, &m.CertExpiresAt,
+		&m.DaysRemaining, &m.ChainValid, &m.ChainError,
+		&m.CipherGrade, &m.CipherError,
+		&m.OCSPStatus, &m.OCSPError,
+		&m.SANNames, &m.SANMismatch,
+		&m.CreatedBy, &m.Enabled,
+		&m.ServerID, &m.SourceProvider,
+		&m.CreatedAt, &m.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (r *Repository) CreateSSLMonitor(ctx context.Context, m *model.SSLMonitor) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO ssl_monitors (id, domain, port, display_name, check_interval, notify_before,
+		 webhook_ids, last_status, created_by, enabled, server_id, source_provider, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		m.ID, m.Domain, m.Port, m.DisplayName, m.CheckInterval, m.NotifyBefore,
+		m.WebhookIDs, "pending", m.CreatedBy, m.Enabled, m.ServerID, m.SourceProvider, m.CreatedAt, m.UpdatedAt)
+	return err
+}
+
+func (r *Repository) ListSSLMonitors(ctx context.Context, search string, status string, enabledOnly bool) ([]*model.SSLMonitor, error) {
+	var conditions []string
+	var args []interface{}
+	argIdx := 1
+
+	if search != "" {
+		conditions = append(conditions, fmt.Sprintf("(LOWER(domain) LIKE $%d OR LOWER(COALESCE(display_name, '')) LIKE $%d)", argIdx, argIdx))
+		args = append(args, "%"+strings.ToLower(search)+"%")
+		argIdx++
+	}
+	if status != "" {
+		conditions = append(conditions, fmt.Sprintf("last_status = $%d", argIdx))
+		args = append(args, status)
+		argIdx++
+	}
+	if enabledOnly {
+		conditions = append(conditions, "enabled = TRUE")
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT `+sslMonitorColumns+` FROM ssl_monitors `+whereClause+` ORDER BY domain`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var monitors []*model.SSLMonitor
+	for rows.Next() {
+		m, err := scanSSLMonitor(rows)
+		if err != nil {
+			return nil, err
+		}
+		monitors = append(monitors, m)
+	}
+	return monitors, nil
+}
+
+func (r *Repository) ListSSLMonitorsPaginated(ctx context.Context, page, limit int, search, status, sort, order string, enabledOnly bool) (*model.SSLMonitorListResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	var conditions []string
+	var args []interface{}
+	argIdx := 1
+
+	if search != "" {
+		conditions = append(conditions, fmt.Sprintf("(LOWER(domain) LIKE $%d OR LOWER(COALESCE(display_name, '')) LIKE $%d)", argIdx, argIdx))
+		args = append(args, "%"+strings.ToLower(search)+"%")
+		argIdx++
+	}
+	if status != "" {
+		conditions = append(conditions, fmt.Sprintf("last_status = $%d", argIdx))
+		args = append(args, status)
+		argIdx++
+	}
+	if enabledOnly {
+		conditions = append(conditions, "enabled = TRUE")
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Count
+	var total int
+	countQuery := "SELECT COUNT(*) FROM ssl_monitors " + whereClause
+	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	// Sort
+	allowedSorts := map[string]string{
+		"domain":        "domain",
+		"last_status":   "last_status",
+		"days_remaining": "days_remaining",
+		"created_at":    "created_at",
+	}
+	sortCol, ok := allowedSorts[sort]
+	if !ok {
+		sortCol = "domain"
+	}
+	orderDir := "ASC"
+	if strings.EqualFold(order, "desc") {
+		orderDir = "DESC"
+	}
+
+	offset := (page - 1) * limit
+
+	dataQuery := fmt.Sprintf(
+		`SELECT `+sslMonitorColumns+` FROM ssl_monitors %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		whereClause, sortCol, orderDir, argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Pool.Query(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var monitors []model.SSLMonitorResponse
+	for rows.Next() {
+		m, err := scanSSLMonitor(rows)
+		if err != nil {
+			return nil, err
+		}
+		monitors = append(monitors, m.ToResponse())
+	}
+	if monitors == nil {
+		monitors = []model.SSLMonitorResponse{}
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return &model.SSLMonitorListResponse{
+		Monitors:   monitors,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (r *Repository) GetSSLMonitor(ctx context.Context, id string) (*model.SSLMonitor, error) {
+	row := r.db.Pool.QueryRow(ctx,
+		`SELECT `+sslMonitorColumns+` FROM ssl_monitors WHERE id = $1`, id)
+	return scanSSLMonitor(row)
+}
+
+func (r *Repository) UpdateSSLMonitor(ctx context.Context, m *model.SSLMonitor) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE ssl_monitors SET domain=$1, port=$2, display_name=$3, check_interval=$4,
+		 notify_before=$5, webhook_ids=$6, enabled=$7, server_id=NULLIF($8,'')::uuid, source_provider=$9, updated_at=NOW() WHERE id=$10`,
+		m.Domain, m.Port, m.DisplayName, m.CheckInterval, m.NotifyBefore,
+		m.WebhookIDs, m.Enabled, m.ServerID, m.SourceProvider, m.ID)
+	return err
+}
+
+// UpdateSSLMonitorCheckResult updates only the TLS check result fields (no updated_at change —
+// the check engine sets its own timestamp via last_check_at)
+func (r *Repository) UpdateSSLMonitorCheckResult(ctx context.Context, m *model.SSLMonitor) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE ssl_monitors SET last_status=$1, last_check_at=$2, last_error=$3,
+		 issuer=$4, subject=$5, cert_expires_at=$6, days_remaining=$7,
+		 chain_valid=$8, chain_error=$9, cipher_grade=$10, cipher_error=$11,
+		 ocsp_status=$12, ocsp_error=$13, san_names=$14, san_mismatch=$15,
+		 updated_at=NOW()
+		 WHERE id=$16`,
+		m.LastStatus, m.LastCheckAt, m.LastError,
+		m.Issuer, m.Subject, m.CertExpiresAt, m.DaysRemaining,
+		m.ChainValid, m.ChainError, m.CipherGrade, m.CipherError,
+		m.OCSPStatus, m.OCSPError, m.SANNames, m.SANMismatch,
+		m.ID)
+	return err
+}
+
+func (r *Repository) DeleteSSLMonitor(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM ssl_monitors WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) CountSSLMonitorsByStatus(ctx context.Context) (map[string]int, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		"SELECT last_status, COUNT(*) FROM ssl_monitors GROUP BY last_status")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		result[status] = count
+	}
+	return result, nil
+}
+
+func (r *Repository) ListEnabledSSLMonitors(ctx context.Context) ([]*model.SSLMonitor, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT `+sslMonitorColumns+` FROM ssl_monitors WHERE enabled = TRUE ORDER BY domain`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var monitors []*model.SSLMonitor
+	for rows.Next() {
+		m, err := scanSSLMonitor(rows)
+		if err != nil {
+			return nil, err
+		}
+		monitors = append(monitors, m)
+	}
+	return monitors, nil
+}
+
+func (r *Repository) GetSSLMonitorByDomainPort(ctx context.Context, domain string, port int) (*model.SSLMonitor, error) {
+	row := r.db.Pool.QueryRow(ctx,
+		`SELECT `+sslMonitorColumns+` FROM ssl_monitors WHERE domain = $1 AND port = $2`,
+		domain, port)
+	return scanSSLMonitor(row)
+}
+
+// ─── SSL Check History Repository ──────────────────────────────────────────
+
+const sslCheckHistoryColumns = `id, ssl_monitor_id, checked_at, status, days_remaining,
+	COALESCE(cipher_grade, ''), COALESCE(tls_version, ''), COALESCE(cipher_suite, ''),
+	response_time_ms, COALESCE(issuer, ''), COALESCE(subject, ''), COALESCE(error_message, '')`
+
+func scanSSLCheckHistory(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*model.SSLCheckHistory, error) {
+	h := &model.SSLCheckHistory{}
+	err := scanner.Scan(
+		&h.ID, &h.SSLMonitorID, &h.CheckedAt, &h.Status, &h.DaysRemaining,
+		&h.CipherGrade, &h.TLSVersion, &h.CipherSuite,
+		&h.ResponseTimeMs, &h.Issuer, &h.Subject, &h.ErrorMessage,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
+func (r *Repository) CreateSSLCheckHistory(ctx context.Context, h *model.SSLCheckHistory) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO ssl_check_history (id, ssl_monitor_id, checked_at, status, days_remaining,
+		 cipher_grade, tls_version, cipher_suite, response_time_ms, issuer, subject, error_message)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		h.ID, h.SSLMonitorID, h.CheckedAt, h.Status, h.DaysRemaining,
+		h.CipherGrade, h.TLSVersion, h.CipherSuite, h.ResponseTimeMs,
+		h.Issuer, h.Subject, h.ErrorMessage,
+	)
+	return err
+}
+
+func (r *Repository) ListSSLCheckHistory(ctx context.Context, sslMonitorID string, limit, offset int) (*model.SSLCheckHistoryListResponse, error) {
+	var total int
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM ssl_check_history WHERE ssl_monitor_id = $1`, sslMonitorID,
+	).Scan(&total)
+	if err != nil {
+		return nil, err
+	}
+
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT `+sslCheckHistoryColumns+` FROM ssl_check_history
+		 WHERE ssl_monitor_id = $1 ORDER BY checked_at DESC LIMIT $2 OFFSET $3`,
+		sslMonitorID, limit, offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.SSLCheckHistory
+	for rows.Next() {
+		h, err := scanSSLCheckHistory(rows)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, *h)
+	}
+	if entries == nil {
+		entries = []model.SSLCheckHistory{}
+	}
+
+	return &model.SSLCheckHistoryListResponse{
+		Entries: entries,
+		Total:   total,
+		Limit:   limit,
+	}, nil
+}
+
+// GetSSLMonitorTrend returns time-series history entries for trend chart (chronological order).
+func (r *Repository) GetSSLMonitorTrend(ctx context.Context, monitorID string, limit int) ([]model.SSLCheckHistory, error) {
+	if limit < 1 || limit > 365 {
+		limit = 90
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT `+sslCheckHistoryColumns+` 
+		 FROM ssl_check_history 
+		 WHERE ssl_monitor_id = $1 
+		 ORDER BY checked_at ASC LIMIT $2`,
+		monitorID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.SSLCheckHistory
+	for rows.Next() {
+		e, err := scanSSLCheckHistory(rows)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, *e)
+	}
+	if entries == nil {
+		entries = []model.SSLCheckHistory{}
+	}
+	return entries, nil
+}
+
+// PurgeSSLCheckHistory deletes entries older than the given age (e.g. 90 days).
+func (r *Repository) PurgeSSLCheckHistory(ctx context.Context, olderThan time.Duration) (int, error) {
+	res, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM ssl_check_history WHERE checked_at < NOW() - $1::interval`,
+		fmt.Sprintf("%.0f seconds", olderThan.Seconds()),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return int(res.RowsAffected()), nil
+}
+
+// ListDueSSLMonitors returns monitors where the next check is due.
+func (r *Repository) ListDueSSLMonitors(ctx context.Context) ([]*model.SSLMonitor, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT `+sslMonitorColumns+` FROM ssl_monitors
+		 WHERE enabled = TRUE
+		 AND (
+		   last_check_at IS NULL
+		   OR last_check_at <= NOW() - (
+		     CASE
+		       WHEN check_interval = '30m' THEN INTERVAL '30 minutes'
+		       WHEN check_interval = '1h'  THEN INTERVAL '1 hour'
+		       WHEN check_interval = '6h'  THEN INTERVAL '6 hours'
+		       WHEN check_interval = '12h' THEN INTERVAL '12 hours'
+		       WHEN check_interval = '24h' THEN INTERVAL '24 hours'
+		       ELSE INTERVAL '1 hour'
+		     END
+		   )
+		 )
+		 ORDER BY last_check_at ASC NULLS FIRST`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var monitors []*model.SSLMonitor
+	for rows.Next() {
+		m, err := scanSSLMonitor(rows)
+		if err != nil {
+			return nil, err
+		}
+		monitors = append(monitors, m)
+	}
+	return monitors, nil
+}
+
+// ─── SSL Notification Targets ──────────────────────────────────────────────────
+
+func (r *Repository) ListSSLNotificationTargets(ctx context.Context) ([]*model.SSLNotificationTarget, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, name, url, platform, webhook_secret, enabled, created_by, created_at, updated_at
+		 FROM ssl_notification_targets ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var targets []*model.SSLNotificationTarget
+	for rows.Next() {
+		t := &model.SSLNotificationTarget{}
+		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		targets = append(targets, t)
+	}
+	return targets, nil
+}
+
+func (r *Repository) GetSSLNotificationTarget(ctx context.Context, id string) (*model.SSLNotificationTarget, error) {
+	t := &model.SSLNotificationTarget{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, url, platform, webhook_secret, enabled, created_by, created_at, updated_at
+		 FROM ssl_notification_targets WHERE id = $1`, id).
+		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+func (r *Repository) CreateSSLNotificationTarget(ctx context.Context, t *model.SSLNotificationTarget) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO ssl_notification_targets (id, name, url, platform, webhook_secret, enabled, created_by, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
+	return err
+}
+
+func (r *Repository) UpdateSSLNotificationTarget(ctx context.Context, t *model.SSLNotificationTarget) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE ssl_notification_targets
+		 SET name = $1, url = $2, platform = $3, webhook_secret = $4, enabled = $5, updated_at = $6
+		 WHERE id = $7`,
+		t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.UpdatedAt, t.ID)
+	return err
+}
+
+func (r *Repository) DeleteSSLNotificationTarget(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM ssl_notification_targets WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) ListSSLNotificationTargetsByIDs(ctx context.Context, ids []string) ([]*model.SSLNotificationTarget, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, name, url, platform, webhook_secret, enabled, created_by, created_at, updated_at
+		 FROM ssl_notification_targets WHERE id IN (`+strings.Join(placeholders, ",")+`) AND enabled = TRUE`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var targets []*model.SSLNotificationTarget
+	for rows.Next() {
+		t := &model.SSLNotificationTarget{}
+		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		targets = append(targets, t)
+	}
+	return targets, nil
 }

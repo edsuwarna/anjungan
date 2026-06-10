@@ -845,3 +845,263 @@ func (r *TagProtectionRequest) Validate() string {
 	}
 	return ""
 }
+
+// ─── SSL Monitor ─────────────────────────────────────────────────────────────
+
+type SSLMonitor struct {
+	ID        string `json:"id"`
+	Domain    string `json:"domain"`
+	Port      int    `json:"port"`
+	CreatedBy string `json:"created_by"`
+
+	// Server association for auto-discovery
+	ServerID      string `json:"server_id,omitempty"`
+	SourceProvider string `json:"source_provider,omitempty"` // manual, traefik, nginx, caddy, letsencrypt, discovered
+
+	// Core
+	DisplayName   string `json:"display_name"`
+	CheckInterval string `json:"check_interval"`
+	NotifyBefore  string `json:"notify_before"`
+	WebhookIDs    []string `json:"webhook_ids"`
+	Enabled       bool   `json:"enabled"`
+
+	// Last check results (TLS engine output)
+	LastStatus    string     `json:"last_status"`    // pending, valid, expiring_soon, expired, error
+	LastCheckAt   *time.Time `json:"last_check_at"`
+	LastError     string     `json:"last_error,omitempty"`
+
+	// Certificate info
+	Issuer         string     `json:"issuer"`
+	Subject        string     `json:"subject"`
+	CertExpiresAt  *time.Time `json:"cert_expires_at"`
+	DaysRemaining  int        `json:"days_remaining"`
+
+	// Chain validation
+	ChainValid *bool  `json:"chain_valid,omitempty"`
+	ChainError string `json:"chain_error,omitempty"`
+
+	// Cipher grade
+	CipherGrade string `json:"cipher_grade"`
+	CipherError string `json:"cipher_error,omitempty"`
+
+	// OCSP revocation
+	OCSPStatus string `json:"ocsp_status"`
+	OCSPError  string `json:"ocsp_error,omitempty"`
+
+	// SAN coverage
+	SANNames    []string `json:"san_names,omitempty"`
+	SANMismatch bool     `json:"san_mismatch"`
+
+	// Timestamps
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SSLMonitorResponse is the public API shape (safe, no internal fields)
+type SSLMonitorResponse struct {
+	ID        string `json:"id"`
+	Domain    string `json:"domain"`
+	Port      int    `json:"port"`
+	CreatedBy string `json:"created_by"`
+
+	ServerID       string `json:"server_id,omitempty"`
+	SourceProvider string `json:"source_provider,omitempty"`
+
+	DisplayName   string   `json:"display_name"`
+	CheckInterval string   `json:"check_interval"`
+	NotifyBefore  string   `json:"notify_before"`
+	WebhookIDs    []string `json:"webhook_ids"`
+	Enabled       bool     `json:"enabled"`
+
+	LastStatus    string     `json:"last_status"`
+	LastCheckAt   *time.Time `json:"last_check_at"`
+	LastError     string     `json:"last_error,omitempty"`
+
+	Issuer         string     `json:"issuer"`
+	Subject        string     `json:"subject"`
+	CertExpiresAt  *time.Time `json:"cert_expires_at"`
+	DaysRemaining  int        `json:"days_remaining"`
+
+	ChainValid *bool  `json:"chain_valid,omitempty"`
+	ChainError string `json:"chain_error,omitempty"`
+
+	CipherGrade string `json:"cipher_grade"`
+	CipherError string `json:"cipher_error,omitempty"`
+
+	OCSPStatus string `json:"ocsp_status"`
+	OCSPError  string `json:"ocsp_error,omitempty"`
+
+	SANNames    []string `json:"san_names,omitempty"`
+	SANMismatch bool     `json:"san_mismatch"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (m *SSLMonitor) ToResponse() SSLMonitorResponse {
+	return SSLMonitorResponse{
+		ID:           m.ID,
+		Domain:       m.Domain,
+		Port:         m.Port,
+		CreatedBy:    m.CreatedBy,
+		ServerID:      m.ServerID,
+		SourceProvider: m.SourceProvider,
+		DisplayName:  m.DisplayName,
+		CheckInterval: m.CheckInterval,
+		NotifyBefore: m.NotifyBefore,
+		WebhookIDs:   m.WebhookIDs,
+		Enabled:      m.Enabled,
+		LastStatus:   m.LastStatus,
+		LastCheckAt:  m.LastCheckAt,
+		LastError:    m.LastError,
+		Issuer:        m.Issuer,
+		Subject:       m.Subject,
+		CertExpiresAt: m.CertExpiresAt,
+		DaysRemaining: m.DaysRemaining,
+		ChainValid:    m.ChainValid,
+		ChainError:    m.ChainError,
+		CipherGrade:   m.CipherGrade,
+		CipherError:   m.CipherError,
+		OCSPStatus:    m.OCSPStatus,
+		OCSPError:     m.OCSPError,
+		SANNames:      m.SANNames,
+		SANMismatch:   m.SANMismatch,
+		CreatedAt:     m.CreatedAt,
+		UpdatedAt:     m.UpdatedAt,
+	}
+}
+
+type CreateSSLMonitorRequest struct {
+	Domain        string   `json:"domain"`
+	Port          int      `json:"port"`
+	DisplayName   string   `json:"display_name,omitempty"`
+	CheckInterval string   `json:"check_interval,omitempty"`
+	NotifyBefore  string   `json:"notify_before,omitempty"`
+	WebhookIDs    []string `json:"webhook_ids,omitempty"`
+	Enabled       *bool    `json:"enabled,omitempty"`
+}
+
+type UpdateSSLMonitorRequest struct {
+	DisplayName   *string   `json:"display_name,omitempty"`
+	Port          *int      `json:"port,omitempty"`
+	CheckInterval *string   `json:"check_interval,omitempty"`
+	NotifyBefore  *string   `json:"notify_before,omitempty"`
+	WebhookIDs    *[]string `json:"webhook_ids,omitempty"`
+	Enabled       *bool     `json:"enabled,omitempty"`
+}
+
+// ─── SSL Discovery ─────────────────────────────────────────────────────────
+
+type SSLDiscoveryRequest struct {
+	ServerID string `json:"server_id"`
+	Provider string `json:"provider"` // "auto", "traefik", "nginx", "caddy", "letsencrypt", "filesystem"
+}
+
+type SSLDiscoveryResult struct {
+	Domain         string   `json:"domain"`
+	Port           int      `json:"port"`
+	DisplayName    string   `json:"display_name"`
+	CertExpiresAt  string   `json:"cert_expires_at"`
+	Issuer         string   `json:"issuer"`
+	SANNames       []string `json:"san_names"`
+	CertPath       string   `json:"cert_path,omitempty"`
+	SourceProvider string   `json:"source_provider"`
+}
+
+type SSLDiscoveryResponse struct {
+	Domains []SSLDiscoveryResult `json:"domains"`
+	Error   string               `json:"error,omitempty"`
+}
+
+type SSLDiscoveryImportRequest struct {
+	Domains []SSLDiscoveryImportDomain `json:"domains"`
+	Enabled *bool                      `json:"enabled,omitempty"`
+}
+
+type SSLDiscoveryImportDomain struct {
+	Domain         string `json:"domain"`
+	Port           int    `json:"port"`
+	DisplayName    string `json:"display_name"`
+	SourceProvider string `json:"source_provider"`
+	ServerID       string `json:"server_id"`
+}
+
+// SSLSummary is the dashboard KPI card data
+type SSLSummary struct {
+	Total       int `json:"total"`
+	Valid       int `json:"valid"`
+	ExpiringSoon int `json:"expiring_soon"`
+	Expired     int `json:"expired"`
+	Error       int `json:"error"`
+}
+
+// SSLMonitorListResponse wraps paginated monitors
+type SSLMonitorListResponse struct {
+	Monitors   []SSLMonitorResponse `json:"monitors"`
+	Total      int                  `json:"total"`
+	Page       int                  `json:"page"`
+	Limit      int                  `json:"limit"`
+	TotalPages int                  `json:"total_pages"`
+}
+
+// ─── SSL Check History ─────────────────────────────────────────────────
+
+type SSLCheckHistory struct {
+	ID             string    `json:"id"`
+	SSLMonitorID   string    `json:"ssl_monitor_id"`
+	CheckedAt      time.Time `json:"checked_at"`
+	Status         string    `json:"status"`
+	DaysRemaining  int       `json:"days_remaining"`
+	CipherGrade    string    `json:"cipher_grade"`
+	TLSVersion     string    `json:"tls_version"`
+	CipherSuite    string    `json:"cipher_suite"`
+	ResponseTimeMs *int      `json:"response_time_ms"`
+	Issuer         string    `json:"issuer"`
+	Subject        string    `json:"subject"`
+	ErrorMessage   string    `json:"error_message"`
+}
+
+type SSLCheckHistoryListResponse struct {
+	Entries    []SSLCheckHistory `json:"entries"`
+	Total      int               `json:"total"`
+	Limit      int               `json:"limit"`
+}
+
+// ─── SSL Notification Targets ──────────────────────────────────────────────────
+
+type SSLNotificationTarget struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	URL           string    `json:"url"`
+	Platform      string    `json:"platform"`
+	WebhookSecret string    `json:"webhook_secret"`
+	Enabled       bool      `json:"enabled"`
+	CreatedBy     string    `json:"created_by"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type SSLNotificationTargetRequest struct {
+	Name          string   `json:"name"`
+	URL           string   `json:"url"`
+	Platform      string   `json:"platform"`
+	WebhookSecret string   `json:"webhook_secret"`
+	Enabled       *bool    `json:"enabled,omitempty"`
+}
+
+func (r *SSLNotificationTargetRequest) Validate() string {
+	if r.Name == "" {
+		return "name is required"
+	}
+	if r.URL == "" {
+		return "URL is required"
+	}
+	if r.Platform == "" {
+		r.Platform = "generic"
+	}
+	validPlatforms := map[string]bool{"telegram": true, "discord": true, "slack": true, "generic": true}
+	if !validPlatforms[r.Platform] {
+		return "platform must be telegram, discord, slack, or generic"
+	}
+	return ""
+}

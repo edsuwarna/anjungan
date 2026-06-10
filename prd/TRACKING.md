@@ -1,7 +1,11 @@
 # Anjungan — Feature Implementation Tracking
 
 > Auto-tracked from `main` branch. Cross-references every PRD against implementation.
-> Last updated: June 2026 | 19 DB migrations | 11 backend handler packages | 20 frontend route pages
+> Last updated: June 10, 2026 | 19 DB migrations | 11 backend handler packages | 20 frontend route pages
+
+---
+
+> 📘 **New PRD:** [`PRD-ssl-monitoring.md`](PRD-ssl-monitoring.md) — SSL Certificate Monitoring (standalone)
 
 ---
 
@@ -151,13 +155,30 @@
 | Cluster Server Registry | PRD-domain-management.md §F6.1 | ❌ | ❌ | — | `cluster_servers` table — not implemented |
 | Domain CRUD | PRD-domain-management.md §F6.2 | ❌ | ❌ | — | `domains` table — not implemented |
 | Traefik Config Generator | PRD-domain-management.md §F6.3 | ❌ | ❌ | — | YAML generation + atomic write — not implemented |
-| SSL Certificate Monitoring | PRD-domain-management.md §F6.4 | ❌ | ❌ | — | Expiry tracking, daily check — not implemented |
-| Health Check Dashboard | PRD-domain-management.md §F6.5 | ❌ | ❌ | — | Per-domain health from Traefik API — not implemented |
+|| SSL Certificate Monitoring | PRD-domain-management.md §F6.4 | ✅ | ✅ | 000024–000027 | → Standalone feature — see §SSL Monitoring below |
+|| Health Check Dashboard | PRD-domain-management.md §F6.5 | ❌ | ❌ | — | Per-domain health from Traefik API — not implemented |
 | WireGuard Integration | PRD-domain-management.md §F6.6 | ❌ | ❌ | — | Tunnel status, handshake age — not implemented |
 
 ---
 
-## 9. Resource Usage & Cost Tracking (PRD-resource-usage-cost.md)
+## 9. SSL Monitoring (PRD-ssl-monitoring.md)
+
+| Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
+|---------|-----------|---------|----------|-------------|-------|
+| F1 — SSL Monitor CRUD | PRD-ssl-monitoring.md §F1 | ✅ | ✅ | 000024 | Domain, port, check_interval, notify_before, webhook_ids, enabled, paginated list with search/filter/sort |
+| F2 — TLS Certificate Check | PRD-ssl-monitoring.md §F2 | ✅ | ✅ | 000024 | Chain validation, SAN coverage, response time, issuer/subject |
+| F3 — Cipher Quality Grade | PRD-ssl-monitoring.md §F3 | ✅ | ✅ | 000024 | A+/A/B/C/D/F grading by TLS version + cipher suite |
+| F4 — Automated Scheduled Checks | PRD-ssl-monitoring.md §F4 | ✅ | ✅ | — | Background goroutine scheduler, "Check Now", "Check All" batch |
+| F5 — Notification Integration | PRD-ssl-monitoring.md §F5 | ✅ | ✅ | — | Dispatch to notification targets, Telegram/Discord/Slack format, dedup |
+| F6 — Check History & Trend | PRD-ssl-monitoring.md §F6 | ✅ | ✅ | 000025 | ssl_check_history, paginated history, SVG trend chart |
+| F7 — Notification Targets CRUD | PRD-ssl-monitoring.md §F7 | ✅ | ✅ | 000026 | Dedicated ssl_notification_targets table, CRUD, test endpoint |
+| F8 — Server-Side Discovery | PRD-ssl-monitoring.md §F8 | ✅ | ✅ | 000027 | SSH scan: Traefik/Nginx/Caddy/LetsEncrypt/filesystem, import |
+| Export CSV | PRD-ssl-monitoring.md §Phase3 | ✅ | — | — | `GET /export/csv` |
+| Batch Import | PRD-ssl-monitoring.md §Phase3 | ✅ | ✅ | — | `POST /import` bulk domain array |
+
+---
+
+## 10. Resource Usage & Cost Tracking (PRD-resource-usage-cost.md)
 
 | Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
 |---------|-----------|---------|----------|-------------|-------|
@@ -171,7 +192,7 @@
 
 ---
 
-## 10. Service Templates & Scaffolding (PRD-templates-scaffolding.md)
+## 11. Service Templates & Scaffolding (PRD-templates-scaffolding.md)
 
 | Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
 |---------|-----------|---------|----------|-------------|-------|
@@ -184,7 +205,7 @@
 
 ---
 
-## 11. Phase 4 — Observability & Ecosystem (PRD.md Future)
+## 12. Phase 4 — Observability & Ecosystem (PRD.md Future)
 
 | Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
 |---------|-----------|---------|----------|-------------|-------|
@@ -198,7 +219,7 @@
 
 ---
 
-## 12. Database Migration Coverage
+## 13. Database Migration Coverage
 
 | # | Table | Status | PRD |
 |---|-------|--------|-----|
@@ -223,6 +244,10 @@
 | 000019 | `repo_selections` | ✅ | PRD-repositories-deployments.md |
 | 000022 | `registry_webhooks` | ✅ | PRD-registry.md |
 | 000023 | `registry_tag_protections` | ✅ | PRD-registry.md |
+| 000024 | `ssl_monitors` | ✅ | PRD-ssl-monitoring.md |
+| 000025 | `ssl_check_history` | ✅ | PRD-ssl-monitoring.md |
+| 000026 | `ssl_notification_targets` | ✅ | PRD-ssl-monitoring.md |
+| 000027 | — (ssl_monitors ALTER) | ✅ | PRD-ssl-monitoring.md |
 
 ### ❌ Missing Tables (Planned in PRDs, Not Migrated)
 
@@ -243,7 +268,6 @@
 | `api_keys` | Developer API tokens | PRD.md |
 | `agents` | Agent registrations | PRD-anj-agent.md |
 | `services` | Service catalog entries | PRD.md |
-| `notifications` | Notification channel config | PRD.md |
 | `resource_usage` | Resource usage snapshots | PRD-resource-usage-cost.md |
 | `resource_hourly` | Hourly aggregated trends | PRD-resource-usage-cost.md |
 | `cost_config` | Server cost configuration | PRD-resource-usage-cost.md |
@@ -259,10 +283,11 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Done (fully implemented) | **50** features |
+| ✅ Done (fully implemented) | **57** features |
 | 🟡 Partial (some gaps) | **3** features |
-| ❌ Not Started (PRD exists) | **42** features |
-| **Total PRD-documented features** | **95** |
+| 🟡 In Development | **0** features |
+| ❌ Not Started (PRD exists) | **41** features |
+| **Total PRD-documented features** | **101** |
 
 ### By Domain
 
@@ -277,7 +302,8 @@
 | Container Image Scanning (PRD-container-image-scanning.md) | 0 | 0 | 6 |
 | Secret Scanning (PRD-secret-scanning.md) | 0 | 0 | 7 |
 | Agent System (PRD-anj-agent.md) | 0 | 0 | 10 |
-| Domain Management (PRD-domain-management.md) | 0 | 0 | 6 |
+|| Domain Management (PRD-domain-management.md) | 0 | 0 | 5 |
+| SSL Monitoring (PRD-ssl-monitoring.md) | 10 | 0 | 0 |
 | Resource & Cost (PRD-resource-usage-cost.md) | 0 | 0 | 7 |
 | Templates (PRD-templates-scaffolding.md) | 0 | 0 | 6 |
 | Observability & Ecosystem (PRD.md future) | 0 | 1 | 6 |
@@ -306,7 +332,8 @@
 | `/admin/users` | ✅ | User management |
 | `/admin/audit-log` | ✅ | Audit log viewer |
 | `/ssh-keys` | ✅ | SSH key management |
-| `/infra/domains` | ❌ | Domain management — not created |
+|| `/infra/domains` | ❌ | Domain management — not created |
+| `/ssl-monitors` | ✅ | SSL monitoring — F1-F8 complete: CRUD, TLS check, cipher grade, scheduler, notifications, history+trend, notification targets, server-side discovery |
 | `/infra/resources` | ❌ | Resource dashboard — not created |
 | `/infra/templates` | ❌ | Template scaffold — not created |
 | `/agents` | ❌ | Agent management — not created |
@@ -314,5 +341,5 @@
 
 ---
 
-*Generated from cross-referencing 10 PRD files against `main` branch implementation.
+*Generated from cross-referencing 10 PRD files against `feat/ssl-monitoring` branch implementation.
 For detailed specs, see individual PRDs in this directory.*
