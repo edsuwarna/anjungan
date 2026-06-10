@@ -38,6 +38,9 @@
 	let notificationTargets = $state([]);
 	let notificationTargetsLoading = $state(false);
 
+	// Discovery modal
+	let showDiscovery = $state(false);
+
 	// Notification Targets modal
 	let showTargetsModal = $state(false);
 	let targetForm = $state({ name: '', url: '', platform: 'generic', webhook_secret: '' });
@@ -150,6 +153,17 @@
 			await loadSummary();
 		} catch (e) {
 			alert('Failed to delete: ' + e.message);
+		}
+	}
+
+	// ─── Toggle enabled ───
+	async function toggleMonitor(id, enabled) {
+		try {
+			await api.sslMonitors.toggle(id, enabled);
+			await loadData();
+			await loadSummary();
+		} catch (e) {
+			alert('Failed to toggle: ' + e.message);
 		}
 	}
 
@@ -361,6 +375,13 @@
 			</button>
 			<button
 				class="btn-secondary"
+				onclick={() => showDiscovery = true}
+			>
+				<Icon icon="solar:search-bold" class="h-4 w-4" />
+				Discover
+			</button>
+			<button
+				class="btn-secondary"
 				onclick={checkAll}
 				disabled={checkingAll}
 			>
@@ -486,9 +507,12 @@
 					<!-- Card Header -->
 					<div class="mb-3 flex items-start justify-between">
 						<div class="min-w-0 flex-1">
-							<h3 class="truncate text-base font-semibold" style="color: var(--color-text);">
-								{m.display_name || m.domain}
-							</h3>
+							<div class="flex items-center gap-2">
+								<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background-color: {cfg.color};"></span>
+								<h3 class="truncate text-base font-semibold" style="color: var(--color-text);">
+									{m.display_name || m.domain}
+								</h3>
+							</div>
 							<p class="truncate text-sm" style="color: var(--color-text-secondary);">
 								{m.domain}:{m.port}
 							</p>
@@ -562,9 +586,24 @@
 
 					<!-- Footer -->
 					<div class="flex items-center justify-between border-t pt-3" style="border-color: var(--color-border);">
-						<p class="text-xs" style="color: var(--color-text-muted);">
-							Last checked: {m.last_check_at ? new Date(m.last_check_at).toLocaleString() : 'Never'}
-						</p>
+						<div class="flex items-center gap-3">
+							<p class="text-xs" style="color: var(--color-text-muted);">
+								Last checked: {m.last_check_at ? new Date(m.last_check_at).toLocaleString() : 'Never'}
+							</p>
+							<label class="flex cursor-pointer items-center gap-1.5" onclick={(e) => e.stopPropagation()}>
+								<button
+									role="switch"
+									aria-checked={m.enabled}
+									onclick={() => toggleMonitor(m.id, !m.enabled)}
+									class="relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full transition-colors"
+									style={m.enabled ? 'background-color: var(--color-primary);' : 'background-color: var(--color-border);'}>
+									<span class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform"
+										class:translate-x-[14px]={m.enabled}
+										class:translate-x-[1px]={!m.enabled} />
+								</button>
+								<span class="text-[10px] font-medium" style="color: var(--color-text-muted);">{m.enabled ? 'On' : 'Off'}</span>
+							</label>
+						</div>
 						<div class="flex items-center gap-2">
 							<button
 								class="btn-icon"

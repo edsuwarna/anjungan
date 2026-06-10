@@ -170,8 +170,10 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 			<StatCard title="Deployments" value={stats.deployments} icon="solar:rocket-bold"
 				subtitle={activeDeployments > 0 ? `${activeDeployments} running` : deploymentStatus['completed'] ? `${deploymentStatus['completed']} completed` : ''} />
 			<StatCard title="Users" value={stats.users} icon="solar:users-group-rounded-bold" />
-			<StatCard title="SSL Certs" value={sslSummary.valid ?? '—'} icon="solar:shield-check-bold"
-				subtitle={sslExpiringCount > 0 ? `${sslExpiringCount} expiring` : sslSummary.total > 0 ? `${sslSummary.total} monitored` : 'no monitors'} />
+			<button class="text-left" onclick={() => goto('/ssl-monitors')}>
+				<StatCard title="SSL Certs" value={sslSummary.valid ?? '—'} icon="solar:shield-check-bold"
+					subtitle={sslExpiringCount > 0 ? `${sslExpiringCount} expiring` : sslSummary.total > 0 ? `${sslSummary.total} monitored` : 'no monitors'} />
+			</button>
 			<StatCard title="Compliance" value={compliance.average_score != null ? compliance.average_score + '%' : '—'} icon="solar:shield-check-bold"
 				subtitle={compliance.scanned_servers > 0 ? `${compliance.scanned_servers} scanned` : 'no scans'} />
 		</div>
