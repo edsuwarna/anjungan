@@ -854,6 +854,10 @@ type SSLMonitor struct {
 	Port      int    `json:"port"`
 	CreatedBy string `json:"created_by"`
 
+	// Server association for auto-discovery
+	ServerID      string `json:"server_id,omitempty"`
+	SourceProvider string `json:"source_provider,omitempty"` // manual, traefik, nginx, caddy, letsencrypt, discovered
+
 	// Core
 	DisplayName   string `json:"display_name"`
 	CheckInterval string `json:"check_interval"`
@@ -888,6 +892,9 @@ type SSLMonitor struct {
 	SANNames    []string `json:"san_names,omitempty"`
 	SANMismatch bool     `json:"san_mismatch"`
 
+	// CRT.sh lookup
+	LastCRTLookup *time.Time `json:"last_crt_lookup,omitempty"`
+
 	// Timestamps
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -899,6 +906,9 @@ type SSLMonitorResponse struct {
 	Domain    string `json:"domain"`
 	Port      int    `json:"port"`
 	CreatedBy string `json:"created_by"`
+
+	ServerID       string `json:"server_id,omitempty"`
+	SourceProvider string `json:"source_provider,omitempty"`
 
 	DisplayName   string   `json:"display_name"`
 	CheckInterval string   `json:"check_interval"`
@@ -927,6 +937,8 @@ type SSLMonitorResponse struct {
 	SANNames    []string `json:"san_names,omitempty"`
 	SANMismatch bool     `json:"san_mismatch"`
 
+	LastCRTLookup *time.Time `json:"last_crt_lookup,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -937,6 +949,8 @@ func (m *SSLMonitor) ToResponse() SSLMonitorResponse {
 		Domain:       m.Domain,
 		Port:         m.Port,
 		CreatedBy:    m.CreatedBy,
+		ServerID:      m.ServerID,
+		SourceProvider: m.SourceProvider,
 		DisplayName:  m.DisplayName,
 		CheckInterval: m.CheckInterval,
 		NotifyBefore: m.NotifyBefore,
@@ -957,6 +971,7 @@ func (m *SSLMonitor) ToResponse() SSLMonitorResponse {
 		OCSPError:     m.OCSPError,
 		SANNames:      m.SANNames,
 		SANMismatch:   m.SANMismatch,
+		LastCRTLookup: m.LastCRTLookup,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
 	}

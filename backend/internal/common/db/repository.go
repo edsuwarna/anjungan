@@ -2922,7 +2922,9 @@ const sslMonitorColumns = `id, domain, port, COALESCE(display_name, ''), COALESC
 	COALESCE(cipher_grade, ''), COALESCE(cipher_error, ''),
 	COALESCE(ocsp_status, ''), COALESCE(ocsp_error, ''),
 	COALESCE(san_names, '{}'), COALESCE(san_mismatch, false),
-	COALESCE(created_by, ''), COALESCE(enabled, true), created_at, updated_at`
+	COALESCE(created_by, ''), COALESCE(enabled, true),
+	COALESCE(server_id::text, ''), COALESCE(source_provider, 'manual'), last_crt_lookup,
+	created_at, updated_at`
 
 func scanSSLMonitor(scanner interface {
 	Scan(dest ...interface{}) error
@@ -2937,7 +2939,9 @@ func scanSSLMonitor(scanner interface {
 		&m.CipherGrade, &m.CipherError,
 		&m.OCSPStatus, &m.OCSPError,
 		&m.SANNames, &m.SANMismatch,
-		&m.CreatedBy, &m.Enabled, &m.CreatedAt, &m.UpdatedAt,
+		&m.CreatedBy, &m.Enabled,
+		&m.ServerID, &m.SourceProvider, &m.LastCRTLookup,
+		&m.CreatedAt, &m.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -2948,10 +2952,10 @@ func scanSSLMonitor(scanner interface {
 func (r *Repository) CreateSSLMonitor(ctx context.Context, m *model.SSLMonitor) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`INSERT INTO ssl_monitors (id, domain, port, display_name, check_interval, notify_before,
-		 webhook_ids, last_status, created_by, enabled, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		 webhook_ids, last_status, created_by, enabled, server_id, source_provider, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 		m.ID, m.Domain, m.Port, m.DisplayName, m.CheckInterval, m.NotifyBefore,
-		m.WebhookIDs, "pending", m.CreatedBy, m.Enabled, m.CreatedAt, m.UpdatedAt)
+		m.WebhookIDs, "pending", m.CreatedBy, m.Enabled, m.ServerID, m.SourceProvider, m.CreatedAt, m.UpdatedAt)
 	return err
 }
 
@@ -3103,9 +3107,9 @@ func (r *Repository) GetSSLMonitor(ctx context.Context, id string) (*model.SSLMo
 func (r *Repository) UpdateSSLMonitor(ctx context.Context, m *model.SSLMonitor) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`UPDATE ssl_monitors SET domain=$1, port=$2, display_name=$3, check_interval=$4,
-		 notify_before=$5, webhook_ids=$6, enabled=$7, updated_at=NOW() WHERE id=$8`,
+		 notify_before=$5, webhook_ids=$6, enabled=$7, server_id=$8, source_provider=$9, updated_at=NOW() WHERE id=$10`,
 		m.Domain, m.Port, m.DisplayName, m.CheckInterval, m.NotifyBefore,
-		m.WebhookIDs, m.Enabled, m.ID)
+		m.WebhookIDs, m.Enabled, m.ServerID, m.SourceProvider, m.ID)
 	return err
 }
 
