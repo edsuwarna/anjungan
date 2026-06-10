@@ -66,7 +66,7 @@ anjungan/
 ├── docs/                     # Documentation
 ├── zot/                      # Zot configuration
 │   ├── config.json           # Zot config with htpasswd auth
-│   └── htpasswd              # Docker registry credentials
+│   ├── htpasswd.example      # Example htpasswd format (auto-generated at runtime)
 ├── docker-compose.yml        # All services
 ├── Dockerfile.backend        # Multi-stage Go build
 ├── Dockerfile.frontend       # Nginx static SPA (npm build)
