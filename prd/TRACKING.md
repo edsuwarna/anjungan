@@ -5,6 +5,7 @@
 
 ---
 
+> 📘 **New PRD:** [`PRD-uptime-monitoring.md`](PRD-uptime-monitoring.md) — Uptime Monitoring (HTTP/TCP health checks)
 > 📘 **New PRD:** [`PRD-ssl-monitoring.md`](PRD-ssl-monitoring.md) — SSL Certificate Monitoring (standalone)
 
 ---
