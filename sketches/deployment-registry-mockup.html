@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anjungan — Deployment Registry Mockup (Simplified)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#10b981', 'primary-dark': '#059669',
+        surface: '#1a1d23', sidebar: '#111318', card: '#1e2128',
+        border: '#2a2d35', text: '#e2e4e9', 'text-sec': '#8b8f9b', 'text-muted': '#5c5f6b',
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; line-height: 1.5; }
+  .layout { display: flex; min-height: 100vh; background: #1a1d23; }
+  .sidebar { width: 256px; flex-shrink: 0; border-right: 1px solid #2a2d35; display: flex; flex-direction: column; background: #111318; }
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar { height: 64px; border-bottom: 1px solid #2a2d35; display: flex; align-items: center; padding: 0 24px; gap: 16px; background: #1a1d23; }
+  .page { flex: 1; padding: 20px 28px; overflow-y: auto; }
+
+  .logo-area { height: 64px; border-bottom: 1px solid #2a2d35; display: flex; align-items: center; gap: 12px; padding: 0 24px; }
+  .logo-box { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #fff; background: #10b981; }
+  .nav-category { padding: 0 12px; margin-top: 16px; }
+  .nav-category-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 0 12px; margin-bottom: 4px; color: #5c5f6b; }
+  .nav-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; color: #8b8f9b; text-decoration: none; }
+  .nav-item:hover { background: #1e2128; color: #e2e4e9; }
+  .nav-item.active { background: rgba(16,185,129,0.12); color: #10b981; font-weight: 600; }
+  .nav-item.removed { opacity: 0.35; text-decoration: line-through; cursor: not-allowed; }
+
+  .env-tab { display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 8px 8px 0 0; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: #8b8f9b; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+  .env-tab:hover { color: #e2e4e9; background: rgba(255,255,255,0.03); }
+  .env-tab.active { color: #e2e4e9; border-bottom-color: var(--env-color, #10b981); background: rgba(255,255,255,0.02); }
+  .env-tab .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .env-tab .count { margin-left: 4px; font-size: 11px; color: #5c5f6b; }
+
+  .card { border-radius: 12px; border: 1px solid #2a2d35; background: #1e2128; transition: box-shadow 0.2s, border-color 0.15s; }
+  .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.25); border-color: rgba(16,185,129,0.3); }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  .badge.running { background: rgba(16,185,129,0.12); color: #10b981; }
+  .badge.failed { background: rgba(239,68,68,0.12); color: #ef4444; }
+  .badge.pending { background: rgba(99,102,241,0.12); color: #818cf8; }
+  .badge.success { background: rgba(16,185,129,0.12); color: #10b981; }
+  .badge.rollback { background: rgba(234,179,8,0.12); color: #eab308; }
+  .badge.recorded { background: rgba(148,163,184,0.08); color: #94a3b8; }
+
+  .tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+  .tag.github { background: rgba(255,255,255,0.08); color: #ccc; }
+  .tag.forgejo { background: rgba(16,185,129,0.12); color: #10b981; }
+
+  .btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; border: 1px solid #2a2d35; cursor: pointer; transition: all 0.15s; background: transparent; color: #8b8f9b; }
+  .btn:hover { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.08); }
+  .btn-primary { background: #10b981; color: #fff; border-color: #10b981; }
+  .btn-primary:hover { background: #059669; border-color: #059669; }
+  .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+  .filter-chip { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #2a2d35; background: transparent; color: #8b8f9b; transition: all 0.15s; }
+  .filter-chip.active { background: rgba(16,185,129,0.12); border-color: #10b981; color: #10b981; }
+  .filter-chip:hover { border-color: #10b981; color: #e2e4e9; }
+
+  input, select { background: #1e2128; border: 1px solid #2a2d35; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #e2e4e9; outline: none; width: 100%; }
+  input:focus, select:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.12); }
+  label { font-size: 12px; color: #8b8f9b; display: block; margin-bottom: 4px; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { width: 520px; max-height: 85vh; overflow-y: auto; border-radius: 16px; border: 1px solid #2a2d35; background: #1a1d23; padding: 24px; }
+
+  .env-manager { display: none; }
+  .env-manager.open { display: block; }
+
+  .history-timeline { position: relative; padding-left: 24px; }
+  .history-timeline::before { content: ''; position: absolute; left: 7px; top: 4px; bottom: 4px; width: 2px; background: #2a2d35; }
+  .history-item { position: relative; padding: 8px 0; }
+  .history-item::before { content: ''; position: absolute; left: -17px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: #2a2d35; border: 2px solid #1a1d23; }
+  .history-item.pass::before { background: #10b981; }
+  .history-item.fail::before { background: #ef4444; }
+
+  .collapsible { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
+  .collapsible.open { max-height: 400px; }
+
+  /* Callout box */
+  .callout { padding: 12px 16px; border-radius: 8px; font-size: 12px; line-height: 1.6; }
+  .callout.info { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); color: #a5b4fc; }
+  .callout.warn { background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.2); color: #fcd34d; }
+  .callout.success { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); color: #34d399; }
+
+  .strikethrough { text-decoration: line-through; opacity: 0.35; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo-area">
+      <div class="logo-box">A</div>
+      <span style="font-size: 18px; font-weight: 600; color: #e2e4e9;">Anjungan</span>
+    </div>
+    <nav style="flex: 1; padding: 8px 0;">
+      <div class="nav-category"><div class="nav-category-label">Dashboard</div><a class="nav-item" href="#">◉ Overview</a></div>
+      <div class="nav-category"><div class="nav-category-label">Infrastructure</div><a class="nav-item" href="#">◉ Servers</a><a class="nav-item" href="#">◉ SSH Keys</a><a class="nav-item" href="#">◉ Containers <span class="nav-badge" style="margin-left: auto; height: 20px; min-width: 20px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; padding: 0 6px; color: #fff; background: #10b981;">24</span></a></div>
+      <div class="nav-category"><div class="nav-category-label">Artifact</div><a class="nav-item" href="#">◉ Registry</a><a class="nav-item removed" href="#" title="Removed — simplified">◉ Repositories</a></div>
+      <div class="nav-category"><div class="nav-category-label">Ops</div><a class="nav-item active" href="#">◉ Deployment Registry</a></div>
+      <div class="nav-category"><div class="nav-category-label">Security</div><a class="nav-item" href="#">◉ SSL Monitors</a><a class="nav-item" href="#">◉ Compliance</a></div>
+      <div class="nav-category"><div class="nav-category-label">Administration</div><a class="nav-item" href="#">◉ Users</a><a class="nav-item" href="#">◉ Audit Log</a></div>
+    </nav>
+    <div style="border-top: 1px solid #2a2d35; padding: 12px;"><a class="nav-item" href="#">◉ Light Mode</a></div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div style="flex: 1; display: flex; align-items: center; gap: 12px;">
+        <h1 style="font-size: 18px; font-weight: 600; color: #e2e4e9;">Deployment Registry</h1>
+        <span style="font-size: 12px; color: #5c5f6b; background: #1e2128; padding: 2px 10px; border-radius: 999px; border: 1px solid #2a2d35;">6 recorded</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn btn-sm" onclick="toggleEnvManager()">⚙ Manage Environments</button>
+        <button class="btn btn-sm btn-primary" onclick="openModal('add-record')">+ Add Record</button>
+      </div>
+    </div>
+
+    <div class="page">
+
+      <!-- Callout: what's changed -->
+      <div class="callout info" style="margin-bottom: 16px;">
+        <strong>📋 Deployment Registry</strong> — Simplified: manual record entry only (no SSH/deploy from UI).
+        Deploy via your CI/CD as usual. This page just catalogs what's running.
+        <span style="float: right; cursor: pointer; color: #6366f8;" onclick="this.parentElement.style.display='none'">✕</span>
+      </div>
+
+      <!-- Environment Tabs -->
+      <div style="display: flex; gap: 0; border-bottom: 1px solid #2a2d35; margin-bottom: 20px;">
+        <button class="env-tab active" data-env="prod" style="--env-color: #ef4444;">
+          <span class="dot" style="background: #ef4444;"></span>
+          Production
+          <span class="count">2</span>
+        </button>
+        <button class="env-tab" data-env="staging" style="--env-color: #eab308;" onclick="switchEnv(this)">
+          <span class="dot" style="background: #eab308;"></span>
+          Staging
+          <span class="count">2</span>
+        </button>
+        <button class="env-tab" data-env="dev" style="--env-color: #10b981;" onclick="switchEnv(this)">
+          <span class="dot" style="background: #10b981;"></span>
+          Development
+          <span class="count">2</span>
+        </button>
+        <button class="env-tab" data-env="review" style="--env-color: #8b5cf6;" onclick="switchEnv(this)">
+          <span class="dot" style="background: #8b5cf6;"></span>
+          Review Apps
+          <span class="count">—</span>
+        </button>
+        <button class="env-tab" style="--env-color: #5c5f6b; opacity: 0.6;" onclick="openModal('add-env')">
+          <span style="font-size: 18px; line-height: 1;">+</span>
+          Add Environment
+        </button>
+        <div style="flex: 1; border-bottom: 1px solid #2a2d35;"></div>
+        <div style="display: flex; gap: 4px; align-items: center; padding-bottom: 8px;">
+          <button class="filter-chip active">All</button>
+          <button class="filter-chip"><span class="badge running" style="padding: 1px 6px;">●</span> Running</button>
+          <button class="filter-chip"><span class="badge recorded" style="padding: 1px 6px;">◷</span> Historical</button>
+        </div>
+      </div>
+
+      <!-- ===== PRODUCTION TAB ===== -->
+      <div class="env-content" data-env="prod">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
+          <h2 style="font-size: 14px; font-weight: 600; color: #e2e4e9;">Production</h2>
+          <span style="font-size: 12px; color: #5c5f6b;">2 records</span>
+        </div>
+
+        <!-- Summary bar -->
+        <div style="display: flex; gap: 16px; margin-bottom: 16px;">
+          <div style="padding: 12px 16px; border-radius: 8px; border: 1px solid #2a2d35; flex: 1; display: flex; align-items: center; gap: 12px;">
+            <span class="badge running">● 2 Running</span>
+            <span style="font-size: 12px; color: #5c5f6b;">All services healthy</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px;">
+
+          <!-- Card: Anjungan Backend -->
+          <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: start; gap: 14px;">
+              <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(16,185,129,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="20" height="20" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">Anjungan Backend</span>
+                  <span class="badge running">● Running</span>
+                </div>
+                <!-- Source chain (just info, no live fetch) -->
+                <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; flex-wrap: wrap;">
+                  <span class="tag github">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    edsuwarna/anjungan
+                  </span>
+                  <span style="font-family: monospace; color: #5c5f6b;">a3f2c1d</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="font-family: monospace; color: #10b981;">main</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="color: #ef4444; font-weight: 500;">production</span>
+                </div>
+                <!-- Destination info -->
+                <div style="display: flex; align-items: center; gap: 16px; margin-top: 6px; font-size: 12px; color: #8b8f9b; flex-wrap: wrap;">
+                  <span>📦 peladen-central</span>
+                  <span>⎔ 3 containers</span>
+                  <span>🕐 2h ago</span>
+                  <span style="font-family: monospace; font-size: 11px; color: #5c5f6b;">ghcr.io/edsuwarna/anjungan-backend:latest</span>
+                </div>
+                <!-- Simplified actions -->
+                <div style="display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2d35;">
+                  <button class="btn btn-sm" onclick="toggleHistory(this)">📜 History</button>
+                  <button class="btn btn-sm">📋 Logs</button>
+                  <button class="btn btn-sm" style="margin-left: auto;" title="Open in GitHub">↗ Open Repo</button>
+                </div>
+                <!-- History (collapsible) -->
+                <div class="collapsible">
+                  <div class="history-timeline" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2d35;">
+                    <div class="history-item pass">
+                      <div style="font-size: 12px; color: #10b981; font-weight: 500;">Deployed a3f2c1d</div>
+                      <div style="font-size: 11px; color: #5c5f6b;">Today 09:23 — via CI/CD (GitHub Actions #847)</div>
+                    </div>
+                    <div class="history-item pass">
+                      <div style="font-size: 12px; color: #8b8f9b;">Deployed b7e8f2a</div>
+                      <div style="font-size: 11px; color: #5c5f6b;">Yesterday 14:11 — via CI/CD (GitHub Actions #832)</div>
+                    </div>
+                    <div class="history-item fail">
+                      <div style="font-size: 12px; color: #ef4444; font-weight: 500;">Rolled back to a3f2c1d</div>
+                      <div style="font-size: 11px; color: #5c5f6b;">Yesterday 14:30 — rollback from b7e8f2a</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: Anjungan Frontend -->
+          <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: start; gap: 14px;">
+              <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(99,102,241,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="20" height="20" fill="none" stroke="#818cf8" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">Anjungan Frontend</span>
+                  <span class="badge running">● Running</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; flex-wrap: wrap;">
+                  <span class="tag github">edsuwarna/anjungan</span>
+                  <span style="font-family: monospace; color: #5c5f6b;">b7e8f2a</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="font-family: monospace; color: #10b981;">main</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="color: #ef4444; font-weight: 500;">production</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px; margin-top: 6px; font-size: 12px; color: #8b8f9b; flex-wrap: wrap;">
+                  <span>📦 peladen-central</span>
+                  <span>🌐 anjungan.edsuwarna.id</span>
+                  <span>🕐 2h ago</span>
+                  <span style="font-family: monospace; font-size: 11px; color: #5c5f6b;">ghcr.io/edsuwarna/anjungan-frontend:1.2.0</span>
+                </div>
+                <div style="display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2d35;">
+                  <button class="btn btn-sm" onclick="toggleHistory(this)">📜 History</button>
+                  <button class="btn btn-sm">📋 Logs</button>
+                  <button class="btn btn-sm" style="margin-left: auto;" title="Open in GitHub">↗ Open Repo</button>
+                </div>
+                <div class="collapsible">
+                  <div class="history-timeline" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2d35;">
+                    <div class="history-item pass">
+                      <div style="font-size: 12px; color: #10b981; font-weight: 500;">Deployed v1.2.0</div>
+                      <div style="font-size: 11px; color: #5c5f6b;">Today 09:25 — via CI/CD</div>
+                    </div>
+                    <div class="history-item pass">
+                      <div style="font-size: 12px; color: #8b8f9b;">Deployed v1.1.0</div>
+                      <div style="font-size: 11px; color: #5c5f6b;">2d ago</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== STAGING TAB ===== -->
+      <div class="env-content" data-env="staging" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #eab308;"></span>
+          <h2 style="font-size: 14px; font-weight: 600; color: #e2e4e9;">Staging</h2>
+          <span style="font-size: 12px; color: #5c5f6b;">2 records</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px;">
+          <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: start; gap: 14px;">
+              <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(16,185,129,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="20" height="20" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">Anjungan API (Staging)</span>
+                  <span class="badge pending">◐ Deploying</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; flex-wrap: wrap;">
+                  <span class="tag github">edsuwarna/anjungan</span>
+                  <span style="font-family: monospace; color: #5c5f6b;">d4c5e6b</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="font-family: monospace; color: #eab308;">develop</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="color: #eab308; font-weight: 500;">staging</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px; margin-top: 6px; font-size: 12px; color: #8b8f9b; flex-wrap: wrap;">
+                  <span>📦 peladen-central</span>
+                  <span>⎔ 1 container</span>
+                  <span>🕐 deploying now</span>
+                  <span style="font-family: monospace; font-size: 11px; color: #5c5f6b;">ghcr.io/edsuwarna/anjungan-api:pr-47</span>
+                </div>
+                <div style="display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2d35;">
+                  <button class="btn btn-sm" onclick="toggleHistory(this)">📜 History</button>
+                  <button class="btn btn-sm">📋 Logs</button>
+                  <button class="btn btn-sm" style="margin-left: auto;">↗ Open Repo</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="padding: 20px; border-color: rgba(239,68,68,0.3);">
+            <div style="display: flex; align-items: start; gap: 14px;">
+              <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(239,68,68,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="20" height="20" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">Serversphere Canary</span>
+                  <span class="badge failed">✕ Failed</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; flex-wrap: wrap;">
+                  <span class="tag forgejo">ops/serversphere</span>
+                  <span style="font-family: monospace; color: #5c5f6b;">f1a2b3c</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="font-family: monospace; color: #eab308;">develop</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="color: #eab308; font-weight: 500;">staging</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px; margin-top: 6px; font-size: 12px; color: #ef4444; flex-wrap: wrap;">
+                  <span>📦 peladen-central</span>
+                  <span>Container failed health check</span>
+                  <span>🕐 15m ago</span>
+                </div>
+                <div style="display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(239,68,68,0.2);">
+                  <button class="btn btn-sm" onclick="toggleHistory(this)">📜 History</button>
+                  <button class="btn btn-sm">📋 Logs</button>
+                  <button class="btn btn-sm" style="margin-left: auto;">↗ Open Repo</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== DEVELOPMENT TAB ===== -->
+      <div class="env-content" data-env="dev" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981;"></span>
+          <h2 style="font-size: 14px; font-weight: 600; color: #e2e4e9;">Development</h2>
+          <span style="font-size: 12px; color: #5c5f6b;">2 records</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px;">
+          <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: start; gap: 14px;">
+              <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(245,158,11,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="20" height="20" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">STEM Lab</span>
+                  <span class="badge running">● Running</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; flex-wrap: wrap;">
+                  <span class="tag github">edsuwarna/stem-lab</span>
+                  <span style="font-family: monospace; color: #5c5f6b;">a1b2c3d</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="font-family: monospace; color: #10b981;">main</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="color: #10b981; font-weight: 500;">development</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px; margin-top: 6px; font-size: 12px; color: #8b8f9b; flex-wrap: wrap;">
+                  <span>📦 peladen-central</span>
+                  <span>🌐 stem.edsuwarna.id</span>
+                  <span>🕐 2w ago</span>
+                  <span style="font-family: monospace; font-size: 11px; color: #5c5f6b;">ghcr.io/edsuwarna/stem-lab:latest</span>
+                </div>
+                <div style="display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2d35;">
+                  <button class="btn btn-sm" onclick="toggleHistory(this)">📜 History</button>
+                  <button class="btn btn-sm">📋 Logs</button>
+                  <button class="btn btn-sm" style="margin-left: auto;">↗ Open Repo</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: start; gap: 14px;">
+              <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(16,185,129,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="20" height="20" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 15px; font-weight: 600; color: #e2e4e9;">Infra Config (Dokploy)</span>
+                  <span class="badge running">● Running</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; flex-wrap: wrap;">
+                  <span class="tag forgejo">ops/infra-config</span>
+                  <span style="font-family: monospace; color: #5c5f6b;">e5f6g7h</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="font-family: monospace; color: #10b981;">main</span>
+                  <span style="color: #8b8f9b;">→</span>
+                  <span style="color: #10b981; font-weight: 500;">development</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px; margin-top: 6px; font-size: 12px; color: #8b8f9b; flex-wrap: wrap;">
+                  <span>📦 peladen-central</span>
+                  <span>Dokploy stack</span>
+                  <span>🕐 1d ago</span>
+                </div>
+                <div style="display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2d35;">
+                  <button class="btn btn-sm" onclick="toggleHistory(this)">📜 History</button>
+                  <button class="btn btn-sm">📋 Logs</button>
+                  <button class="btn btn-sm" style="margin-left: auto;">↗ Open Repo</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== REVIEW APPS TAB ===== -->
+      <div class="env-content" data-env="review" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #8b5cf6;"></span>
+          <h2 style="font-size: 14px; font-weight: 600; color: #e2e4e9;">Review Apps</h2>
+          <span style="font-size: 12px; color: #5c5f6b;">(future — not implemented)</span>
+        </div>
+        <div style="margin-top: 12px; padding: 16px 20px; border-radius: 8px; border: 1px dashed #2a2d35; font-size: 12px; color: #5c5f6b; text-align: center;">
+          ⚡ Review Apps / Ephemeral Environments — planned for later. Auto-deploy from PR.
+        </div>
+      </div>
+
+      <!-- ===== ENVIRONMENT MANAGER ===== -->
+      <div id="env-manager" class="env-manager" style="margin-top: 24px;">
+        <div class="card" style="padding: 24px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+            <h3 style="font-size: 16px; font-weight: 600; color: #e2e4e9;">Manage Environments</h3>
+            <button class="btn btn-sm btn-primary" onclick="openModal('add-env')">+ Add Environment</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; border: 1px solid #2a2d35;">
+              <span style="width: 12px; height: 12px; border-radius: 50%; background: #ef4444;"></span>
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 500; color: #e2e4e9;">Production</div>
+                <div style="font-size: 11px; color: #5c5f6b;">2 records • #ef4444 • protected</div>
+              </div>
+              <button class="btn btn-sm">Edit</button>
+              <button class="btn btn-sm" disabled style="opacity: 0.4;">Delete</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; border: 1px solid #2a2d35;">
+              <span style="width: 12px; height: 12px; border-radius: 50%; background: #eab308;"></span>
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 500; color: #e2e4e9;">Staging</div>
+                <div style="font-size: 11px; color: #5c5f6b;">2 records • #eab308</div>
+              </div>
+              <button class="btn btn-sm">Edit</button>
+              <button class="btn btn-sm">Delete</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; border: 1px solid #2a2d35;">
+              <span style="width: 12px; height: 12px; border-radius: 50%; background: #10b981;"></span>
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 500; color: #e2e4e9;">Development</div>
+                <div style="font-size: 11px; color: #5c5f6b;">2 records • #10b981</div>
+              </div>
+              <button class="btn btn-sm">Edit</button>
+              <button class="btn btn-sm">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Add Record ===== -->
+<div id="modal-add-record" class="modal-overlay" onclick="closeModal(event, 'add-record')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <h3 style="font-size: 16px; font-weight: 600; color: #e2e4e9;">➕ Add Deployment Record</h3>
+      <button class="btn btn-sm" onclick="closeModal(null, 'add-record')" style="border: none; font-size: 18px;">✕</button>
+    </div>
+    <p style="font-size: 12px; color: #8b8f9b; margin-bottom: 16px;">
+      Record a deployment manually. This doesn't trigger any deploy — just catalogs what's running.
+    </p>
+    <form style="display: flex; flex-direction: column; gap: 14px;">
+      <div>
+        <label>Service Name *</label>
+        <input type="text" placeholder="e.g. Anjungan Backend" value="Anjungan Backend">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <label>Environment *</label>
+          <select>
+            <option>🔴 Production</option>
+            <option>🟡 Staging</option>
+            <option>🟢 Development</option>
+          </select>
+        </div>
+        <div>
+          <label>Server *</label>
+          <select>
+            <option>peladen-central</option>
+            <option>mini-pc</option>
+          </select>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <label>Provider</label>
+          <select>
+            <option>GitHub</option>
+            <option>Forgejo</option>
+          </select>
+        </div>
+        <div>
+          <label>Repo *</label>
+          <input type="text" placeholder="owner/repo" value="edsuwarna/anjungan">
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <label>Branch</label>
+          <input type="text" placeholder="main" value="main">
+        </div>
+        <div>
+          <label>Commit SHA</label>
+          <input type="text" placeholder="a3f2c1d" value="a3f2c1d">
+        </div>
+      </div>
+      <div>
+        <label>Image</label>
+        <input type="text" placeholder="ghcr.io/owner/repo:tag" value="ghcr.io/edsuwarna/anjungan-backend:latest">
+      </div>
+      <div>
+        <label>Notes</label>
+        <input type="text" placeholder="Anything notable about this deployment?">
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
+        <button type="button" class="btn" onclick="closeModal(null, 'add-record')">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="closeModal(null, 'add-record'); alert('✅ Record added! (mockup)')">Save Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== MODAL: Add Environment ===== -->
+<div id="modal-add-env" class="modal-overlay" onclick="closeModal(event, 'add-env')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <h3 style="font-size: 16px; font-weight: 600; color: #e2e4e9;">Add Environment</h3>
+      <button class="btn btn-sm" onclick="closeModal(null, 'add-env')" style="border: none; font-size: 18px;">✕</button>
+    </div>
+    <form style="display: flex; flex-direction: column; gap: 14px;">
+      <div>
+        <label>Name *</label>
+        <input type="text" placeholder="e.g. UAT">
+      </div>
+      <div>
+        <label>Color *</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" placeholder="#10b981" value="#8b5cf6" style="width: 120px;">
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <span style="width: 24px; height: 24px; border-radius: 4px; background: #ef4444; cursor: pointer; border: 2px solid transparent;"></span>
+            <span style="width: 24px; height: 24px; border-radius: 4px; background: #eab308; cursor: pointer; border: 2px solid transparent;"></span>
+            <span style="width: 24px; height: 24px; border-radius: 4px; background: #10b981; cursor: pointer; border: 2px solid transparent;"></span>
+            <span style="width: 24px; height: 24px; border-radius: 4px; background: #8b5cf6; cursor: pointer; border: 2px solid #10b981;"></span>
+            <span style="width: 24px; height: 24px; border-radius: 4px; background: #f59e0b; cursor: pointer; border: 2px solid transparent;"></span>
+            <span style="width: 24px; height: 24px; border-radius: 4px; background: #06b6d4; cursor: pointer; border: 2px solid transparent;"></span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label>Description</label>
+        <input type="text" placeholder="Optional description">
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
+        <button type="button" class="btn" onclick="closeModal(null, 'add-env')">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="closeModal(null, 'add-env'); alert('✅ Environment added! (mockup)')">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function switchEnv(el) {
+  document.querySelectorAll('.env-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const env = el.dataset.env;
+  document.querySelectorAll('.env-content').forEach(c => c.style.display = 'none');
+  const target = document.querySelector(`.env-content[data-env="${env}"]`);
+  if (target) target.style.display = 'block';
+}
+
+function toggleEnvManager() {
+  const mgr = document.getElementById('env-manager');
+  mgr.classList.toggle('open');
+}
+
+function openModal(name) {
+  document.getElementById('modal-' + name).classList.add('open');
+}
+
+function closeModal(ev, name) {
+  if (ev && ev.target !== ev.currentTarget) return;
+  document.getElementById('modal-' + name).classList.remove('open');
+}
+
+function toggleHistory(btn) {
+  const card = btn.closest('.card');
+  const collapsible = card.querySelector('.collapsible');
+  collapsible.classList.toggle('open');
+  btn.textContent = collapsible.classList.contains('open') ? '📜 Close' : '📜 History';
+}
+</script>
+
+</body>
+</html>

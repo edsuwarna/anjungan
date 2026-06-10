@@ -1,10 +1,16 @@
 <script>
-	import { user, sidebarCollapsed } from '$lib/stores/auth.js';
+	import { user, sidebarCollapsed, currentProject } from '$lib/stores/auth.js';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { api } from '$lib/api.svelte.js';
 	import Icon from '@iconify/svelte';
 
+	const DEFAULT_PROJECT_ID = '00000000-0000-0000-0000-000000000001';
+
 	let dropdownOpen = $state(false);
+	let projectDropdownOpen = $state(false);
+	let projects = $state([]);
 
 	const pageTitles = {
 		'/': 'Overview',
@@ -18,8 +24,31 @@
 
 	let title = $derived(pageTitles[$page.url.pathname] || 'Anjungan');
 
+	onMount(async () => {
+		try {
+			projects = await api.projects.list();
+		} catch (_) {
+			projects = [];
+		}
+	});
+
 	function toggleDropdown() {
 		dropdownOpen = !dropdownOpen;
+	}
+
+	function toggleProjectDropdown() {
+		projectDropdownOpen = !projectDropdownOpen;
+	}
+
+	function switchProject(project) {
+		projectDropdownOpen = false;
+		if (!project || project.id === DEFAULT_PROJECT_ID) {
+			currentProject.set(null);
+			goto('/');
+		} else {
+			currentProject.set(project);
+			goto(`/projects/${project.slug}/servers`);
+		}
 	}
 
 	function handleLogout() {
@@ -33,6 +62,9 @@
 	function handleClickOutside(e) {
 		if (!e.target.closest('.user-menu')) {
 			dropdownOpen = false;
+		}
+		if (!e.target.closest('.project-switcher')) {
+			projectDropdownOpen = false;
 		}
 	}
 
@@ -62,6 +94,84 @@
 			</svg>
 		</button>
 		<h2 class="text-lg font-semibold" style="color: var(--color-text);">{title}</h2>
+	</div>
+
+	<!-- Project Switcher -->
+	<div class="relative project-switcher">
+		<button
+			onclick={toggleProjectDropdown}
+			class="flex items-center gap-2 rounded-lg px-3 py-1.5 transition-all hover:opacity-80"
+			style="background-color: var(--color-primary-subtle);"
+			aria-label="Switch project"
+		>
+			<span class="text-sm font-medium" style="color: var(--color-primary);">
+				{$currentProject?.name || 'All Projects'}
+			</span>
+			<svg
+				class="transition-transform duration-150"
+				class:rotate-180={projectDropdownOpen}
+				xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+				fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+				style="color: var(--color-text-muted);"
+			>
+				<polyline points="6 9 12 15 18 9"></polyline>
+			</svg>
+		</button>
+
+		{#if projectDropdownOpen}
+			<div
+				class="absolute left-0 top-full z-50 mt-1 w-56 rounded-xl border py-1 shadow-lg animate-fade-in"
+				style="background-color: var(--color-card); border-color: var(--color-border-light);"
+			>
+				{#each projects as project}
+					<button
+						onclick={() => switchProject(project)}
+						class="flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:opacity-80"
+						style="color: var(--color-text);"
+					>
+						<span
+							class="h-2.5 w-2.5 shrink-0 rounded-full"
+							style="background-color: {project.color || '#6366f1'};"
+						></span>
+						<span class="flex-1 text-left">{project.name}</span>
+						{#if $currentProject?.id === project.id}
+							<Icon icon="solar:check-circle-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+						{/if}
+					</button>
+				{/each}
+
+				{#if projects.length > 0}
+					<div class="border-t" style="border-color: var(--color-border-light);"></div>
+				{/if}
+
+				<button
+					onclick={() => switchProject(null)}
+					class="flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:opacity-80"
+					style="color: var(--color-text);"
+				>
+					<span class="flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full" style="background-color: var(--color-text-muted);">
+					</span>
+					<span class="flex-1 text-left">All Projects</span>
+					{#if !$currentProject}
+						<Icon icon="solar:check-circle-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+					{/if}
+				</button>
+
+				<div class="border-t" style="border-color: var(--color-border-light);"></div>
+
+				{#if $user?.role === 'admin'}
+					<a
+						href="/projects"
+						onclick={() => projectDropdownOpen = false}
+						class="flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:opacity-80"
+						style="color: var(--color-text);"
+					>
+						<Icon icon="solar:folder-with-files-bold" class="h-4 w-4" style="color: var(--color-text-muted);" />
+						<span>Manage Projects</span>
+					</a>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<div class="relative user-menu">
