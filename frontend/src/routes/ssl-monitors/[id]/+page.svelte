@@ -18,16 +18,39 @@
 	let historyLoading = $state(false);
 	let historyLimit = $state(50);
 
-	// Webhooks for notification config
-	let webhooks = $state([]);
-	let webhooksLoading = $state(false);
+	// Notification targets for notification config
+	let notificationTargets = $state([]);
+	let notificationTargetsLoading = $state(false);
+
+	// Test notification
+	let testingTarget = $state(null);
+	let testTargetResult = $state(null);
 
 	const id = $derived($page.params.id);
 
 	onMount(() => {
 		loadMonitor();
-		loadWebhooks();
+		loadNotificationTargets();
 	});
+
+	function urlHostname(url) {
+		try { return new URL(url).hostname; }
+		catch { return url; }
+	}
+
+	// ─── Test notification ────────────────────────────────────────────────
+	async function handleTestTarget(id) {
+		testingTarget = id;
+		testTargetResult = null;
+		try {
+			const result = await api.notificationTargets.test(id);
+			testTargetResult = { id, ...result };
+		} catch (e) {
+			testTargetResult = { id, success: false, error: e.message || 'Test request failed' };
+		} finally {
+			testingTarget = false;
+		}
+	}
 
 	async function loadMonitor() {
 		loading = true;
@@ -54,14 +77,14 @@
 		}
 	}
 
-	async function loadWebhooks() {
-		webhooksLoading = true;
+	async function loadNotificationTargets() {
+		notificationTargetsLoading = true;
 		try {
-			webhooks = await api.registryWebhooks.list() || [];
+			notificationTargets = await api.notificationTargets.list() || [];
 		} catch (_) {
-			webhooks = [];
+			notificationTargets = [];
 		} finally {
-			webhooksLoading = false;
+			notificationTargetsLoading = false;
 		}
 	}
 
@@ -172,10 +195,12 @@
 		return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 	}
 
+
 	// ─── Webhook helper ─────────────────────────────────────────────────────
 	function getWebhookName(id) {
-		return webhooks.find(w => w.id === id)?.name || id?.slice(0, 8) || 'Unknown';
+		return notificationTargets.find(w => w.id === id)?.name || id?.slice(0, 8) || 'Unknown';
 	}
+
 </script>
 
 <div class="page-container">
@@ -601,26 +626,55 @@
 				<!-- Notification Channels -->
 				<div class="mb-4">
 					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Notify Via</label>
-					{#if webhooksLoading}
-						<p class="text-xs" style="color: var(--color-text-muted);">Loading webhooks...</p>
-					{:else if webhooks.length === 0}
+					{#if notificationTargetsLoading}
+						<p class="text-xs" style="color: var(--color-text-muted);">Loading notification targets...</p>
+					{:else if notificationTargets.length === 0}
 						<p class="text-xs" style="color: var(--color-text-muted);">
-							No webhooks configured.
-							<a href="/registry/webhooks" class="underline" style="color: var(--color-primary);">Create one</a>
+							No notification targets configured.
+							<a href="/ssl-monitors" class="underline" style="color: var(--color-primary);">Create one</a>
 						</p>
 					{:else}
 						<div class="space-y-2">
-							{#each webhooks as wh}
-								{@const checked = monitor.webhook_ids?.includes(wh.id) || false}
-								<label class="flex cursor-pointer items-center gap-3 rounded-lg p-2" style="background: checked ? 'var(--color-primary-subtle)' : 'transparent';" role="checkbox" tabindex="0" aria-checked={checked}>
-									<input type="checkbox" name="webhook_ids" value={wh.id} checked={checked} class="h-4 w-4 rounded border-gray-300" />
-									<div>
-										<p class="text-sm font-medium" style="color: var(--color-text);">{wh.name || wh.url}</p>
-										<p class="text-xs" style="color: var(--color-text-muted);">{wh.platform}</p>
-									</div>
-								</label>
+							{#each notificationTargets as nt}
+								{@const checked = monitor.webhook_ids?.includes(nt.id) || false}
+								<div class="flex items-center gap-3">
+									<label class="flex flex-1 cursor-pointer items-center gap-3 rounded-lg p-2" style="background: checked ? 'var(--color-primary-subtle)' : 'transparent';" role="checkbox" tabindex="0" aria-checked={checked}>
+										<input type="checkbox" name="webhook_ids" value={nt.id} checked={checked} class="h-4 w-4 rounded border-gray-300" />
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-medium" style="color: var(--color-text);">{nt.name}</p>
+											<p class="truncate text-xs" style="color: var(--color-text-muted);" title={nt.url}>{nt.platform} &middot; {urlHostname(nt.url)}</p>
+										</div>
+									</label>
+									<button
+										type="button"
+										class="btn-icon shrink-0"
+										title="Test notification"
+										onclick={() => handleTestTarget(nt.id)}
+									>
+										<Icon icon={testingTarget === nt.id ? 'svg-spinners:180-ring' : 'solar:play-circle-bold'} class="h-4 w-4" />
+									</button>
+								</div>
 							{/each}
 						</div>
+						{#if testTargetResult}
+							<div class="mt-3 rounded-lg border p-3 text-sm" style="border-color: {testTargetResult.success ? 'var(--color-primary)' : '#ef4444'}30; background: {testTargetResult.success ? 'var(--color-primary-subtle)' : '#ef4444'}10;">
+								<div class="flex items-center gap-2">
+									<Icon icon={testTargetResult.success ? 'solar:check-circle-bold' : 'solar:danger-circle-bold'} class="h-4 w-4" style="color: {testTargetResult.success ? 'var(--color-primary)' : '#ef4444'};" />
+									<span style="color: {testTargetResult.success ? 'var(--color-primary)' : '#ef4444'};">
+										{testTargetResult.success ? 'Test sent! Check your notification channel.' : 'Test failed'}
+									</span>
+									<button type="button" class="ml-auto btn-icon" onclick={() => testTargetResult = null}>
+										<Icon icon="solar:close-circle-bold" class="h-4 w-4" />
+									</button>
+								</div>
+								{#if !testTargetResult.success && testTargetResult.error}
+									<p class="mt-1 text-xs" style="color: #ef4444;">{testTargetResult.error}</p>
+								{/if}
+								{#if testTargetResult.status_code}
+									<p class="mt-1 text-xs" style="color: var(--color-text-muted);">HTTP {testTargetResult.status_code}</p>
+								{/if}
+							</div>
+						{/if}
 					{/if}
 				</div>
 
@@ -730,5 +784,6 @@
 	}
 	.input:focus { border-color: var(--color-primary); }
 	select.input { appearance: auto; }
+	select.input option { color: #1e293b; }
 	:global(body.dark) .card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
 </style>

@@ -34,9 +34,19 @@
 	let batchImporting = $state(false);
 	let batchResult = $state(null);
 
-	// Webhooks for notification config in add modal
-	let webhooks = $state([]);
-	let webhooksLoading = $state(false);
+	// Notification targets for add modal
+	let notificationTargets = $state([]);
+	let notificationTargetsLoading = $state(false);
+
+	// Notification Targets modal
+	let showTargetsModal = $state(false);
+	let targetForm = $state({ name: '', url: '', platform: 'generic', webhook_secret: '' });
+	let editingTarget = $state(null);
+	let savingTarget = $state(false);
+	let targetError = $state('');
+	let targetDeleteConfirm = $state(null);
+	let testingTarget = $state(false);
+	let testTargetResult = $state(null);
 
 	// Computed filter state
 	let hasFilters = $derived(searchQuery || statusFilter);
@@ -70,9 +80,14 @@
 		} catch (_) {}
 	}
 
+		function urlHostname(url) {
+		try { return new URL(url).hostname; }
+		catch { return url; }
+	}
+
 	onMount(() => {
 		loadData();
-		loadWebhooks();
+		loadNotificationTargets();
 	});
 
 	// ─── Filters ───
@@ -184,15 +199,79 @@
 		}
 	}
 
-	// ─── Modal ───
-	async function loadWebhooks() {
-		webhooksLoading = true;
+	// ─── Notification Targets Modal ───
+	async function loadNotificationTargets() {
+		notificationTargetsLoading = true;
 		try {
-			webhooks = await api.registryWebhooks.list() || [];
+			notificationTargets = await api.notificationTargets.list() || [];
 		} catch (_) {
-			webhooks = [];
+			notificationTargets = [];
 		} finally {
-			webhooksLoading = false;
+			notificationTargetsLoading = false;
+		}
+	}
+
+	function resetTargetForm() {
+		targetForm = { name: '', url: '', platform: 'generic', webhook_secret: '' };
+		editingTarget = null;
+		targetError = '';
+		targetDeleteConfirm = null;
+	}
+
+	function openNewTarget() {
+		resetTargetForm();
+		showTargetsModal = true;
+	}
+
+	function openEditTarget(t) {
+		targetForm = { name: t.name, url: t.url, platform: t.platform, webhook_secret: t.webhook_secret || '' };
+		editingTarget = t;
+		targetError = '';
+		targetDeleteConfirm = null;
+		showTargetsModal = true;
+	}
+
+	async function handleSaveTarget() {
+		targetError = '';
+		if (!targetForm.name.trim()) { targetError = 'Name is required.'; return; }
+		if (!targetForm.url.trim()) { targetError = 'URL is required.'; return; }
+		savingTarget = true;
+		try {
+			if (editingTarget) {
+				await api.notificationTargets.update(editingTarget.id, targetForm);
+			} else {
+				await api.notificationTargets.create(targetForm);
+			}
+			await loadNotificationTargets();
+			showTargetsModal = false;
+			resetTargetForm();
+		} catch (e) {
+			targetError = e.message || 'Failed to save notification target.';
+		} finally {
+			savingTarget = false;
+		}
+	}
+
+	async function handleDeleteTarget(id) {
+		try {
+			await api.notificationTargets.delete(id);
+			await loadNotificationTargets();
+			targetDeleteConfirm = null;
+		} catch (e) {
+			alert('Failed to delete: ' + e.message);
+		}
+	}
+
+	async function handleTestTarget(id) {
+		testingTarget = true;
+		testTargetResult = null;
+		try {
+			const result = await api.notificationTargets.test(id);
+			testTargetResult = result;
+		} catch (e) {
+			testTargetResult = { success: false, error: e.message || 'Test request failed' };
+		} finally {
+			testingTarget = false;
 		}
 	}
 
@@ -287,6 +366,14 @@
 			>
 				<Icon icon="solar:refresh-bold" class="h-4 w-4" />
 				{checkingAll ? 'Checking...' : 'Check All'}
+			</button>
+			<button
+				class="btn-secondary"
+				onclick={() => showTargetsModal = true}
+				title="Manage Notification Targets"
+			>
+				<Icon icon="solar:bell-bold" class="h-4 w-4" />
+				Notifications
 			</button>
 			<button
 				class="btn-primary"
@@ -589,20 +676,33 @@
 				<!-- Notification Channels -->
 				<div class="mb-4">
 					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Notify Via</label>
-					{#if webhooksLoading}
-						<p class="text-xs" style="color: var(--color-text-muted);">Loading webhooks...</p>
-					{:else if webhooks.length === 0}
-						<p class="text-xs" style="color: var(--color-text-muted);">No webhooks configured. Create one in Registry.</p>
+					{#if notificationTargetsLoading}
+						<p class="text-xs" style="color: var(--color-text-muted);">Loading notification targets...</p>
+					{:else if notificationTargets.length === 0}
+						<p class="text-xs" style="color: var(--color-text-muted);">
+							No notification targets configured.
+							<button type="button" class="underline" style="color: var(--color-primary);" onclick={() => { showAddModal = false; showTargetsModal = true; }}>Create one</button>
+						</p>
 					{:else}
 						<div class="space-y-1 max-h-40 overflow-y-auto">
-							{#each webhooks as wh}
-								<label class="flex cursor-pointer items-center gap-3 rounded-lg p-2 text-sm">
-									<input type="checkbox" name="webhook_ids" value={wh.id} class="h-4 w-4 rounded border-gray-300" />
-									<div>
-										<p class="text-sm" style="color: var(--color-text);">{wh.name || wh.url}</p>
-										<p class="text-xs" style="color: var(--color-text-muted);">{wh.platform}</p>
-									</div>
-								</label>
+							{#each notificationTargets as nt}
+								<div class="flex items-center gap-2">
+									<label class="flex flex-1 cursor-pointer items-center gap-3 rounded-lg p-2 text-sm min-w-0">
+										<input type="checkbox" name="webhook_ids" value={nt.id} class="h-4 w-4 shrink-0 rounded border-gray-300" />
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm" style="color: var(--color-text);">{nt.name}</p>
+											<p class="truncate text-xs" style="color: var(--color-text-muted);" title={nt.url}>{nt.platform} &middot; {urlHostname(nt.url)}</p>
+										</div>
+									</label>
+									<button
+										type="button"
+										class="btn-icon shrink-0"
+										title="Test notification"
+										onclick={() => handleTestTarget(nt.id)}
+									>
+										<Icon icon={testingTarget ? 'svg-spinners:180-ring' : 'solar:play-circle-bold'} class="h-4 w-4" />
+									</button>
+								</div>
 							{/each}
 						</div>
 					{/if}
@@ -613,6 +713,162 @@
 					<button type="submit" class="btn-primary">Add Monitor</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Notification Targets Management Modal -->
+{#if showTargetsModal}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="modal-overlay" onclick={() => { if (!savingTarget) showTargetsModal = false; }}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="modal-panel" onclick={(e) => e.stopPropagation()}>
+			<div class="flex items-center justify-between border-b pb-4" style="border-color: var(--color-border);">
+				<div>
+					<h2 class="text-lg font-bold" style="color: var(--color-text);">
+						{editingTarget ? 'Edit' : 'Manage'} Notification Targets
+					</h2>
+					<p class="mt-1 text-sm" style="color: var(--color-text-secondary);">
+						Configure where SSL expiry alerts are sent
+					</p>
+				</div>
+				<button class="btn-icon" onclick={() => showTargetsModal = false}>
+					<Icon icon="solar:close-circle-bold" class="h-5 w-5" />
+				</button>
+			</div>
+
+			<!-- Target Form -->
+			<form onsubmit={(e) => { e.preventDefault(); handleSaveTarget(); }} class="mt-5">
+				<div class="grid grid-cols-1 gap-4">
+					<div>
+						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Name *</label>
+						<input type="text" bind:value={targetForm.name} placeholder="Slack SSL Alerts" class="input w-full" required />
+					</div>
+					<div class="grid grid-cols-2 gap-4">
+						<div>
+							<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Platform</label>
+							<select bind:value={targetForm.platform} class="input w-full">
+								<option value="generic">Generic Webhook</option>
+								<option value="telegram">Telegram</option>
+								<option value="discord">Discord</option>
+								<option value="slack">Slack</option>
+							</select>
+						</div>
+						<div>
+							<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Webhook Secret</label>
+							<input type="text" bind:value={targetForm.webhook_secret} placeholder="Optional" class="input w-full" />
+						</div>
+					</div>
+					<div>
+						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Webhook URL *</label>
+						<input type="url" bind:value={targetForm.url} placeholder="https://hooks.slack.com/services/..." class="input w-full" required />
+					</div>
+				</div>
+
+				{#if targetError}
+					<p class="mt-3 text-sm" style="color: #ef4444;">{targetError}</p>
+				{/if}
+
+				<div class="mt-5 flex items-center justify-between gap-3 pt-4">
+					<div>
+						{#if editingTarget && !targetDeleteConfirm}
+							<button type="button" class="btn-ghost text-sm" style="color:#ef4444;" onclick={() => targetDeleteConfirm = editingTarget.id}>
+								<Icon icon="solar:trash-bin-trash-bold" class="h-4 w-4" />
+								Delete
+							</button>
+						{/if}
+						{#if targetDeleteConfirm}
+							<div class="flex items-center gap-2 text-sm">
+								<span style="color: var(--color-text-secondary);">Delete this target?</span>
+								<button type="button" class="btn-secondary px-3 py-1 text-xs" onclick={() => handleDeleteTarget(targetDeleteConfirm)}>Yes</button>
+								<button type="button" class="btn-ghost text-xs" onclick={() => targetDeleteConfirm = null}>No</button>
+							</div>
+						{/if}
+					</div>
+					<div class="flex items-center gap-3">
+						<button type="button" class="btn-secondary" onclick={() => { showTargetsModal = false; resetTargetForm(); }}>
+							{editingTarget ? 'Cancel' : 'Close'}
+						</button>
+						<button type="submit" class="btn-primary" disabled={savingTarget}>
+							<Icon icon={savingTarget ? 'svg-spinners:180-ring' : 'solar:check-circle-bold'} class="h-4 w-4" />
+							{savingTarget ? 'Saving...' : editingTarget ? 'Update' : 'Add Target'}
+						</button>
+					</div>
+				</div>
+			</form>
+
+			<!-- Existing Targets List -->
+			<div class="mt-6 border-t pt-5" style="border-color: var(--color-border);">
+				<p class="text-sm font-medium" style="color: var(--color-text);">Saved Targets</p>
+				{#if notificationTargetsLoading}
+					<p class="mt-2 text-sm" style="color: var(--color-text-muted);">Loading...</p>
+				{:else if notificationTargets.length === 0}
+					<p class="mt-2 text-sm" style="color: var(--color-text-muted);">No targets configured yet. Add one above.</p>
+				{:else}
+					<div class="mt-2 space-y-2">
+						{#each notificationTargets as nt}
+							<div
+								class="flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors hover:bg-opacity-50"
+								style="border-color: var(--color-border);"
+								class:ring-2={editingTarget?.id === nt.id}
+								onclick={() => openEditTarget(nt)}
+							>
+								<div class="flex items-center gap-3">
+									<div class="flex h-8 w-8 items-center justify-center rounded-full" style="background: var(--color-primary-subtle);">
+										<Icon icon={nt.platform === 'telegram' ? 'solar:telegram-bold' : nt.platform === 'discord' ? 'solar:discord-bold' : nt.platform === 'slack' ? 'solar:slack-bold' : 'solar:link-bold'} class="h-4 w-4" style="color: var(--color-primary);" />
+									</div>
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-medium" style="color: var(--color-text);">{nt.name}</p>
+										<p class="truncate text-xs" style="color: var(--color-text-muted);" title={nt.url}>{nt.platform} &middot; {urlHostname(nt.url)}</p>
+									</div>
+								</div>
+								<div class="flex items-center gap-2">
+									{#if nt.enabled}
+										<span class="inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+									{/if}
+									<button
+										type="button"
+										class="btn-icon text-xs"
+										title="Test notification"
+										onclick={(e) => { e.stopPropagation(); handleTestTarget(nt.id); }}
+									>
+										<Icon icon={testingTarget ? 'svg-spinners:180-ring' : 'solar:play-circle-bold'} class="h-4 w-4" />
+									</button>
+									<button
+										type="button"
+										class="btn-icon text-xs"
+										style="color: #ef4444;"
+										title="Delete"
+										onclick={(e) => { e.stopPropagation(); if (confirm('Delete this notification target?')) handleDeleteTarget(nt.id); }}
+									>
+										<Icon icon="solar:trash-bin-trash-bold" class="h-4 w-4" />
+									</button>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			{#if testTargetResult}
+				<div class="mt-4 rounded-lg border p-3 text-sm" style="border-color: {testTargetResult.success ? 'var(--color-primary)' : '#ef4444'}30; background: {testTargetResult.success ? 'var(--color-primary-subtle)' : '#ef4444'}10;">
+					<div class="flex items-center gap-2">
+						<Icon icon={testTargetResult.success ? 'solar:check-circle-bold' : 'solar:danger-circle-bold'} class="h-4 w-4" style="color: {testTargetResult.success ? 'var(--color-primary)' : '#ef4444'};" />
+						<span style="color: {testTargetResult.success ? 'var(--color-primary)' : '#ef4444'};">
+							{testTargetResult.success ? 'Test sent! Check your notification channel.' : 'Test failed'}
+						</span>
+						<button class="ml-auto btn-icon" onclick={() => testTargetResult = null}>
+							<Icon icon="solar:close-circle-bold" class="h-4 w-4" />
+						</button>
+					</div>
+					{#if !testTargetResult.success && testTargetResult.error}
+						<p class="mt-1 text-xs" style="color: #ef4444;">{testTargetResult.error}</p>
+					{/if}
+					{#if testTargetResult.status_code}
+						<p class="mt-1 text-xs" style="color: var(--color-text-muted);">HTTP {testTargetResult.status_code}</p>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -838,6 +1094,9 @@
 	.filter-chip:hover:not(.active) { background: var(--color-hover); }
 	select.input {
 		appearance: auto;
+	}
+	select.input option {
+		color: #1e293b;
 	}
 	:global(body.dark) .card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
 	:global(body.dark) .stat-card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
