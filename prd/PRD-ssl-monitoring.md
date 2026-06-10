@@ -50,7 +50,6 @@ Anjungan manages multiple servers and domains, but there is **no centralized SSL
 - ❌ Not a replacement for Traefik / Let's Encrypt auto-renewal
 - ❌ Not a full SSL certificate manager (no CSR generation, no cert installation)
 - ❌ Not a domain health / uptime monitor (SSL only, not HTTP response)
-- ❌ Not auto-discovering domains from Traefik (manual entry only)
 
 ---
 
@@ -88,14 +87,15 @@ User input                    Anjungan                            Internet
 └────────────────┘          └───────────────────────┘
 ```
 
-### Key Design Decision: Manual Entry
+### Key Design Decision: Manual Entry + Server-Side Discovery
 
-Unlike the original PRD-domain-management.md §F6.4 (which relied on auto-discovery from Traefik), this feature uses **manual domain entry**. Rationale:
+This feature supports **both manual entry and server-side auto-discovery** from connected servers. Unlike the original PRD-domain-management.md §F6.4 (which relied solely on Traefik config generator), this implementation offers:
 
-1. **Flexibility** — monitor domains on any host (Cloudflare, Vercel, external servers)
-2. **Zero infra dependency** — works without Traefik config generator or cluster_servers table
-3. **Immediate value** — can ship independently without waiting for Domain Management feature
-4. **Complete control** — user decides which domains matter, not auto-detection
+1. **Manual entry** — monitor domains on any host (Cloudflare, Vercel, external servers)
+2. **Server-side discovery** — auto-detect SSL certs from connected servers (Traefik, Nginx, Caddy, Let's Encrypt, filesystem scan)
+3. **Zero infra dependency** — works without cluster_servers or domains tables
+4. **Immediate value** — can ship independently without waiting for Domain Management feature
+5. **Complete control** — user decides which discovered domains to import
 
 ---
 
@@ -103,53 +103,69 @@ Unlike the original PRD-domain-management.md §F6.4 (which relied on auto-discov
 
 > **Priority Key:** P0 = Must have, P1 = Should have, P2 = Nice to have
 
-### F1 — SSL Monitor CRUD (P0)
+### F1 — SSL Monitor CRUD (P0) ✅
 
 | | |
 |---|---|
-| **Backend** | New `ssl_monitors` table. CRUD: `GET/POST/PUT/DELETE /api/v1/ssl-monitors`. Fields: domain, port (default 443), display_name, check_interval (seconds, default 3600), notify_before_days (default 14), enabled. Filter: `?status=`, `?search=domain`. |
-| **Frontend** | Route `/ssl-monitors`. Domain list with badge status, days remaining, issuer, last checked. "+ Add SSL Monitor" button → form. Click domain card → detail view. **Dashboard summary card**: "X certs expiring within 30 days". |
-| **UX** | Badge color: 🟢 >30d, 🟡 7-30d, 🔴 <7d/expired, ⚪ pending/error. Inline validation on domain format. Duplicate check (domain+port unique). Quick action dropdown on each card: Check Now, Edit, Delete. |
+| **Backend** | `ssl_monitors` table. CRUD: `GET/POST/PUT/DELETE /api/v1/ssl-monitors`. Fields: domain, port (default 443), display_name, check_interval (default "1h"), notify_before (default "14d"), webhook_ids (UUID[] → ssl_notification_targets), enabled, server_id (for discovered certs), source_provider (manual, traefik, nginx, caddy, letsencrypt). Filter: `?status=`, `?search=domain`, `?sort=`, `?order=`. **Duplicate check** domain+port unique → 409 Conflict. Paginated + "all" mode. |
+| **Frontend** | Route `/ssl-monitors`. Domain list with badge status, days remaining, issuer, cipher grade, last checked, notification targets pill. "+ Add SSL Monitor" button → form. Click domain card → detail view. **Summary KPI cards**: total, valid, expiring, expired, error counts. Status filter chips. Search bar. Sortable columns. **Dashboard summary card**: "X certs expiring within 30 days". |
+| **UX** | Badge color: 🟢 >30d, 🟡 7-30d, 🔴 <7d/expired, ⚪ pending/error. Duplicate check (domain+port unique). Quick action dropdown on each card: Check Now, Edit, Delete. "Check All" button for batch check. |
 
-### F2 — TLS Certificate Check (P0)
-
-| | |
-|---|---|
-| **Backend** | TLS handshake to `domain:port` → extract: certificate chain, expiry date, issuer (CN + org), subject (CN), SANs (Subject Alternative Names), fingerprint (SHA-256), TLS version, cipher suite. Validate chain (intermediate certs). OCSP check: query OCSP responder from cert → status (good/revoked/unknown). Store result. Update `status`, `cert_expires_at`, `cert_days_remaining`, `last_checked_at`, `last_error`. |
-| **Frontend** | Detail page: all cert info displayed. Chain panel: leaf → intermediate → root with validity status. SAN list with domain match indicator (✅ monitored domain is in SANs / ❌ mismatch). Cipher info: TLS version + cipher suite. OCSP status badge. |
-| **UX** | SAN mismatch = warning highlight. OCSP revoked = 🔴 critical badge. Chain error = 🟡 warning. |
-
-### F3 — Cipher Quality Grading (P1)
+### F2 — TLS Certificate Check (P0) ✅
 
 | | |
 |---|---|
-| **Backend** | Grade based on TLS version + cipher suite: A+ (TLS 1.3), A (TLS 1.2 strong), B (TLS 1.2 weak), C (TLS 1.1), D (TLS 1.0), F (SSLv3). Store as `cipher_grade` VARCHAR(2). |
+| **Backend** | TLS handshake to `domain:port` → extract: certificate chain (leaf, intermediate, root), expiry date, issuer (CN + org), subject (CN), SANs (Subject Alternative Names), TLS version, cipher suite, response time. **Chain validation**: build verified chain from server's leaf + intermediates, match to root CAs. **SAN coverage check**: flag if monitored domain not covered by SANs. Store all result fields. Update `status`, `cert_expires_at`, `days_remaining`, `last_check_at`, `last_error`. |
+| **Frontend** | Detail page: all cert info displayed. **Certificate Chain panel**: leaf → intermediate → root with validity status per cert. **SAN list** with domain match indicator (✅ monitored domain is in SANs / ❌ mismatch). **Response time** displayed. **Cipher info**: TLS version + cipher suite. **OCSP status badge**. |
+| **UX** | SAN mismatch = ❌ warning highlight. Chain error = 🟡 warning. OCSP revoked = 🔴 critical badge. Response time shown with ms unit. |
+
+### F3 — Cipher Quality Grading (P1) ✅
+
+| | |
+|---|---|
+| **Backend** | Grade based on TLS version + cipher suite: A+ (TLS 1.3), A (TLS 1.2 strong — AEAD ciphers), B (TLS 1.2 weak — CBC), C (TLS 1.1), D (TLS 1.0), F (SSLv3). Store as `cipher_grade` VARCHAR(2). |
 | **Frontend** | Badge on domain card + detail: A+ 🟢, A 🟢, B 🟡, C 🟠, D 🔴, F 🔴. Tooltip explaining grade criteria. |
 | **UX** | Click grade → expand detailed explanation + recommended fix. |
 
-### F4 — Automated Scheduled Checks (P1)
+### F4 — Automated Scheduled Checks (P1) ✅
 
 | | |
 |---|---|
-| **Backend** | Cron job: `CheckExpiringCerts()` — iterate all `ssl_monitors` where `enabled = true`. For each: TLS check → update result. If `cert_days_remaining <= notify_before_days` → trigger notification event. Configurable interval (default: every hour). |
-| **Frontend** | No dedicated page — but show "Last checked: X min ago" on each domain. "Check Now" button for manual immediate check. "Check All" button for all domains. |
-| **UX** | During check: spinner/pulsing badge. On completion: update without page reload. |
+| **Backend** | `scheduler.go` — background goroutine with configurable interval (default 1h). Iterates all enabled monitors. TLS check → `saveResult()` → update monitor + insert history. **Notification dedup**: only notify on status change or when crossing threshold. `POST /api/v1/ssl-monitors/{id}/check` — manual trigger. `POST /api/v1/ssl-monitors/check-all` — batch check all enabled. |
+| **Frontend** | "Last checked: X min ago" on each domain card. "Check Now" button per domain. "Check All" button in list header — sequential batch with per-domain progress. |
+| **UX** | During check: spinner/pulsing status. Check All shows per-domain results inline without page reload. |
 
-### F5 — Notification Integration (P1)
-
-| | |
-|---|---|
-| **Backend** | When expiration is detected within threshold, use existing webhook system (`registry_webhooks` / notification channels). Event payload: domain name, days remaining, issuer, expiry date. Notification per SSL monitor (user can configure which channels during add/edit). |
-| **Frontend** | In Add/Edit form: notification section — select webhook channels (reuse from webhook system). Dashboard alert card for expiring certs. |
-| **UX** | "Notify me via" dropdown (multi-select from existing webhooks). Telegram example notification preview. |
-
-### F6 — Check History & Trend (P2)
+### F5 — Notification Integration (P1) ✅
 
 | | |
 |---|---|
-| **Backend** | New `ssl_check_history` table. Each check result: domain_id, checked_at, days_remaining, status, cipher_grade, error_message. Retention: keep last 90 days, auto-purge. |
-| **Frontend** | Detail page → "Check History" tab/panel. Timeline view: each check with status + days remaining. Mini chart (days_remaining over time) — shows renewal events (sudden spike = cert renewed). |
-| **UX** | Chart: x-axis = date, y-axis = days remaining. Renewal visible as vertical jump. Expiry visible as descending line. |
+| **Backend** | When expiration detected within threshold, dispatch to `ssl_notification_targets` (dedicated table, not registry_webhooks). Formats per-platform: Telegram HTML, Discord embed, Slack JSON. Event payload: domain, days_remaining, issuer, expires_at, cipher_grade, previous_status. Dedup: only on status change, not every check cycle. `POST /api/v1/ssl-monitors/notification-targets/{id}/test` — test notification delivery. |
+| **Frontend** | In Add/Edit form: "Notify via" section — multi-select from saved notification targets. Detail page: list assigned targets with test button. Dashboard alert card for expiring certs. |
+| **UX** | "Notify me via" dropdown (multi-select from configured targets). Test button sends sample notification to verify delivery. |
+
+### F6 — Check History & Trend (P2) ✅
+
+| | |
+|---|---|
+| **Backend** | `ssl_check_history` table. Each check: ssl_monitor_id, checked_at, days_remaining, status, cipher_grade, tls_version, cipher_suite, response_time_ms, error_message. `GET /api/v1/ssl-monitors/{id}/history` — paginated history (?limit=&offset=). `GET /api/v1/ssl-monitors/{id}/trend?limit=90` — last N check entries for chart. Retention: auto-purge after 90 days. |
+| **Frontend** | Detail page → "Check History" panel. Timeline: each check with status + days remaining. **TrendChart component**: SVG line chart (x=date, y=days_remaining). Color gradient fill. Renewal visible as vertical jump. Expiry visible as descending line. Status tooltips on hover. |
+| **UX** | Chart: x-axis = date, y-axis = days remaining. Hover tooltip: date, days remaining, status. Empty state for new monitors. |
+
+### F7 — Notification Targets CRUD (P1) ✅
+
+| | |
+|---|---|
+| **Backend** | Dedicated `ssl_notification_targets` table (separate from registry_webhooks). Full CRUD: `GET/POST /api/v1/ssl-monitors/notification-targets`, `GET/PUT/DELETE /api/v1/ssl-monitors/notification-targets/{id}`, `POST /api/v1/ssl-monitors/notification-targets/{id}/test`. Fields: name, url, platform (telegram, discord, slack, generic), webhook_secret, enabled. Platform-specific formatting: Telegram HTML payload, Discord embed, Slack message. |
+| **Frontend** | Modal/popup on SSL Monitors list page: "Notification Targets" button → list, create, edit, delete targets. Test button per target. Create form: name, URL, platform selector, optional secret. |
+| **UX** | Test notification button sends live sample (SSL expiry format). Platform selector shows icon per provider (Telegram, Discord, Slack, Webhook). Delete confirmation. Targets assigned to monitors via webhook_ids array. |
+
+### F8 — Server-Side Discovery (P2) ✅
+
+| | |
+|---|---|
+| **Backend** | `discovery.go` — SSH into connected server → scan for SSL certs. **Providers**: Traefik (parses acme.json v2/v3), Nginx (nginx -T or grep ssl_certificate), Caddy (storage.json + filesystem scan), Let's Encrypt (`/etc/letsencrypt/live/`), Filesystem (generic PEM scan). Parses PEM certs → expiry, issuer, SANs. `POST /api/v1/ssl-monitors/discover` — scan server by id + provider. `POST /api/v1/ssl-monitors/discover/import` — batch import discovered domains as monitors. |
+| **Frontend** | **DiscoveryModal**: select server + provider (Auto, Traefik, Nginx, Caddy, LetsEncrypt). Scan button → list discovered domains with expiry, issuer, SANs. Checkbox per domain, "Import Selected" → batch add as monitors with server_id + source_provider attached. |
+| **UX** | Server dropdown loads from connected servers. Auto provider tries all in order (Traefik→Nginx→Caddy→LetsEncrypt→Filesystem). First successful hit returned. Progress indicator during scan. Result table: domain, expires, issuer, provider badge. |
 
 ---
 
@@ -159,19 +175,28 @@ Unlike the original PRD-domain-management.md §F6.4 (which relied on auto-discov
 
 ```go
 // === SSL Monitors ===
-GET    /api/v1/ssl-monitors                          // List all (?status=&search=&enabled=)
+GET    /api/v1/ssl-monitors                          // List all (?page=&limit=&search=&status=&sort=&order=&all=)
 POST   /api/v1/ssl-monitors                          // Add new monitor
+GET    /api/v1/ssl-monitors/summary                  // KPI counts: total, valid, expiring, expired, error
+GET    /api/v1/ssl-monitors/export/csv                // Export all monitors as CSV
+POST   /api/v1/ssl-monitors/import                   // Batch import domains (array of {domain, port, display_name})
+POST   /api/v1/ssl-monitors/check-all                // Trigger check for all enabled monitors
+POST   /api/v1/ssl-monitors/discover                 // Server-side discovery: {server_id, provider}
+POST   /api/v1/ssl-monitors/discover/import           // Import discovered domains as monitors
 GET    /api/v1/ssl-monitors/{id}                     // Detail + current cert info
 PUT    /api/v1/ssl-monitors/{id}                     // Update
 DELETE /api/v1/ssl-monitors/{id}                     // Remove
 POST   /api/v1/ssl-monitors/{id}/check               // Manual TLS check
-POST   /api/v1/ssl-monitors/check-all                // Trigger check for all monitors
-
-// === SSL Summary ===
-GET    /api/v1/ssl-monitors/summary                  // Counts: total, valid, expiring, expired, error
-
-// === History (Phase 2) ===
 GET    /api/v1/ssl-monitors/{id}/history             // Paginated check history (?limit=&offset=)
+GET    /api/v1/ssl-monitors/{id}/trend               // Last N check entries for chart (?limit=90)
+
+// === SSL Notification Targets ===
+GET    /api/v1/ssl-monitors/notification-targets             // List all
+POST   /api/v1/ssl-monitors/notification-targets             // Create
+GET    /api/v1/ssl-monitors/notification-targets/{id}        // Get
+PUT    /api/v1/ssl-monitors/notification-targets/{id}        // Update
+DELETE /api/v1/ssl-monitors/notification-targets/{id}        // Delete
+POST   /api/v1/ssl-monitors/notification-targets/{id}/test   // Send test notification
 ```
 
 ### Response Format
@@ -251,54 +276,83 @@ GET    /api/v1/ssl-monitors/{id}/history             // Paginated check history 
 ```sql
 -- 000024_create_ssl_monitors.up.sql
 CREATE TABLE ssl_monitors (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY,
   domain VARCHAR(255) NOT NULL,
   port INTEGER DEFAULT 443,
   display_name VARCHAR(255),                              -- optional label
-  check_interval INTEGER DEFAULT 3600,                     -- seconds
-  notify_before_days INTEGER DEFAULT 14,
-  webhook_ids UUID[] DEFAULT '{}',                         -- ref to registry_webhooks
-  status VARCHAR(20) DEFAULT 'pending',                    -- pending, valid, expiring_soon, expired, error
-  cert_subject_cn VARCHAR(255),
-  cert_issuer_cn VARCHAR(255),
-  cert_issuer_org VARCHAR(255),
-  cert_expires_at TIMESTAMP,
-  cert_days_remaining INTEGER,
-  cert_fingerprint_sha256 VARCHAR(64),
-  cert_sans TEXT[] DEFAULT '{}',
-  cert_san_match BOOLEAN,
-  cert_tls_version VARCHAR(20),
-  cert_cipher_suite VARCHAR(100),
-  cert_cipher_grade VARCHAR(2),                            -- A+, A, B, C, D, F
-  cert_chain_status VARCHAR(20),                           -- valid, invalid, unknown
-  cert_ocsp_status VARCHAR(20),                            -- good, revoked, unknown, not_checked
-  last_checked_at TIMESTAMP,
-  last_error TEXT,
+  check_interval VARCHAR(16) DEFAULT '1h',                 -- Go duration string (1h, 30m, 6h)
+  notify_before VARCHAR(16) DEFAULT '14d',                 -- Go duration string (14d, 7d, 30d)
+  webhook_ids TEXT[] DEFAULT '{}',                         -- ref to ssl_notification_targets
   enabled BOOLEAN DEFAULT TRUE,
-  created_by UUID REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(domain, port)                                     -- prevent duplicate monitor
+  status VARCHAR(20) DEFAULT 'pending',                    -- pending, valid, expiring_soon, expired, error
+  -- Certificate info
+  issuer TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL DEFAULT '',
+  cert_expires_at TIMESTAMPTZ,
+  days_remaining INTEGER,
+  -- Chain validation
+  chain_valid BOOLEAN,
+  chain_error TEXT NOT NULL DEFAULT '',
+  -- Cipher grade
+  cipher_grade VARCHAR(2) DEFAULT '',                      -- A+, A, B, C, D, F
+  cipher_error TEXT NOT NULL DEFAULT '',
+  -- OCSP revocation
+  ocsp_status VARCHAR(20) DEFAULT '',                      -- good, revoked, unknown
+  ocsp_error TEXT NOT NULL DEFAULT '',
+  -- SAN coverage
+  san_names TEXT[] DEFAULT '{}',
+  san_mismatch BOOLEAN DEFAULT FALSE,
+  -- Server association (discovery)
+  server_id TEXT,
+  source_provider VARCHAR(32) DEFAULT 'manual',            -- manual, traefik, nginx, caddy, letsencrypt
+  -- Timestamps
+  last_status VARCHAR(20) DEFAULT 'pending',
+  last_check_at TIMESTAMPTZ,
+  last_error TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(domain, port)
 );
 
--- 000025_create_ssl_check_history.up.sql (Phase 2)
+-- 000025_create_ssl_check_history.up.sql
 CREATE TABLE ssl_check_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ssl_monitor_id UUID NOT NULL REFERENCES ssl_monitors(id) ON DELETE CASCADE,
-  checked_at TIMESTAMP DEFAULT NOW(),
+  ssl_monitor_id TEXT NOT NULL REFERENCES ssl_monitors(id) ON DELETE CASCADE,
+  checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   status VARCHAR(20) NOT NULL,
   days_remaining INTEGER,
   cipher_grade VARCHAR(2),
   tls_version VARCHAR(20),
   cipher_suite VARCHAR(100),
   response_time_ms INTEGER,
-  error_message TEXT
+  issuer TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL DEFAULT '',
+  error_message TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX idx_ssl_check_history_monitor_id ON ssl_check_history(ssl_monitor_id);
 CREATE INDEX idx_ssl_check_history_checked_at ON ssl_check_history(checked_at);
-CREATE INDEX idx_ssl_monitors_status ON ssl_monitors(status);
-CREATE INDEX idx_ssl_monitors_enabled ON ssl_monitors(enabled);
+
+-- 000026_create_ssl_notification_targets.up.sql
+CREATE TABLE ssl_notification_targets (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'generic',                -- telegram, discord, slack, generic
+  webhook_secret TEXT NOT NULL DEFAULT '',
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ssl_notification_targets_enabled ON ssl_notification_targets(enabled);
+
+-- 000027_add_ssl_server_fields.up.sql
+ALTER TABLE ssl_monitors
+  ADD COLUMN IF NOT EXISTS server_id TEXT,
+  ADD COLUMN IF NOT EXISTS source_provider VARCHAR(32) NOT NULL DEFAULT 'manual';
 ```
 
 ### Migration Plan
@@ -306,7 +360,9 @@ CREATE INDEX idx_ssl_monitors_enabled ON ssl_monitors(enabled);
 | # | Table | Description |
 |---|-------|-------------|
 | 000024 | `ssl_monitors` | Core monitor table |
-| 000025 | `ssl_check_history` | Check result history (Phase 2, optional) |
+| 000025 | `ssl_check_history` | Check result history with TLS version, cipher suite, response time |
+| 000026 | `ssl_notification_targets` | Notification targets (Telegram, Discord, Slack, generic webhook) |
+| 000027 | — | Add server_id + source_provider columns to ssl_monitors |
 
 ---
 
@@ -427,16 +483,20 @@ CREATE INDEX idx_ssl_monitors_enabled ON ssl_monitors(enabled);
 | 14 | Frontend: Notification config in add/edit form | 0.5 day | #10 |
 | | **Total** | **4.5 days** | |
 
-### 🟢 Phase 3 — Enhancements (Complete)
+### ✅ Phase 3 — Enhancements (Complete)
 
 | Order | Feature | Effort | Status |
 |-------|---------|--------|--------|
 | 15 | Cipher grade scoring | 1 day | ✅ Done in Phase 1 (checker.go) |
 | 16 | OCSP stapling check | 1 day | ✅ Done in Phase 1 (checker.go) |
-| 18 | Export report (CSV) | 0.5 day | ✅ Done |
-| 19 | Batch import domains | 0.5 day | ✅ Done |
+| 17 | Export report (CSV) | 0.5 day | ✅ Done |
+| 18 | Batch import domains | 0.5 day | ✅ Done |
+| 19 | **Dedicated notification targets** (ssl_notification_targets table + CRUD) | 1 day | ✅ Done |
+| 20 | **Server-side discovery** (Traefik/Nginx/Caddy/LetsEncrypt/filesystem) | 2 days | ✅ Done |
+| 21 | **Trend chart endpoint** (SVG-ready data for frontend) | 0.5 day | ✅ Done |
+| 22 | **Platform-specific notifications** (Telegram HTML, Discord embed, Slack) | 1 day | ✅ Done |
 
-### Total Estimated Effort: ~11 days (Phase 1+2)
+### Total Actual Effort: ~18 days (All 3 phases)
 
 ---
 
@@ -465,7 +525,7 @@ CREATE INDEX idx_ssl_monitors_enabled ON ssl_monitors(enabled);
 | Go `crypto/x509` | stdlib | Cert parsing + chain validation |
 | Go `net` | stdlib | Dial timeout |
 | `audit_logs` table | existing | Audit CRUD actions |
-| `registry_webhooks` | existing | Reuse for notification delivery |
+| `ssl_notification_targets` | Dedicated SSL notification targets | ✅ 000026 |
 | `users` table | existing | `created_by` FK |
 | Frontend route layout | existing | Sidebar navigation, dark/light mode |
 
@@ -527,9 +587,9 @@ UI mockups created for this feature are available in [`sketches/ssl-monitoring/`
 
 | Document | Relation |
 |----------|----------|
-| `PRD-domain-management.md §F6.4` | Original SSL monitoring spec (replaced by this PRD for standalone implementation) |
-| `PRD-registry.md §F7` | Webhook notification system (reused) |
-| `TRACKING.md` | Updated to track this feature independently |
+| `PRD-domain-management.md §F6.4` | Original SSL monitoring spec (replaced by standalone PRD) |
+| `PRD-registry.md §F7` | Webhook notification system (inspiration, but SSL uses dedicated notification targets) |
+| `TRACKING.md` | Cross-references SSL monitoring feature status |
 
 ---
 
