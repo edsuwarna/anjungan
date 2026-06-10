@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { api } from '$lib/api.svelte.js';
   import Icon from '@iconify/svelte';
 
   let { monitorId } = $props();
@@ -9,9 +10,8 @@
 
   onMount(async () => {
     try {
-      const res = await fetch(`/api/v1/ssl-monitors/${monitorId}/trend?limit=90`);
-      const data = await res.json();
-      entries = data?.entries || [];
+      const result = await api.sslMonitors.trend(monitorId, { limit: 90 });
+      entries = result?.entries || [];
     } catch (e) {
       error = e.message;
     } finally {
@@ -28,10 +28,12 @@
     if (entries.length < 2) return [];
     const maxDays = Math.max(...entries.map(e => e.days_remaining), 30);
     const minDays = Math.min(...entries.map(e => e.days_remaining), 0);
-    const range = maxDays - minDays || 1;
+    const paddedMax = Math.max(maxDays, minDays + 10); // at least 10d range so flat lines aren't invisible
+    const range = paddedMax - minDays || 10;
     return entries.map((e, i) => ({
       x: PAD.left + (i / (entries.length - 1)) * chartW,
       y: PAD.top + chartH - ((e.days_remaining - minDays) / range) * chartH,
+      displayDays: e.days_remaining,
       days: e.days_remaining,
       date: new Date(e.checked_at).toLocaleDateString('en-GB'),
       status: e.status,
@@ -49,7 +51,9 @@
   // Y-axis ticks
   let yTicks = $derived.by(() => {
     if (entries.length < 2) return [];
-    const max = Math.max(...entries.map(e => e.days_remaining), 30);
+    const maxDays = Math.max(...entries.map(e => e.days_remaining), 30);
+    const minDays = Math.min(...entries.map(e => e.days_remaining), 0);
+    const max = Math.max(maxDays, minDays + 10);
     const step = max > 60 ? 30 : max > 30 ? 15 : 7;
     const ticks = [];
     for (let v = 0; v <= max; v += step) {

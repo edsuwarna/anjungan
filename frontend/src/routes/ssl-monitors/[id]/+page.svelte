@@ -4,7 +4,6 @@
 	import Icon from '@iconify/svelte';
 	import { page } from '$app/stores';
 	import TrendChart from '$lib/components/ssl/TrendChart.svelte';
-	import CRTShLookup from '$lib/components/ssl/CRTShLookup.svelte';
 	import { goto } from '$app/navigation';
 
 	let monitor = $state(null);
@@ -469,9 +468,6 @@
 
 				<!-- Trend Chart -->
 				<TrendChart monitorId={monitor.id} />
-
-				<!-- CRT.sh Lookup -->
-				<CRTShLookup monitorId={monitor.id} domain={monitor.domain} />
 
 				<!-- Timeline -->
 				{#if historyLoading}

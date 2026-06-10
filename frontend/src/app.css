@@ -338,9 +338,10 @@ body {
 .input::placeholder {
 	color: var(--color-text-muted);
 }
-/* Native select dropdown (browser uses system bg=white) */
+/* Native select dropdown — adapts to theme */
 select.input option {
-	color: #1e293b;
+	color: var(--color-text, #1e293b);
+	background-color: var(--color-card, #fff);
 }
 
 /* ─── Code inline ──────────────────────────────────────────────────── */

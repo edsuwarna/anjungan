@@ -46,8 +46,6 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/{id}/check", h.CheckNow)
 	r.Get("/{id}/history", h.History)
 	r.Get("/{id}/trend", h.Trend)
-	r.Post("/{id}/crt-lookup", h.CRTLookup)
-
 	// Notification Targets management
 	r.Route("/notification-targets", func(r chi.Router) {
 		r.Get("/", h.ListNotificationTargets)
@@ -377,33 +375,6 @@ func (h *Handler) Trend(w http.ResponseWriter, r *http.Request) {
 	}
 	common.JSON(w, http.StatusOK, map[string]interface{}{
 		"entries": entries,
-	})
-}
-
-func (h *Handler) CRTLookup(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	monitor, err := h.repo.GetSSLMonitor(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "SSL monitor not found")
-		return
-	}
-
-	certs, err := LookupCRTSh(monitor.Domain)
-	if err != nil {
-		common.Error(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Update last_crt_lookup timestamp
-	now := time.Now()
-	monitor.LastCRTLookup = &now
-	h.repo.UpdateSSLMonitor(r.Context(), monitor)
-
-	common.JSON(w, http.StatusOK, map[string]interface{}{
-		"domain":        monitor.Domain,
-		"certificates":  certs,
-		"lookup_at":     now.Format(time.RFC3339),
 	})
 }
 

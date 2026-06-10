@@ -16,7 +16,8 @@
 
   onMount(async () => {
     try {
-      servers = await api.servers.list({ all: true });
+      const result = await api.servers.list({ all: true });
+      servers = Array.isArray(result) ? result : (result.servers || []);
     } catch (_) {
       servers = [];
     } finally {

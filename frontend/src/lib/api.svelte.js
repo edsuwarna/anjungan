@@ -391,6 +391,12 @@ export const api = {
 			const q = qs.toString();
 			return request(`/ssl-monitors/${id}/history${q ? '?' + q : ''}`);
 		},
+		trend: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			const q = qs.toString();
+			return request(`/ssl-monitors/${id}/trend${q ? '?' + q : ''}`);
+		},
 		toggle: (id, enabled) =>
 			request(`/ssl-monitors/${id}`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
 		batchImport: (data) => request('/ssl-monitors/import', { method: 'POST', body: JSON.stringify(data) }),

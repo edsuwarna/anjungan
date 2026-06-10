@@ -892,9 +892,6 @@ type SSLMonitor struct {
 	SANNames    []string `json:"san_names,omitempty"`
 	SANMismatch bool     `json:"san_mismatch"`
 
-	// CRT.sh lookup
-	LastCRTLookup *time.Time `json:"last_crt_lookup,omitempty"`
-
 	// Timestamps
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -937,8 +934,6 @@ type SSLMonitorResponse struct {
 	SANNames    []string `json:"san_names,omitempty"`
 	SANMismatch bool     `json:"san_mismatch"`
 
-	LastCRTLookup *time.Time `json:"last_crt_lookup,omitempty"`
-
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -971,7 +966,6 @@ func (m *SSLMonitor) ToResponse() SSLMonitorResponse {
 		OCSPError:     m.OCSPError,
 		SANNames:      m.SANNames,
 		SANMismatch:   m.SANMismatch,
-		LastCRTLookup: m.LastCRTLookup,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
 	}
