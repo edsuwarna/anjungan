@@ -45,6 +45,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Delete("/{id}", h.Delete)
 	r.Post("/{id}/check", h.CheckNow)
 	r.Get("/{id}/history", h.History)
+	r.Get("/{id}/trend", h.Trend)
 
 	// Notification Targets management
 	r.Route("/notification-targets", func(r chi.Router) {
@@ -354,6 +355,28 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.JSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) Trend(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	limit := 90
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
+	entries, err := h.repo.GetSSLMonitorTrend(r.Context(), id, limit)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if entries == nil {
+		entries = []model.SSLCheckHistory{}
+	}
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"entries": entries,
+	})
 }
 
 // ─── Internal ────────────────────────────────────────────────────────────────

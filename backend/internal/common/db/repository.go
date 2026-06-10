@@ -3260,6 +3260,37 @@ func (r *Repository) ListSSLCheckHistory(ctx context.Context, sslMonitorID strin
 	}, nil
 }
 
+// GetSSLMonitorTrend returns time-series history entries for trend chart (chronological order).
+func (r *Repository) GetSSLMonitorTrend(ctx context.Context, monitorID string, limit int) ([]model.SSLCheckHistory, error) {
+	if limit < 1 || limit > 365 {
+		limit = 90
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT `+sslCheckHistoryColumns+` 
+		 FROM ssl_check_history 
+		 WHERE ssl_monitor_id = $1 
+		 ORDER BY checked_at ASC LIMIT $2`,
+		monitorID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.SSLCheckHistory
+	for rows.Next() {
+		e, err := scanSSLCheckHistory(rows)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, *e)
+	}
+	if entries == nil {
+		entries = []model.SSLCheckHistory{}
+	}
+	return entries, nil
+}
+
 // PurgeSSLCheckHistory deletes entries older than the given age (e.g. 90 days).
 func (r *Repository) PurgeSSLCheckHistory(ctx context.Context, olderThan time.Duration) (int, error) {
 	res, err := r.db.Pool.Exec(ctx,
