@@ -115,6 +115,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/{id}/maintenance", h.ListMaintenanceWindows)
 	r.Post("/{id}/maintenance", h.CreateMaintenanceWindow)
 	r.Delete("/{id}/maintenance/{mwId}", h.DeleteMaintenanceWindow)
+	r.Get("/{id}/incidents", h.Incidents)
 	return r
 }
 
@@ -305,6 +306,9 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	// Compute uptime stats
 	stats, _ := h.repo.GetUptimeStats(r.Context(), id)
 
+	// Compute response time stats
+	rtStats, _ := h.repo.GetUptimeResponseTimeStats(r.Context(), id)
+
 	// Merge monitor data with computed stats
 	result := map[string]interface{}{
 		"id":                      monitor.ID,
@@ -336,6 +340,11 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		result["total_checks"] = stats.TotalChecks
 		result["up_checks"] = stats.UpChecks
 		result["down_checks"] = stats.DownChecks
+	}
+
+	// Include response time stats (24h, 7d, 30d)
+	if rtStats != nil {
+		result["response_time_stats"] = rtStats
 	}
 
 	common.JSON(w, http.StatusOK, result)
@@ -670,6 +679,28 @@ func (h *Handler) Trend(w http.ResponseWriter, r *http.Request) {
 	common.JSON(w, http.StatusOK, map[string]interface{}{
 		"entries": entries,
 		"period":  period,
+	})
+}
+
+// ─── Incidents ─────────────────────────────────────────────────────────────────
+
+func (h *Handler) Incidents(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+
+	incidents, total, err := h.repo.GetUptimeIncidents(r.Context(), id, limit, offset)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to list incidents")
+		return
+	}
+	if incidents == nil {
+		incidents = []db.UptimeIncident{}
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"incidents": incidents,
+		"total":     total,
 	})
 }
 

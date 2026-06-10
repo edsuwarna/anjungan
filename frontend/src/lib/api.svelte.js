@@ -436,6 +436,13 @@ export const api = {
 			const q = qs.toString();
 			return request(`/uptime-monitors/${id}/trend${q ? '?' + q : ''}`);
 		},
+		incidents: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.offset) qs.set('offset', params.offset);
+			const q = qs.toString();
+			return request(`/uptime-monitors/${id}/incidents${q ? '?' + q : ''}`);
+		},
 		testNotification: (id) => request(`/uptime-monitors/${id}/test-notification`, { method: 'POST' }),
 		maintenance: {
 			list: (id) => request(`/uptime-monitors/${id}/maintenance`),

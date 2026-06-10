@@ -4073,6 +4073,21 @@ type UptimeStats struct {
 	DownChecks  int     `json:"down_checks"`
 }
 
+// ResponseTimeStats holds computed response time statistics for a period.
+type ResponseTimeStats struct {
+	MinResponseMs *float64 `json:"min_response_ms"`
+	MaxResponseMs *float64 `json:"max_response_ms"`
+	AvgResponseMs *float64 `json:"avg_response_ms"`
+	P95ResponseMs *float64 `json:"p95_response_ms"`
+}
+
+// PerPeriodResponseTimeStats holds response time stats per time period.
+type PerPeriodResponseTimeStats struct {
+	Period24h *ResponseTimeStats `json:"period_24h"`
+	Period7d  *ResponseTimeStats `json:"period_7d"`
+	Period30d *ResponseTimeStats `json:"period_30d"`
+}
+
 // GetUptimeStats computes uptime statistics for a monitor over 24h, 7d, and 30d periods.
 func (r *Repository) GetUptimeStats(ctx context.Context, monitorID string) (*UptimeStats, error) {
 	stats := &UptimeStats{}
@@ -4145,4 +4160,205 @@ func (r *Repository) GetUptimeStats(ctx context.Context, monitorID string) (*Upt
 	}
 
 	return stats, nil
+}
+
+// GetUptimeResponseTimeStats computes response time statistics (min, max, avg, p95) per period.
+func (r *Repository) GetUptimeResponseTimeStats(ctx context.Context, monitorID string) (*PerPeriodResponseTimeStats, error) {
+	result := &PerPeriodResponseTimeStats{}
+
+	// 24h — from raw check_history
+	var min24, max24, avg24, p9524 float64
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT
+			COALESCE(MIN(response_time_ms), 0)::float8,
+			COALESCE(MAX(response_time_ms), 0)::float8,
+			COALESCE(AVG(response_time_ms), 0)::float8,
+			COALESCE(
+				(SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms)
+				 FROM uptime_check_history
+				 WHERE monitor_id = $1 AND checked_at > NOW() - INTERVAL '24 hours' AND response_time_ms IS NOT NULL),
+				0)::float8
+		 FROM uptime_check_history
+		 WHERE monitor_id = $1 AND checked_at > NOW() - INTERVAL '24 hours' AND response_time_ms IS NOT NULL`,
+		monitorID).Scan(&min24, &max24, &avg24, &p9524)
+	if err == nil && min24 > 0 {
+		result.Period24h = &ResponseTimeStats{
+			MinResponseMs: &min24,
+			MaxResponseMs: &max24,
+			AvgResponseMs: &avg24,
+			P95ResponseMs: &p9524,
+		}
+	}
+
+	// 7d — from daily_summary (min of mins, max of maxes, weighted avg)
+	var min7, max7, avg7 float64
+	var totalChecks7 int
+	err = r.db.Pool.QueryRow(ctx,
+		`SELECT
+			COALESCE(MIN(min_response_ms), 0)::float8,
+			COALESCE(MAX(max_response_ms), 0)::float8,
+			CASE WHEN SUM(total_checks) > 0 THEN SUM(avg_response_ms * total_checks)::float8 / SUM(total_checks)::float8 ELSE 0 END,
+			COALESCE(SUM(total_checks), 0)
+		 FROM uptime_daily_summary
+		 WHERE monitor_id = $1 AND date > NOW() - INTERVAL '7 days'`,
+		monitorID).Scan(&min7, &max7, &avg7, &totalChecks7)
+	if err == nil && totalChecks7 > 0 {
+		result.Period7d = &ResponseTimeStats{
+			MinResponseMs: &min7,
+			MaxResponseMs: &max7,
+			AvgResponseMs: &avg7,
+		}
+	}
+
+	// 30d — from daily_summary
+	var min30, max30, avg30 float64
+	var totalChecks30 int
+	err = r.db.Pool.QueryRow(ctx,
+		`SELECT
+			COALESCE(MIN(min_response_ms), 0)::float8,
+			COALESCE(MAX(max_response_ms), 0)::float8,
+			CASE WHEN SUM(total_checks) > 0 THEN SUM(avg_response_ms * total_checks)::float8 / SUM(total_checks)::float8 ELSE 0 END,
+			COALESCE(SUM(total_checks), 0)
+		 FROM uptime_daily_summary
+		 WHERE monitor_id = $1 AND date > NOW() - INTERVAL '30 days'`,
+		monitorID).Scan(&min30, &max30, &avg30, &totalChecks30)
+	if err == nil && totalChecks30 > 0 {
+		result.Period30d = &ResponseTimeStats{
+			MinResponseMs: &min30,
+			MaxResponseMs: &max30,
+			AvgResponseMs: &avg30,
+		}
+	}
+
+	return result, nil
+}
+
+// GetUptimeIncidents groups consecutive down/error checks into incidents.
+func (r *Repository) GetUptimeIncidents(ctx context.Context, monitorID string, limit, offset int) ([]UptimeIncident, int, error) {
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	// Fetch all checks ordered by time (ascending) to group incidents
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, checked_at, status, status_code, COALESCE(error_message, ''), response_time_ms
+		 FROM uptime_check_history
+		 WHERE monitor_id = $1
+		 ORDER BY checked_at ASC`,
+		monitorID)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	type checkRow struct {
+		id           string
+		checkedAt    time.Time
+		status       string
+		statusCode   *int
+		errorMessage string
+		responseMs   *int
+	}
+
+	var allChecks []checkRow
+	for rows.Next() {
+		var c checkRow
+		if err := rows.Scan(&c.id, &c.checkedAt, &c.status, &c.statusCode, &c.errorMessage, &c.responseMs); err != nil {
+			return nil, 0, err
+		}
+		allChecks = append(allChecks, c)
+	}
+
+	// Group consecutive failures into incidents
+	type incidentBlock struct {
+		status      string
+		startAt     time.Time
+		endAt       time.Time
+		errorMsg    string
+		count       int
+	}
+
+	var blocks []incidentBlock
+	var current *incidentBlock
+
+	isFailure := func(s string) bool {
+		return s == "down" || s == "error"
+	}
+
+	for _, c := range allChecks {
+		if !isFailure(c.status) {
+			current = nil
+			continue
+		}
+
+		if current == nil {
+			current = &incidentBlock{
+				status:   c.status,
+				startAt:  c.checkedAt,
+				endAt:    c.checkedAt,
+				errorMsg: c.errorMessage,
+				count:    1,
+			}
+		} else {
+			current.endAt = c.checkedAt
+			current.count++
+			if c.errorMessage != "" && current.errorMsg == "" {
+				current.errorMsg = c.errorMessage
+			}
+		}
+	}
+
+	// Close last block if still open
+	if current != nil {
+		blocks = append(blocks, *current)
+	}
+
+	// Reverse to show newest first
+	for i, j := 0, len(blocks)-1; i < j; i, j = i+1, j-1 {
+		blocks[i], blocks[j] = blocks[j], blocks[i]
+	}
+
+	total := len(blocks)
+
+	// Paginate
+	if offset >= len(blocks) {
+		return []UptimeIncident{}, total, nil
+	}
+	end := offset + limit
+	if end > len(blocks) {
+		end = len(blocks)
+	}
+	paged := blocks[offset:end]
+
+	incidents := make([]UptimeIncident, len(paged))
+	for i, b := range paged {
+		durationSec := int(b.endAt.Sub(b.startAt).Seconds())
+		incidents[i] = UptimeIncident{
+			ID:            fmt.Sprintf("inc-%s-%d", monitorID, b.startAt.UnixMilli()),
+			MonitorID:     monitorID,
+			Status:        b.status,
+			StartedAt:     b.startAt,
+			EndedAt:       b.endAt,
+			DurationSec:   durationSec,
+			FailureCount:  b.count,
+			ErrorMessage:  b.errorMsg,
+		}
+	}
+
+	return incidents, total, nil
+}
+
+// UptimeIncident represents a grouped incident from consecutive check failures.
+type UptimeIncident struct {
+	ID           string    `json:"id"`
+	MonitorID    string    `json:"monitor_id"`
+	Status       string    `json:"status"`
+	StartedAt    time.Time `json:"started_at"`
+	EndedAt      time.Time `json:"ended_at"`
+	DurationSec  int       `json:"duration_sec"`
+	FailureCount int       `json:"failure_count"`
+	ErrorMessage string    `json:"error_message"`
 }

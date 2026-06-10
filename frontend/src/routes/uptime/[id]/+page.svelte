@@ -48,11 +48,20 @@
 	let showMaintenanceModal = $state(false);
 	let maintenanceSaving = $state(false);
 
+	// Incidents
+	let incidents = $state([]);
+	let incidentsTotal = $state(0);
+	let incidentsLoading = $state(false);
+
+	// Derived response time stats from monitor.response_time_stats
+	let responseTimeStats = $derived(monitor?.response_time_stats || null);
+
 	const id = $derived($page.params.id);
 
 	onMount(() => {
 		loadMonitor();
 		loadNotificationTargets();
+		loadIncidents();
 		connectSSE();
 	});
 
@@ -153,6 +162,19 @@
 			notificationTargets = [];
 		} finally {
 			notificationTargetsLoading = false;
+		}
+	}
+
+	async function loadIncidents() {
+		incidentsLoading = true;
+		try {
+			const result = await api.uptime.incidents(id, { limit: 10 });
+			incidents = result?.incidents || [];
+			incidentsTotal = result?.total || 0;
+		} catch (_) {
+			incidents = [];
+		} finally {
+			incidentsLoading = false;
 		}
 	}
 
@@ -354,6 +376,17 @@
 		if (!iso) return '-';
 		const d = new Date(iso);
 		return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+	}
+
+	function formatDuration(sec) {
+		if (sec == null || sec === 0) return '<1s';
+		if (sec < 60) return `${sec}s`;
+		const min = Math.floor(sec / 60);
+		if (min < 60) return `${min}m ${sec % 60}s`;
+		const hrs = Math.floor(min / 60);
+		if (hrs < 24) return `${hrs}h ${min % 60}m`;
+		const days = Math.floor(hrs / 24);
+		return `${days}d ${hrs % 24}h`;
 	}
 
 	function getNotificationTargetName(id) {
@@ -647,6 +680,42 @@
 					{/if}
 				</div>
 
+				<!-- Response Time Stats -->
+				{#if responseTimeStats}
+					<div class="detail-section">
+						<div class="detail-section-title">📊 Response Time Stats</div>
+						<div class="rt-stats-grid">
+							{#each ['period_24h', 'period_7d', 'period_30d'] as periodKey}
+								{@const p = responseTimeStats[periodKey]}
+								{@const label = periodKey === 'period_24h' ? '24h' : periodKey === 'period_7d' ? '7d' : '30d'}
+								{#if p}
+									<div class="rt-stats-card">
+										<div class="rt-stats-period">{label}</div>
+										<div class="rt-stats-row">
+											<span class="rt-stats-label">Min</span>
+											<span class="rt-stats-value">{p.min_response_ms != null ? `${Math.round(p.min_response_ms)}ms` : '—'}</span>
+										</div>
+										<div class="rt-stats-row">
+											<span class="rt-stats-label">Avg</span>
+											<span class="rt-stats-value">{p.avg_response_ms != null ? `${Math.round(p.avg_response_ms)}ms` : '—'}</span>
+										</div>
+										<div class="rt-stats-row">
+											<span class="rt-stats-label">Max</span>
+											<span class="rt-stats-value">{p.max_response_ms != null ? `${Math.round(p.max_response_ms)}ms` : '—'}</span>
+										</div>
+										{#if p.p95_response_ms != null}
+											<div class="rt-stats-row">
+												<span class="rt-stats-label">P95</span>
+												<span class="rt-stats-value">{Math.round(p.p95_response_ms)}ms</span>
+											</div>
+										{/if}
+									</div>
+								{/if}
+							{/each}
+						</div>
+					</div>
+				{/if}
+
 				<!-- Check History -->
 				<div class="detail-section">
 					<div class="detail-section-title">
@@ -696,6 +765,45 @@
 								</button>
 							</div>
 						{/if}
+					{/if}
+				</div>
+
+				<!-- Incidents -->
+				<div class="detail-section">
+					<div class="detail-section-title">
+						⚠️ Incidents
+						{#if incidentsTotal > 0}
+							<span class="text-xs font-normal" style="color: var(--color-text-muted);">({incidentsTotal} total)</span>
+						{/if}
+					</div>
+					{#if incidentsLoading}
+						<div class="flex items-center justify-center py-8">
+							<Icon icon="svg-spinners:180-ring" class="h-6 w-6" style="color: var(--color-primary);" />
+						</div>
+					{:else if incidents.length === 0}
+						<p class="py-6 text-center text-sm" style="color: var(--color-text-muted);">
+							No incidents recorded. All checks have been passing.
+						</p>
+					{:else}
+						<div class="incidents-list">
+							{#each incidents as inc (inc.id)}
+								<div class="incident-item">
+									<div class="incident-header">
+										<div class="incident-dot"></div>
+										<div class="incident-duration">{formatDuration(inc.duration_sec)}</div>
+										<span class="incident-count">{inc.failure_count} failed {inc.failure_count === 1 ? 'check' : 'checks'}</span>
+									</div>
+									<div class="incident-times">
+										<span>{formatDate(inc.started_at)}</span>
+										<span class="incident-arrow">→</span>
+										<span>{formatDate(inc.ended_at)}</span>
+									</div>
+									{#if inc.error_message}
+										<div class="incident-error">{inc.error_message}</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
 					{/if}
 				</div>
 			</div>
@@ -1342,4 +1450,100 @@
 	.mw-badge-active { background: rgba(139,92,246,0.15); color: #8b5cf6; }
 	.mw-badge-scheduled { background: rgba(245,158,11,0.15); color: #f59e0b; }
 	.mw-badge-ended { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+	/* ─── Response Time Stats ────────────────────────────── */
+	.rt-stats-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
+	}
+	.rt-stats-card {
+		padding: 0.75rem;
+		border-radius: 8px;
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+	}
+	.rt-stats-period {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		margin-bottom: 0.5rem;
+	}
+	.rt-stats-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0.1875rem 0;
+	}
+	.rt-stats-label {
+		font-size: 0.6875rem;
+		color: var(--color-text-muted);
+	}
+	.rt-stats-value {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums;
+	}
+	@media (max-width: 480px) {
+		.rt-stats-grid { grid-template-columns: 1fr; }
+	}
+
+	/* ─── Incidents ──────────────────────────────────────── */
+	.incidents-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.incident-item {
+		padding: 0.75rem;
+		border-radius: 8px;
+		border: 1px solid rgba(239,68,68,0.15);
+		background: rgba(239,68,68,0.03);
+	}
+	.incident-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.375rem;
+	}
+	.incident-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #ef4444;
+		flex-shrink: 0;
+	}
+	.incident-duration {
+		font-size: 0.875rem;
+		font-weight: 700;
+		color: #ef4444;
+	}
+	.incident-count {
+		font-size: 0.6875rem;
+		color: var(--color-text-muted);
+		margin-left: auto;
+	}
+	.incident-times {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		font-size: 0.6875rem;
+		color: var(--color-text-secondary);
+	}
+	.incident-arrow {
+		color: var(--color-text-muted);
+	}
+	.incident-error {
+		margin-top: 0.375rem;
+		padding: 0.375rem 0.5rem;
+		border-radius: 4px;
+		font-size: 0.6875rem;
+		font-family: monospace;
+		color: #ef4444;
+		background: rgba(239,68,68,0.06);
+		word-break: break-word;
+	}
 </style>
