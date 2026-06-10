@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS uptime_check_history;

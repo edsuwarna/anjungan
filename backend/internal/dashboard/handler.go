@@ -64,6 +64,12 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Uptime Summary — shared across all users
+	var uptimeSummary = &model.UptimeSummary{}
+	if s, err := h.repo.GetUptimeSummary(r.Context()); err == nil && s != nil {
+		uptimeSummary = s
+	}
+
 	if statusCounts == nil {
 		statusCounts = map[string]int{}
 	}
@@ -219,5 +225,6 @@ func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 		"recent_activity":    entries,
 		"recent_deployments": depBriefs,
 		"ssl_summary":        sslSummary,
+		"uptime_summary":     uptimeSummary,
 	})
 }

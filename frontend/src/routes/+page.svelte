@@ -16,6 +16,7 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 
 	let sslSummary = $derived(stats.ssl_summary || { total: 0, valid: 0, expiring_soon: 0, expired: 0, error: 0 });
 	let sslExpiringCount = $derived(sslSummary.expiring_soon + sslSummary.expired);
+	let uptimeSummary = $derived(stats.uptime_summary || { total: 0, up: 0, down: 0, paused: 0 });
 
 	let compliance = $derived(stats.compliance || { total_servers: 0, scanned_servers: 0, average_score: null, by_status: {} });
 	let deploymentStatus = $derived(stats.deployment_status || {});
@@ -173,6 +174,10 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 			<button class="text-left" onclick={() => goto('/ssl-monitors')}>
 				<StatCard title="SSL Certs" value={sslSummary.valid ?? '—'} icon="solar:shield-check-bold"
 					subtitle={sslExpiringCount > 0 ? `${sslExpiringCount} expiring` : sslSummary.total > 0 ? `${sslSummary.total} monitored` : 'no monitors'} />
+			</button>
+			<button class="text-left" onclick={() => goto('/uptime')}>
+				<StatCard title="Uptime" value={uptimeSummary.up ?? '—'} icon="solar:chart-2-bold"
+					subtitle={uptimeSummary.down > 0 ? `${uptimeSummary.down} down` : uptimeSummary.total > 0 ? `${uptimeSummary.total} monitors` : 'no monitors'} />
 			</button>
 			<StatCard title="Compliance" value={compliance.average_score != null ? compliance.average_score + '%' : '—'} icon="solar:shield-check-bold"
 				subtitle={compliance.scanned_servers > 0 ? `${compliance.scanned_servers} scanned` : 'no scans'} />

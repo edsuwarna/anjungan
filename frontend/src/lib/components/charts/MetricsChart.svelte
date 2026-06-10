@@ -20,6 +20,8 @@
 		height = 200,
 		yLabel = '',
 		formatY,
+		yMin,
+		yMax,
 	} = $props();
 
 	let chartContainer;
@@ -64,8 +66,8 @@
 			stroke: s.color || '#10b981',
 			width: s.width || 2,
 			fill: s.fill || false,
-			spanGaps: false,
-			points: { show: false },
+			spanGaps: s.spanGaps ?? false,
+			points: s.points ?? { show: false },
 			scale: s.scale || '%',
 			value: (self, rawValue) => {
 				if (formatY) return formatY(rawValue);
@@ -80,6 +82,10 @@
 		const scaleKeys = [...new Set(series.map(s => s.scale || '%'))];
 		for (const sk of scaleKeys) {
 			scales[sk] = {};
+			if (sk !== 'x') {
+				if (yMin != null) scales[sk].min = yMin;
+				if (yMax != null) scales[sk].max = yMax;
+			}
 		}
 
 		const opts = {

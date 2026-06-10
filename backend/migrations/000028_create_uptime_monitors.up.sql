@@ -1,0 +1,23 @@
+CREATE TABLE uptime_monitors (
+    id TEXT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    url TEXT NOT NULL,
+    check_type VARCHAR(16) NOT NULL DEFAULT 'http',
+    interval_seconds INTEGER NOT NULL DEFAULT 300,
+    timeout_seconds INTEGER NOT NULL DEFAULT 30,
+    expected_status_min INTEGER DEFAULT 200,
+    expected_status_max INTEGER DEFAULT 399,
+    expected_body TEXT NOT NULL DEFAULT '',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    notification_target_ids TEXT[] NOT NULL DEFAULT '{}',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    last_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    last_status_code INTEGER,
+    last_response_time_ms INTEGER,
+    last_error TEXT NOT NULL DEFAULT '',
+    last_check_at TIMESTAMPTZ,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(name, url)
+);

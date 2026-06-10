@@ -27,6 +27,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/self"
 	"github.com/edsuwarna/anjungan/internal/settings"
 	"github.com/edsuwarna/anjungan/internal/sslmonitor"
+	"github.com/edsuwarna/anjungan/internal/uptime"
 )
 
 type Server struct {
@@ -92,6 +93,13 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	// Public SSE endpoint for uptime (no auth middleware — EventSource can't set headers)
+	// Auth via token query param is handled inside the handler
+	uptimeH := uptime.NewHandler(repo)
+	uptimeH.SetJWTSecret(s.cfg.JWT.Secret)
+	uptimeH.InitSSE()
+	r.Get("/api/uptime/events", uptimeH.SSEEvents)
+
 	// API v1
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Mount("/auth", authRoutes(authH))
@@ -117,6 +125,15 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			// Start SSL monitor scheduler
 			sslSched := sslmonitor.NewScheduler(repo, sslMonH)
 			sslSched.Start(context.Background())
+
+			// Uptime Monitoring
+			r.Mount("/uptime-monitors", uptimeH.Routes())
+			r.Mount("/notification-targets", uptimeH.NotificationTargetRoutes())
+
+			// Start uptime scheduler
+			uptimeSched := uptime.NewScheduler(repo, uptimeH)
+			uptimeSched.Start(context.Background())
+
 			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
 			r.Mount("/settings", settingsH.Routes())
 			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)

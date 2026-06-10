@@ -3,12 +3,14 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/edsuwarna/anjungan/internal/common/model"
 )
 
@@ -3426,4 +3428,721 @@ func (r *Repository) ListSSLNotificationTargetsByIDs(ctx context.Context, ids []
 		targets = append(targets, t)
 	}
 	return targets, nil
+}
+
+// ─── Uptime Monitors CRUD ───────────────────────────────────────────────────
+
+// ListUptimeMonitors returns paginated uptime monitors with optional filters.
+func (r *Repository) ListUptimeMonitors(ctx context.Context, page, limit int, status, search, sort, order string) ([]model.UptimeMonitor, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	var conditions []string
+	var args []interface{}
+	argIdx := 1
+
+	if search != "" {
+		conditions = append(conditions, fmt.Sprintf("(LOWER(name) LIKE $%d OR LOWER(url) LIKE $%d)", argIdx, argIdx))
+		args = append(args, "%"+strings.ToLower(search)+"%")
+		argIdx++
+	}
+	if status != "" {
+		conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
+		args = append(args, status)
+		argIdx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Count
+	var total int
+	countQuery := "SELECT COUNT(*) FROM uptime_monitors " + whereClause
+	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// Sort
+	allowedSorts := map[string]string{
+		"name":                  "name",
+		"status":                "status",
+		"last_check_at":         "last_check_at",
+		"last_response_time_ms": "last_response_time_ms",
+	}
+	sortCol, ok := allowedSorts[sort]
+	if !ok {
+		sortCol = "created_at"
+	}
+	orderDir := "DESC"
+	if strings.EqualFold(order, "asc") {
+		orderDir = "ASC"
+	}
+
+	offset := (page - 1) * limit
+
+	dataQuery := fmt.Sprintf(
+		`SELECT id, name, url, check_type, interval_seconds, timeout_seconds,
+		 expected_status_min, expected_status_max, expected_body, enabled,
+		 COALESCE(notification_target_ids, '{}'), status, last_status,
+		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
+		 last_check_at, COALESCE(created_by, ''), created_at, updated_at
+		 FROM uptime_monitors %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		whereClause, sortCol, orderDir, argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Pool.Query(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var items []model.UptimeMonitor
+	for rows.Next() {
+		var m model.UptimeMonitor
+		err := rows.Scan(
+			&m.ID, &m.Name, &m.URL, &m.CheckType, &m.IntervalSeconds, &m.TimeoutSeconds,
+			&m.ExpectedStatusMin, &m.ExpectedStatusMax, &m.ExpectedBody, &m.Enabled,
+			&m.NotificationTargetIDs, &m.Status, &m.LastStatus,
+			&m.LastStatusCode, &m.LastResponseTimeMs, &m.LastError,
+			&m.LastCheckAt, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		items = append(items, m)
+	}
+	if items == nil {
+		items = []model.UptimeMonitor{}
+	}
+
+	return items, total, nil
+}
+
+// GetUptimeMonitor returns a single uptime monitor by ID.
+func (r *Repository) GetUptimeMonitor(ctx context.Context, id string) (*model.UptimeMonitor, error) {
+	m := &model.UptimeMonitor{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, url, check_type, interval_seconds, timeout_seconds,
+		 expected_status_min, expected_status_max, expected_body, enabled,
+		 COALESCE(notification_target_ids, '{}'), status, last_status,
+		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
+		 last_check_at, COALESCE(created_by, ''), created_at, updated_at
+		 FROM uptime_monitors WHERE id = $1`, id).
+		Scan(&m.ID, &m.Name, &m.URL, &m.CheckType, &m.IntervalSeconds, &m.TimeoutSeconds,
+			&m.ExpectedStatusMin, &m.ExpectedStatusMax, &m.ExpectedBody, &m.Enabled,
+			&m.NotificationTargetIDs, &m.Status, &m.LastStatus,
+			&m.LastStatusCode, &m.LastResponseTimeMs, &m.LastError,
+			&m.LastCheckAt, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return m, nil
+}
+
+// CreateUptimeMonitor inserts a new uptime monitor.
+func (r *Repository) CreateUptimeMonitor(ctx context.Context, m *model.UptimeMonitor) error {
+	if m.ID == "" {
+		m.ID = uuid.New().String()
+	}
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO uptime_monitors (id, name, url, check_type, interval_seconds, timeout_seconds,
+		 expected_status_min, expected_status_max, expected_body, enabled,
+		 notification_target_ids, status, last_status, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		m.ID, m.Name, m.URL, m.CheckType, m.IntervalSeconds, m.TimeoutSeconds,
+		m.ExpectedStatusMin, m.ExpectedStatusMax, m.ExpectedBody, m.Enabled,
+		m.NotificationTargetIDs, m.Status, m.LastStatus, m.CreatedBy, m.CreatedAt, m.UpdatedAt)
+	return err
+}
+
+// UpdateUptimeMonitor updates an existing uptime monitor.
+func (r *Repository) UpdateUptimeMonitor(ctx context.Context, m *model.UptimeMonitor) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE uptime_monitors SET name=$1, url=$2, check_type=$3, interval_seconds=$4,
+		 timeout_seconds=$5, expected_status_min=$6, expected_status_max=$7,
+		 expected_body=$8, enabled=$9, notification_target_ids=$10, updated_at=NOW()
+		 WHERE id=$11`,
+		m.Name, m.URL, m.CheckType, m.IntervalSeconds, m.TimeoutSeconds,
+		m.ExpectedStatusMin, m.ExpectedStatusMax, m.ExpectedBody, m.Enabled,
+		m.NotificationTargetIDs, m.ID)
+	return err
+}
+
+// DeleteUptimeMonitor deletes an uptime monitor by ID.
+func (r *Repository) DeleteUptimeMonitor(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM uptime_monitors WHERE id = $1`, id)
+	return err
+}
+
+// ListEnabledUptimeMonitors returns all enabled uptime monitors (for scheduler use).
+func (r *Repository) ListEnabledUptimeMonitors(ctx context.Context) ([]model.UptimeMonitor, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, name, url, check_type, interval_seconds, timeout_seconds,
+		 expected_status_min, expected_status_max, expected_body, enabled,
+		 COALESCE(notification_target_ids, '{}'), status, last_status,
+		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
+		 last_check_at, COALESCE(created_by, ''), created_at, updated_at
+		 FROM uptime_monitors WHERE enabled = true`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []model.UptimeMonitor
+	for rows.Next() {
+		var m model.UptimeMonitor
+		err := rows.Scan(
+			&m.ID, &m.Name, &m.URL, &m.CheckType, &m.IntervalSeconds, &m.TimeoutSeconds,
+			&m.ExpectedStatusMin, &m.ExpectedStatusMax, &m.ExpectedBody, &m.Enabled,
+			&m.NotificationTargetIDs, &m.Status, &m.LastStatus,
+			&m.LastStatusCode, &m.LastResponseTimeMs, &m.LastError,
+			&m.LastCheckAt, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, m)
+	}
+	return items, nil
+}
+
+// GetUptimeSummary returns aggregated counts of uptime monitors grouped by status.
+func (r *Repository) GetUptimeSummary(ctx context.Context) (*model.UptimeSummary, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT status, COUNT(*) FROM uptime_monitors GROUP BY status`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	summary := &model.UptimeSummary{}
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		switch status {
+		case "up":
+			summary.Up = count
+		case "down":
+			summary.Down = count
+		case "paused":
+			summary.Paused = count
+		}
+		summary.Total += count
+	}
+	return summary, nil
+}
+
+// UpdateUptimeMonitorStatus updates the latest check result fields for a monitor.
+func (r *Repository) UpdateUptimeMonitorStatus(ctx context.Context, id, status string, statusCode *int, responseTimeMs *int, errMsg string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE uptime_monitors SET status=$1, last_status=status, last_status_code=$2,
+		 last_response_time_ms=$3, last_error=$4, last_check_at=NOW()
+		 WHERE id=$5`,
+		status, statusCode, responseTimeMs, errMsg, id)
+	return err
+}
+
+// PauseUptimeMonitor disables and pauses an uptime monitor.
+func (r *Repository) PauseUptimeMonitor(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE uptime_monitors SET enabled=false, status='paused' WHERE id=$1`, id)
+	return err
+}
+
+// ResumeUptimeMonitor enables and sets status to pending for an uptime monitor.
+func (r *Repository) ResumeUptimeMonitor(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE uptime_monitors SET enabled=true, status='pending' WHERE id=$1`, id)
+	return err
+}
+
+// ─── Uptime Check History ───────────────────────────────────────────────────
+
+// CreateUptimeCheckHistory inserts a new check history record.
+func (r *Repository) CreateUptimeCheckHistory(ctx context.Context, h *model.UptimeCheckHistory) error {
+	if h.ID == "" {
+		h.ID = uuid.New().String()
+	}
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO uptime_check_history (id, monitor_id, checked_at, status, status_code,
+		 response_time_ms, error_message)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		h.ID, h.MonitorID, h.CheckedAt, h.Status, h.StatusCode, h.ResponseTimeMs, h.ErrorMessage)
+	return err
+}
+
+// ListUptimeCheckHistory returns paginated check history for a specific monitor.
+func (r *Repository) ListUptimeCheckHistory(ctx context.Context, monitorID string, limit, offset int) ([]model.UptimeCheckHistory, error) {
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, monitor_id, checked_at, status, status_code, response_time_ms, COALESCE(error_message, '')
+		 FROM uptime_check_history
+		 WHERE monitor_id = $1 ORDER BY checked_at DESC LIMIT $2 OFFSET $3`,
+		monitorID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []model.UptimeCheckHistory
+	for rows.Next() {
+		var h model.UptimeCheckHistory
+		if err := rows.Scan(&h.ID, &h.MonitorID, &h.CheckedAt, &h.Status, &h.StatusCode, &h.ResponseTimeMs, &h.ErrorMessage); err != nil {
+			return nil, err
+		}
+		items = append(items, h)
+	}
+	if items == nil {
+		items = []model.UptimeCheckHistory{}
+	}
+	return items, nil
+}
+
+// GetUptimeTrend returns time-series check history for trend charts.
+func (r *Repository) GetUptimeTrend(ctx context.Context, monitorID, period string) ([]model.UptimeCheckHistory, error) {
+	var rows interface{ Next() bool; Scan(dest ...interface{}) error; Close() }
+
+	switch period {
+	case "24h":
+		r, err := r.db.Pool.Query(ctx,
+			`SELECT id, monitor_id, checked_at, status, status_code, response_time_ms, COALESCE(error_message, '')
+			 FROM uptime_check_history
+			 WHERE monitor_id = $1 AND checked_at > NOW() - INTERVAL '24 hours'
+			 ORDER BY checked_at ASC`,
+			monitorID)
+		if err != nil {
+			return nil, err
+		}
+		rows = r
+	case "7d":
+		r, err := r.db.Pool.Query(ctx,
+			`SELECT monitor_id, date, total_checks, up_count, down_count,
+			 COALESCE(avg_response_ms, 0), COALESCE(min_response_ms, 0), COALESCE(max_response_ms, 0),
+			 COALESCE(uptime_percent, 0)
+			 FROM uptime_daily_summary
+			 WHERE monitor_id = $1 AND date > NOW() - INTERVAL '7 days'
+			 ORDER BY date ASC`,
+			monitorID)
+		if err != nil {
+			return nil, err
+		}
+		rows = r
+	case "3d":
+		r, err := r.db.Pool.Query(ctx,
+			`SELECT monitor_id, date, total_checks, up_count, down_count,
+			 COALESCE(avg_response_ms, 0), COALESCE(min_response_ms, 0), COALESCE(max_response_ms, 0),
+			 COALESCE(uptime_percent, 0)
+			 FROM uptime_daily_summary
+			 WHERE monitor_id = $1 AND date > NOW() - INTERVAL '3 days'
+			 ORDER BY date ASC`,
+			monitorID)
+		if err != nil {
+			return nil, err
+		}
+		rows = r
+	case "30d":
+		r, err := r.db.Pool.Query(ctx,
+			`SELECT monitor_id, date, total_checks, up_count, down_count,
+			 COALESCE(avg_response_ms, 0), COALESCE(min_response_ms, 0), COALESCE(max_response_ms, 0),
+			 COALESCE(uptime_percent, 0)
+			 FROM uptime_daily_summary
+			 WHERE monitor_id = $1 AND date > NOW() - INTERVAL '30 days'
+			 ORDER BY date ASC`,
+			monitorID)
+		if err != nil {
+			return nil, err
+		}
+		rows = r
+	default:
+		r, err := r.db.Pool.Query(ctx,
+			`SELECT id, monitor_id, checked_at, status, status_code, response_time_ms, COALESCE(error_message, '')
+			 FROM uptime_check_history
+			 WHERE monitor_id = $1 AND checked_at > NOW() - INTERVAL '24 hours'
+			 ORDER BY checked_at ASC`,
+			monitorID)
+		if err != nil {
+			return nil, err
+		}
+		rows = r
+	}
+	defer rows.Close()
+
+	var items []model.UptimeCheckHistory
+	for rows.Next() {
+		var h model.UptimeCheckHistory
+		// For daily summary queries, the columns differ from check_history;
+		// we map the summary fields into the history struct.
+		if period == "3d" || period == "7d" || period == "30d" {
+			var totalChecks, upCount, downCount, avgMs, minMs, maxMs int
+			var uptimePct float64
+			if err := rows.Scan(&h.MonitorID, &h.CheckedAt, &totalChecks, &upCount, &downCount, &avgMs, &minMs, &maxMs, &uptimePct); err != nil {
+				return nil, err
+			}
+			// Map daily summary data into check history fields for the trend
+			h.ID = fmt.Sprintf("summary-%s-%s", h.MonitorID, h.CheckedAt.Format("2006-01-02"))
+			h.Status = "summary"
+			statusCode := uptimePct
+			h.ResponseTimeMs = &avgMs
+			h.ErrorMessage = fmt.Sprintf("up=%d down=%d total=%d uptime=%.1f%%", upCount, downCount, totalChecks, uptimePct*100)
+			_ = statusCode
+		} else {
+			if err := rows.Scan(&h.ID, &h.MonitorID, &h.CheckedAt, &h.Status, &h.StatusCode, &h.ResponseTimeMs, &h.ErrorMessage); err != nil {
+				return nil, err
+			}
+		}
+		items = append(items, h)
+	}
+	if items == nil {
+		items = []model.UptimeCheckHistory{}
+	}
+	return items, nil
+}
+
+// GetUptimeTrendCustom returns time-series check history for a custom date range.
+func (r *Repository) GetUptimeTrendCustom(ctx context.Context, monitorID, from, to string) ([]model.UptimeCheckHistory, error) {
+	fromTime, err := time.Parse(time.RFC3339, from)
+	if err != nil {
+		fromTime, err = time.Parse("2006-01-02", from)
+		if err != nil {
+			return nil, fmt.Errorf("invalid from date: %w", err)
+		}
+	}
+
+	toTime := time.Now()
+	if to != "" {
+		toTime, err = time.Parse(time.RFC3339, to)
+		if err != nil {
+			toTime, err = time.Parse("2006-01-02", to)
+			if err != nil {
+				return nil, fmt.Errorf("invalid to date: %w", err)
+			}
+			toTime = toTime.Add(24 * time.Hour) // include full day
+		}
+	}
+
+	// Use daily_summary for custom ranges
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT monitor_id, date, total_checks, up_count, down_count,
+		 COALESCE(avg_response_ms, 0), COALESCE(min_response_ms, 0), COALESCE(max_response_ms, 0),
+		 COALESCE(uptime_percent, 0)
+		 FROM uptime_daily_summary
+		 WHERE monitor_id = $1 AND date >= $2 AND date <= $3
+		 ORDER BY date ASC`,
+		monitorID, fromTime, toTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []model.UptimeCheckHistory
+	for rows.Next() {
+		var h model.UptimeCheckHistory
+		var totalChecks, upCount, downCount, avgMs, minMs, maxMs int
+		var uptimePct float64
+		if err := rows.Scan(&h.MonitorID, &h.CheckedAt, &totalChecks, &upCount, &downCount, &avgMs, &minMs, &maxMs, &uptimePct); err != nil {
+			return nil, err
+		}
+		h.ID = fmt.Sprintf("custom-%s-%s", h.MonitorID, h.CheckedAt.Format("2006-01-02"))
+		h.Status = "summary"
+		h.ResponseTimeMs = &avgMs
+		h.ErrorMessage = fmt.Sprintf("up=%d down=%d total=%d uptime=%.1f%%", upCount, downCount, totalChecks, uptimePct*100)
+		items = append(items, h)
+	}
+	if items == nil {
+		items = []model.UptimeCheckHistory{}
+	}
+	return items, nil
+}
+
+// PurgeOldUptimeHistory deletes check history entries older than the given retention period.
+func (r *Repository) PurgeOldUptimeHistory(ctx context.Context, retentionDays int) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM uptime_check_history WHERE checked_at < NOW() - $1::interval`,
+		fmt.Sprintf("%d days", retentionDays))
+	return err
+}
+
+// UpsertUptimeDailySummary inserts or updates a daily summary record.
+func (r *Repository) UpsertUptimeDailySummary(ctx context.Context, s *model.UptimeDailySummary) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO uptime_daily_summary (monitor_id, date, total_checks, up_count, down_count,
+		 avg_response_ms, min_response_ms, max_response_ms, uptime_percent)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		 ON CONFLICT (monitor_id, date) DO UPDATE SET
+		 total_checks=$3, up_count=$4, down_count=$5, avg_response_ms=$6,
+		 min_response_ms=$7, max_response_ms=$8, uptime_percent=$9`,
+		s.MonitorID, s.Date, s.TotalChecks, s.UpCount, s.DownCount,
+		s.AvgResponseMs, s.MinResponseMs, s.MaxResponseMs, s.UptimePercent)
+	return err
+}
+
+// ─── Uptime Maintenance Windows ────────────────────────────────────────────
+
+// CreateUptimeMaintenance inserts a new maintenance window.
+func (r *Repository) CreateUptimeMaintenance(ctx context.Context, mw *model.UptimeMaintenanceWindow) error {
+	if mw.ID == "" {
+		mw.ID = uuid.New().String()
+	}
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO uptime_maintenance_windows (id, monitor_id, description, starts_at, ends_at, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		mw.ID, mw.MonitorID, mw.Description, mw.StartsAt, mw.EndsAt, mw.CreatedBy, mw.CreatedAt, mw.UpdatedAt)
+	return err
+}
+
+// GetUptimeMaintenance returns a single maintenance window by ID.
+func (r *Repository) GetUptimeMaintenance(ctx context.Context, id string) (*model.UptimeMaintenanceWindow, error) {
+	mw := &model.UptimeMaintenanceWindow{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, monitor_id, description, starts_at, ends_at, COALESCE(created_by, ''), created_at, updated_at
+		 FROM uptime_maintenance_windows WHERE id = $1`, id).
+		Scan(&mw.ID, &mw.MonitorID, &mw.Description, &mw.StartsAt, &mw.EndsAt, &mw.CreatedBy, &mw.CreatedAt, &mw.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return mw, nil
+}
+
+// DeleteUptimeMaintenance deletes a maintenance window by ID.
+func (r *Repository) DeleteUptimeMaintenance(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM uptime_maintenance_windows WHERE id = $1`, id)
+	return err
+}
+
+// ListUptimeMaintenanceWindows returns all maintenance windows for a monitor, ordered by starts_at DESC.
+func (r *Repository) ListUptimeMaintenanceWindows(ctx context.Context, monitorID string) ([]model.UptimeMaintenanceWindow, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, monitor_id, description, starts_at, ends_at, COALESCE(created_by, ''), created_at, updated_at
+		 FROM uptime_maintenance_windows
+		 WHERE monitor_id = $1
+		 ORDER BY starts_at DESC`, monitorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []model.UptimeMaintenanceWindow
+	for rows.Next() {
+		var mw model.UptimeMaintenanceWindow
+		if err := rows.Scan(&mw.ID, &mw.MonitorID, &mw.Description, &mw.StartsAt, &mw.EndsAt, &mw.CreatedBy, &mw.CreatedAt, &mw.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, mw)
+	}
+	if items == nil {
+		items = []model.UptimeMaintenanceWindow{}
+	}
+	return items, nil
+}
+
+// ListActiveMaintenanceWindows returns maintenance windows for a monitor that are currently active (starts_at <= now AND ends_at >= now).
+func (r *Repository) ListActiveMaintenanceWindows(ctx context.Context, monitorID string) ([]model.UptimeMaintenanceWindow, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, monitor_id, description, starts_at, ends_at, COALESCE(created_by, ''), created_at, updated_at
+		 FROM uptime_maintenance_windows
+		 WHERE monitor_id = $1 AND starts_at <= NOW() AND ends_at >= NOW()
+		 ORDER BY starts_at DESC`, monitorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []model.UptimeMaintenanceWindow
+	for rows.Next() {
+		var mw model.UptimeMaintenanceWindow
+		if err := rows.Scan(&mw.ID, &mw.MonitorID, &mw.Description, &mw.StartsAt, &mw.EndsAt, &mw.CreatedBy, &mw.CreatedAt, &mw.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, mw)
+	}
+	if items == nil {
+		items = []model.UptimeMaintenanceWindow{}
+	}
+	return items, nil
+}
+
+// ─── Notification Targets (shared — SSL + Uptime) ──────────────────────────
+
+// ListNotificationTargets returns enabled notification targets, optionally filtered by scope.
+func (r *Repository) ListNotificationTargets(ctx context.Context, scope string) ([]model.NotificationTarget, error) {
+	var args []interface{}
+	query := `SELECT id, name, url, platform, COALESCE(webhook_secret, ''), enabled,
+		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at
+		 FROM notification_targets WHERE enabled=true`
+	if scope != "" {
+		query += ` AND scopes @> ARRAY[$1]`
+		args = append(args, scope)
+	}
+
+	rows, err := r.db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []model.NotificationTarget
+	for rows.Next() {
+		var t model.NotificationTarget
+		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, t)
+	}
+	if items == nil {
+		items = []model.NotificationTarget{}
+	}
+	return items, nil
+}
+
+// GetNotificationTarget returns a notification target by ID.
+func (r *Repository) GetNotificationTarget(ctx context.Context, id string) (*model.NotificationTarget, error) {
+	t := &model.NotificationTarget{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, name, url, platform, COALESCE(webhook_secret, ''), enabled,
+		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at
+		 FROM notification_targets WHERE id = $1`, id).
+		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return t, nil
+}
+
+// CreateNotificationTarget inserts a new notification target.
+func (r *Repository) CreateNotificationTarget(ctx context.Context, t *model.NotificationTarget) error {
+	if t.ID == "" {
+		t.ID = uuid.New().String()
+	}
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO notification_targets (id, name, url, platform, webhook_secret, enabled, scopes, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.Scopes, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
+	return err
+}
+
+// UpdateNotificationTarget updates an existing notification target.
+func (r *Repository) UpdateNotificationTarget(ctx context.Context, t *model.NotificationTarget) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE notification_targets SET name=$1, url=$2, platform=$3, webhook_secret=$4,
+		 enabled=$5, scopes=$6, updated_at=NOW() WHERE id=$7`,
+		t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.Scopes, t.ID)
+	return err
+}
+
+// DeleteNotificationTarget deletes a notification target by ID.
+func (r *Repository) DeleteNotificationTarget(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM notification_targets WHERE id = $1`, id)
+	return err
+}
+
+// UptimeStats contains computed uptime statistics for a monitor.
+type UptimeStats struct {
+	Uptime24h  *float64 `json:"uptime_24h"`
+	Uptime3d   *float64 `json:"uptime_3d"`
+	Uptime7d   *float64 `json:"uptime_7d"`
+	Uptime30d  *float64 `json:"uptime_30d"`
+	TotalChecks int     `json:"total_checks"`
+	UpChecks    int     `json:"up_checks"`
+	DownChecks  int     `json:"down_checks"`
+}
+
+// GetUptimeStats computes uptime statistics for a monitor over 24h, 7d, and 30d periods.
+func (r *Repository) GetUptimeStats(ctx context.Context, monitorID string) (*UptimeStats, error) {
+	stats := &UptimeStats{}
+
+	// 24h — from check_history raw data
+	var total24, up24, down24 int
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*),
+		        COALESCE(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END), 0),
+		        COALESCE(SUM(CASE WHEN status = 'down' THEN 1 ELSE 0 END), 0)
+		 FROM uptime_check_history
+		 WHERE monitor_id = $1 AND checked_at > NOW() - INTERVAL '24 hours'`,
+		monitorID).Scan(&total24, &up24, &down24)
+	if err != nil {
+		return nil, err
+	}
+	if total24 > 0 {
+		pct := float64(up24) / float64(total24) * 100
+		// Round to 1 decimal
+		pct = float64(int(pct*10)) / 10
+		stats.Uptime24h = &pct
+	}
+	stats.TotalChecks += total24
+	stats.UpChecks += up24
+	stats.DownChecks += down24
+
+	// 7d — from daily_summary
+	var total7, up7, down7 int
+	err = r.db.Pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(total_checks), 0),
+		        COALESCE(SUM(up_count), 0),
+		        COALESCE(SUM(down_count), 0)
+		 FROM uptime_daily_summary
+		 WHERE monitor_id = $1 AND date > NOW() - INTERVAL '7 days'`,
+		monitorID).Scan(&total7, &up7, &down7)
+	if err == nil && total7 > 0 {
+		pct := float64(up7) / float64(total7) * 100
+		pct = float64(int(pct*10)) / 10
+		stats.Uptime7d = &pct
+	}
+
+	// 3d — from daily_summary
+	var total3, up3, down3 int
+	err = r.db.Pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(total_checks), 0),
+		        COALESCE(SUM(up_count), 0),
+		        COALESCE(SUM(down_count), 0)
+		 FROM uptime_daily_summary
+		 WHERE monitor_id = $1 AND date > NOW() - INTERVAL '3 days'`,
+		monitorID).Scan(&total3, &up3, &down3)
+	if err == nil && total3 > 0 {
+		pct := float64(up3) / float64(total3) * 100
+		pct = float64(int(pct*10)) / 10
+		stats.Uptime3d = &pct
+	}
+
+	// 30d — from daily_summary
+	var total30, up30, down30 int
+	err = r.db.Pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(total_checks), 0),
+		        COALESCE(SUM(up_count), 0),
+		        COALESCE(SUM(down_count), 0)
+		 FROM uptime_daily_summary
+		 WHERE monitor_id = $1 AND date > NOW() - INTERVAL '30 days'`,
+		monitorID).Scan(&total30, &up30, &down30)
+	if err == nil && total30 > 0 {
+		pct := float64(up30) / float64(total30) * 100
+		pct = float64(int(pct*10)) / 10
+		stats.Uptime30d = &pct
+	}
+
+	return stats, nil
 }

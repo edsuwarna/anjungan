@@ -338,10 +338,22 @@ body {
 .input::placeholder {
 	color: var(--color-text-muted);
 }
-/* Native select dropdown — adapts to theme */
-select.input option {
-	color: var(--color-text, #1e293b);
-	background-color: var(--color-card, #fff);
+/* Native select dropdown — let browser handle via color-scheme */
+select.input {
+	appearance: auto;
+	color-scheme: light;
+	background-color: #ffffff;
+	color: #1f2937;
+}
+.dark select.input {
+	color-scheme: dark;
+	background-color: #1a1d23;
+	color: #e2e8f0;
+}
+/* Option styling for dark mode dropdown popup */
+.dark select.input option {
+	background-color: #1a1d23;
+	color: #e2e8f0;
 }
 
 /* ─── Code inline ──────────────────────────────────────────────────── */
