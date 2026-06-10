@@ -73,7 +73,7 @@ func (r *Repository) CountRecentFailedLogins(ctx context.Context, since time.Tim
 
 func (r *Repository) ListUsers(ctx context.Context) ([]*model.User, error) {
 	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, email, name, role, totp_enabled, created_at, updated_at FROM users ORDER BY created_at DESC`,
+		`SELECT id, email, name, role, totp_enabled, locked_until, failed_login_attempts, created_at, updated_at FROM users ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (r *Repository) ListUsers(ctx context.Context) ([]*model.User, error) {
 	var users []*model.User
 	for rows.Next() {
 		u := &model.User{}
-		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.TOTPEnabled, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.TOTPEnabled, &u.LockedUntil, &u.FailedLoginAttempts, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)

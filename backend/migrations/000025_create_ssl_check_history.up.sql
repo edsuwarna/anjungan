@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS ssl_check_history (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ssl_monitor_id  UUID NOT NULL REFERENCES ssl_monitors(id) ON DELETE CASCADE,
+    ssl_monitor_id  TEXT NOT NULL REFERENCES ssl_monitors(id) ON DELETE CASCADE,
     checked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     status          VARCHAR(20) NOT NULL,
     days_remaining  INTEGER,

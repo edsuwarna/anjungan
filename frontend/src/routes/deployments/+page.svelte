@@ -540,11 +540,6 @@
 		background: rgba(16,185,129,0.06);
 	}
 
-	:global(.modal-overlay) {
-		position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-		z-index: 200; display: flex; align-items: center; justify-content: center;
-		backdrop-filter: blur(4px);
-	}
 	:global(.modal-content) {
 		width: 480px; max-width: 90vw; max-height: 85vh; overflow-y: auto;
 		border-radius: 16px; border: 1px solid var(--color-border);

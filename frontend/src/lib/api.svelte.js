@@ -394,6 +394,15 @@ export const api = {
 		batchImport: (data) => request('/ssl-monitors/import', { method: 'POST', body: JSON.stringify(data) }),
 	},
 
+	notificationTargets: {
+		list: () => request('/ssl-monitors/notification-targets'),
+		get: (id) => request(`/ssl-monitors/notification-targets/${id}`),
+		create: (data) => request('/ssl-monitors/notification-targets', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/ssl-monitors/notification-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/ssl-monitors/notification-targets/${id}`, { method: 'DELETE' }),
+		test: (id) => request(`/ssl-monitors/notification-targets/${id}/test`, { method: 'POST' }),
+	},
+
 	registryWebhooks: {
 		list: () => request('/registry/webhooks'),
 	},

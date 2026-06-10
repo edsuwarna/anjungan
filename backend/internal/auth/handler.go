@@ -37,6 +37,18 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 			common.Error(w, http.StatusTooManyRequests, "account locked. too many failed attempts")
 			return
 		}
+
+		// Check if account just got locked — log lockout event for audit trail
+		if errors.Is(err, ErrInvalidCredentials) {
+			if locked, _ := h.svc.IsLocked(r.Context(), req.Email); locked {
+				if u, lookupErr := h.svc.GetUserByEmail(r.Context(), req.Email); lookupErr == nil {
+					audit.Log(h.repo, u.ID, u.Email, ip,
+						"user.locked", "user", u.ID,
+						"Account locked due to too many failed login attempts")
+				}
+			}
+		}
+
 		common.Error(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}

@@ -7,6 +7,8 @@
 	let users = $state([]);
 	let loading = $state(true);
 	let error = $state('');
+	let lockEvents = $state([]);
+	let loadingLockEvents = $state(true);
 
 	// Sort
 	let sortColumn = $state('name');
@@ -78,6 +80,7 @@
 	onMount(() => {
 		loadUsers();
 		loadGroups();
+		loadLockEvents();
 	});
 
 	function toggleGroup(group) {
@@ -103,6 +106,18 @@
 			error = e.message;
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadLockEvents() {
+		loadingLockEvents = true;
+		try {
+			const result = await api.admin.auditLog.list({ action: 'user.locked', limit: 5, sort: 'created_at', order: 'desc' });
+			lockEvents = Array.isArray(result) ? result : [];
+		} catch {
+			lockEvents = [];
+		} finally {
+			loadingLockEvents = false;
 		}
 	}
 
@@ -245,10 +260,39 @@
 			<Icon icon="solar:lock-bold" class="h-4 w-4" style="color: var(--color-warning);" />
 			<h3 class="text-sm font-semibold" style="color: var(--color-text);">Recent Lockout Events</h3>
 		</div>
-		<div class="flex flex-col items-center py-8 text-center">
-			<Icon icon="solar:check-circle-bold" class="mb-2 h-8 w-8" style="color: var(--color-text-muted);" />
-			<p class="text-sm" style="color: var(--color-text-muted);">No recent lockout events</p>
-		</div>
+		{#if loadingLockEvents}
+			<div class="flex items-center justify-center py-6">
+				<Icon icon="solar:spinner-bold" class="h-6 w-6 animate-spin" style="color: var(--color-text-muted);" />
+			</div>
+		{:else if lockEvents.length === 0}
+			<div class="flex flex-col items-center py-8 text-center">
+				<Icon icon="solar:check-circle-bold" class="mb-2 h-8 w-8" style="color: var(--color-text-muted);" />
+				<p class="text-sm" style="color: var(--color-text-muted);">No recent lockout events</p>
+			</div>
+		{:else}
+			<div class="space-y-2">
+				{#each lockEvents as event}
+					<div class="flex items-center gap-3 rounded-lg border px-3 py-2.5" style="border-color: var(--color-border-light);">
+						<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style="background-color: rgba(234,179,8,0.12);">
+							<Icon icon="solar:lock-bold" class="h-4 w-4" style="color: var(--color-warning);" />
+						</div>
+						<div class="min-w-0 flex-1">
+							<p class="text-sm font-medium truncate" style="color: var(--color-text);">
+								{event.user_email || event.description}
+							</p>
+							<p class="text-xs" style="color: var(--color-text-muted);">
+								{event.description}
+							</p>
+						</div>
+						<div class="shrink-0 text-right">
+							<p class="text-xs font-medium tabular-nums" style="color: var(--color-text-muted);">
+								{new Date(event.created_at).toLocaleString()}
+							</p>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
 	</div>
 
 	{#if loading}
@@ -360,7 +404,7 @@
 								<div class="flex items-center gap-1">
 									{#if user.status === 'locked'}
 										<button onclick={() => handleUnlock(user)} class="btn-icon h-8 w-8" title="Unlock" style="color: var(--color-warning);">
-											<Icon icon="solar:unlock-bold" class="h-4 w-4" />
+											<Icon icon="solar:lock-unlocked-bold" class="h-4 w-4" />
 										</button>
 									{/if}
 									<button onclick={() => openEdit(user)} class="btn-icon h-8 w-8" title="Edit">
