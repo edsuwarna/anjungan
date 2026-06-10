@@ -48,6 +48,7 @@ type Server struct {
 	CreatedBy      string    `json:"created_by"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
+	ProjectID      string    `json:"project_id,omitempty"`
 }
 
 // ServerResponse is the public-safe version (no credentials exposed)
@@ -76,6 +77,7 @@ type ServerResponse struct {
 	CreatedBy      string     `json:"created_by"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+	ProjectID      string     `json:"project_id,omitempty"`
 	// Compliance fields — populated on list queries, may be nil/zero if unscanned
 	Score     *int       `json:"score"`
 	Criticals int        `json:"criticals"`
@@ -170,6 +172,7 @@ type ServerListQuery struct {
 	Region     string `json:"region"`
 	ServerType string `json:"server_type"`
 	Tags       string `json:"tags"` // comma-separated
+	ProjectID  string `json:"project_id,omitempty"`
 }
 
 type ServerListResponse struct {
@@ -526,6 +529,7 @@ type Environment struct {
 	IsProtected bool      `json:"is_protected"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	ProjectID   string    `json:"project_id,omitempty"`
 }
 
 type CreateEnvironmentRequest struct {
@@ -618,6 +622,7 @@ type Deployment struct {
 	DeployedAt    time.Time  `json:"deployed_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	RollbackFrom  *string    `json:"rollback_from,omitempty"`
+	ProjectID     string     `json:"project_id,omitempty"`
 
 	// Joined fields (not stored directly)
 	EnvironmentName *string `json:"environment_name,omitempty"`
@@ -856,7 +861,7 @@ type SSLMonitor struct {
 
 	// Server association for auto-discovery
 	ServerID      string `json:"server_id,omitempty"`
-	SourceProvider string `json:"source_provider,omitempty"` // manual, traefik, nginx, caddy, letsencrypt, discovered
+	SourceProvider string `json:"source_provider,omitempty"`
 
 	// Core
 	DisplayName   string `json:"display_name"`
@@ -865,8 +870,8 @@ type SSLMonitor struct {
 	WebhookIDs    []string `json:"webhook_ids"`
 	Enabled       bool   `json:"enabled"`
 
-	// Last check results (TLS engine output)
-	LastStatus    string     `json:"last_status"`    // pending, valid, expiring_soon, expired, error
+	// Last check results
+	LastStatus    string     `json:"last_status"`
 	LastCheckAt   *time.Time `json:"last_check_at"`
 	LastError     string     `json:"last_error,omitempty"`
 
@@ -888,13 +893,14 @@ type SSLMonitor struct {
 	OCSPStatus string `json:"ocsp_status"`
 	OCSPError  string `json:"ocsp_error,omitempty"`
 
-	// SAN coverage
+	// SAN validation
 	SANNames    []string `json:"san_names,omitempty"`
 	SANMismatch bool     `json:"san_mismatch"`
 
 	// Timestamps
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	ProjectID string    `json:"project_id,omitempty"`
 }
 
 // SSLMonitorResponse is the public API shape (safe, no internal fields)
@@ -1129,6 +1135,7 @@ type UptimeMonitor struct {
 	CreatedBy             string     `json:"created_by"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
+	ProjectID             string     `json:"project_id,omitempty"`
 }
 
 type UptimeMaintenanceWindow struct {
@@ -1190,6 +1197,7 @@ type NotificationTarget struct {
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	ProjectID     string    `json:"project_id,omitempty"`
 }
 
 type NotificationTargetRequest struct {

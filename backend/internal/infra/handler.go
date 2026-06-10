@@ -24,6 +24,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common/model"
 	"github.com/edsuwarna/anjungan/internal/executor"
 	sshtool "github.com/edsuwarna/anjungan/internal/infra/ssh"
+	"github.com/edsuwarna/anjungan/internal/project"
 )
 
 type Handler struct {
@@ -204,6 +205,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		ServerGroup: q.Get("server_group"),
 		Region:      q.Get("region"),
 		ServerType:  q.Get("server_type"),
+		ProjectID:   project.GetProjectID(r.Context()),
 	}
 
 	result, err := h.repo.ListServersPaginated(r.Context(), query, allowedGroups)
@@ -305,6 +307,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+
+	server.ProjectID = project.GetProjectID(r.Context())
 
 	if err := h.repo.CreateServer(r.Context(), server); err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to create server")

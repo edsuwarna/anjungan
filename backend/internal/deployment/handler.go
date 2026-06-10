@@ -13,6 +13,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/project"
 )
 
 type Handler struct {
@@ -44,7 +45,8 @@ func (h *Handler) Routes() chi.Router {
 // List returns all deployments, optionally filtered by environment_id.
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	envID := r.URL.Query().Get("environment_id")
-	deps, err := h.repo.ListDeployments(r.Context(), envID)
+	projectID := project.GetProjectID(r.Context())
+	deps, err := h.repo.ListDeployments(r.Context(), envID, projectID)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to list deployments")
 		return
@@ -92,6 +94,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		DeployedBy:    &claims.UserID,
 		DeployedAt:    time.Now(),
 		UpdatedAt:     time.Now(),
+		ProjectID:     project.GetProjectID(r.Context()),
 	}
 
 	if err := h.repo.CreateDeployment(r.Context(), deploy); err != nil {
@@ -210,7 +213,8 @@ func (h *Handler) GetHistory(w http.ResponseWriter, r *http.Request) {
 // ListHistory returns global deployment history (last 50 entries across all deployments).
 func (h *Handler) ListHistory(w http.ResponseWriter, r *http.Request) {
 	// For global history, we list all deployments sorted by deployed_at
-	deps, err := h.repo.ListDeployments(r.Context(), "")
+	projectID := project.GetProjectID(r.Context())
+	deps, err := h.repo.ListDeployments(r.Context(), "", projectID)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to get history")
 		return
@@ -227,7 +231,8 @@ func (h *Handler) ListHistory(w http.ResponseWriter, r *http.Request) {
 // ─── Environment CRUD ───────────────────────────────────────────────────────
 
 func (h *Handler) ListEnvironments(w http.ResponseWriter, r *http.Request) {
-	envs, err := h.repo.ListEnvironments(r.Context())
+	projectID := project.GetProjectID(r.Context())
+	envs, err := h.repo.ListEnvironments(r.Context(), projectID)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to list environments")
 		return
@@ -263,6 +268,7 @@ func (h *Handler) CreateEnvironment(w http.ResponseWriter, r *http.Request) {
 		Color:       req.Color,
 		Description: req.Description,
 		IsProtected: false,
+		ProjectID:   project.GetProjectID(r.Context()),
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}

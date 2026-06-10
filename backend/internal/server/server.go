@@ -146,7 +146,14 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			// Project-scoped resource routes (Phase 2)
 			r.Route("/projects/{slug}", func(r chi.Router) {
 				r.Use(project.ProjectContextMiddleware(repo))
-				// Scoped resource routes will be mounted here in Phase 2
+
+				// Resource handlers read project_id from context via project.GetProjectID()
+				r.Mount("/servers", infra.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
+				r.Mount("/ssh-keys", infra.NewSSHKeyHandler(repo).Routes())
+				r.Mount("/ssl-monitors", sslMonH.Routes())
+				r.Mount("/uptime-monitors", uptimeH.Routes())
+				r.Mount("/notification-targets", uptimeH.NotificationTargetRoutes())
+				r.Mount("/deployments", deployment.NewHandler(repo).Routes())
 			})
 		})
 	})

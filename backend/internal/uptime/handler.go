@@ -22,6 +22,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/project"
 )
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
@@ -175,8 +176,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
 	sort := r.URL.Query().Get("sort")
 	order := r.URL.Query().Get("order")
+	projectID := project.GetProjectID(r.Context())
 
-	monitors, total, err := h.repo.ListUptimeMonitors(r.Context(), page, limit, status, search, sort, order)
+	monitors, total, err := h.repo.ListUptimeMonitors(r.Context(), page, limit, status, search, sort, order, projectID)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to list monitors")
 		return
@@ -267,6 +269,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:             userID,
 		CreatedAt:             now,
 		UpdatedAt:             now,
+		ProjectID:             project.GetProjectID(r.Context()),
 	}
 
 	if err := h.repo.CreateUptimeMonitor(r.Context(), monitor); err != nil {
@@ -723,7 +726,7 @@ func (h *Handler) TestNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Load all notification targets (no scope filter)
-	targets, err := h.repo.ListNotificationTargets(r.Context(), "")
+	targets, err := h.repo.ListNotificationTargets(r.Context(), "", "")
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to load notification targets")
 		return
@@ -795,8 +798,9 @@ func (h *Handler) TestNotification(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ListNotificationTargets(w http.ResponseWriter, r *http.Request) {
 	scope := r.URL.Query().Get("scope")
+	projectID := project.GetProjectID(r.Context())
 
-	targets, err := h.repo.ListNotificationTargets(r.Context(), scope)
+	targets, err := h.repo.ListNotificationTargets(r.Context(), scope, projectID)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to list notification targets")
 		return
@@ -843,6 +847,7 @@ func (h *Handler) CreateNotificationTarget(w http.ResponseWriter, r *http.Reques
 		CreatedBy:     userID,
 		CreatedAt:     now,
 		UpdatedAt:     now,
+		ProjectID:     project.GetProjectID(r.Context()),
 	}
 
 	if err := h.repo.CreateNotificationTarget(r.Context(), target); err != nil {

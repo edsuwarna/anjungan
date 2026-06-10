@@ -101,13 +101,13 @@ func (r *Repository) CreateServer(ctx context.Context, s *model.Server) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`INSERT INTO servers (id, name, host, port, ssh_user, ssh_auth_type, ssh_key, ssh_key_id, ssh_password,
 		 status, tags, server_group, region, server_type, description, monitoring,
-		 connection_type, is_self, self_hostname, created_by, created_at, updated_at)
+		 connection_type, is_self, self_hostname, created_by, created_at, updated_at, project_id)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8, '')::uuid,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
 		 NULLIF($20, '')::uuid,
-		 $21,$22)`,
+		 $21,$22,$23)`,
 		s.ID, s.Name, s.Host, s.Port, s.SSHUser, s.SSHAuthType, s.SSHKey, s.SSHKeyID, s.SSHPassword,
 		s.Status, s.Tags, s.ServerGroup, s.Region, s.ServerType, s.Description,
-		s.Monitoring, s.ConnectionType, s.IsSelf, s.SelfHostname, s.CreatedBy, s.CreatedAt, s.UpdatedAt,
+		s.Monitoring, s.ConnectionType, s.IsSelf, s.SelfHostname, s.CreatedBy, s.CreatedAt, s.UpdatedAt, s.ProjectID,
 	)
 	return err
 }
@@ -117,7 +117,7 @@ const serverColumns = `id, name, host, port, ssh_user, ssh_auth_type, status, co
 	COALESCE(region, ''), COALESCE(server_type, ''), COALESCE(description, ''),
 	COALESCE(os_info, ''), COALESCE(cpu_info, ''), last_seen_at, COALESCE(monitoring, false),
 	COALESCE(connection_type, 'ssh'), COALESCE(is_self, false), COALESCE(self_hostname, ''),
-	COALESCE(created_by::text, ''), created_at, updated_at, COALESCE(ssh_key_id::text, '')`
+	COALESCE(created_by::text, ''), created_at, updated_at, COALESCE(ssh_key_id::text, ''), COALESCE(project_id::text, '')`
 
 func scanServer(scanner interface {
 	Scan(dest ...interface{}) error
@@ -130,6 +130,7 @@ func scanServer(scanner interface {
 		&s.OSInfo, &s.CPUInfo, &s.LastSeenAt, &s.Monitoring,
 		&s.ConnectionType, &s.IsSelf, &s.SelfHostname,
 		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt, &s.SSHKeyID,
+		&s.ProjectID,
 	)
 	if err != nil {
 		return nil, err
@@ -148,6 +149,7 @@ func scanServerFull(scanner interface {
 		&s.Description, &s.OSInfo, &s.CPUInfo, &s.LastSeenAt, &s.Monitoring,
 		&s.ConnectionType, &s.IsSelf, &s.SelfHostname,
 		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt,
+		&s.ProjectID,
 	)
 	if err != nil {
 		return nil, err
@@ -274,6 +276,13 @@ func (r *Repository) ListServersPaginated(ctx context.Context, q model.ServerLis
 			argIdx++
 		}
 		conditions = append(conditions, fmt.Sprintf("s.server_group IN (%s)", strings.Join(placeholders, ",")))
+	}
+
+	// Filter by project_id if set
+	if q.ProjectID != "" {
+		conditions = append(conditions, fmt.Sprintf("s.project_id = $%d::uuid", argIdx))
+		args = append(args, q.ProjectID)
+		argIdx++
 	}
 
 	whereClause := ""
@@ -2363,10 +2372,18 @@ func (r *Repository) DeleteRegistryUser(ctx context.Context, id string) error {
 
 // ─── Environment Repository ─────────────────────────────────────────────────
 
-func (r *Repository) ListEnvironments(ctx context.Context) ([]*model.Environment, error) {
-	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at
-		 FROM environments ORDER BY is_protected DESC, name ASC`)
+func (r *Repository) ListEnvironments(ctx context.Context, projectID string) ([]*model.Environment, error) {
+	var rows pgx.Rows
+	var err error
+	if projectID != "" {
+		rows, err = r.db.Pool.Query(ctx,
+			`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at, COALESCE(project_id::text, '')
+			 FROM environments WHERE project_id = $1::uuid ORDER BY is_protected DESC, name ASC`, projectID)
+	} else {
+		rows, err = r.db.Pool.Query(ctx,
+			`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at, COALESCE(project_id::text, '')
+			 FROM environments ORDER BY is_protected DESC, name ASC`)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -2374,7 +2391,7 @@ func (r *Repository) ListEnvironments(ctx context.Context) ([]*model.Environment
 	var envs []*model.Environment
 	for rows.Next() {
 		e := &model.Environment{}
-		if err := rows.Scan(&e.ID, &e.Name, &e.Color, &e.Description, &e.IsProtected, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.Color, &e.Description, &e.IsProtected, &e.CreatedAt, &e.UpdatedAt, &e.ProjectID); err != nil {
 			return nil, err
 		}
 		envs = append(envs, e)
@@ -2385,9 +2402,9 @@ func (r *Repository) ListEnvironments(ctx context.Context) ([]*model.Environment
 func (r *Repository) GetEnvironment(ctx context.Context, id string) (*model.Environment, error) {
 	e := &model.Environment{}
 	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at
+		`SELECT id, name, color, COALESCE(description,''), is_protected, created_at, updated_at, COALESCE(project_id::text, '')
 		 FROM environments WHERE id = $1`, id,
-	).Scan(&e.ID, &e.Name, &e.Color, &e.Description, &e.IsProtected, &e.CreatedAt, &e.UpdatedAt)
+	).Scan(&e.ID, &e.Name, &e.Color, &e.Description, &e.IsProtected, &e.CreatedAt, &e.UpdatedAt, &e.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -2396,9 +2413,9 @@ func (r *Repository) GetEnvironment(ctx context.Context, id string) (*model.Envi
 
 func (r *Repository) CreateEnvironment(ctx context.Context, e *model.Environment) error {
 	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO environments (id, name, color, description, is_protected, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		e.ID, e.Name, e.Color, e.Description, e.IsProtected, e.CreatedAt, e.UpdatedAt,
+		`INSERT INTO environments (id, name, color, description, is_protected, created_at, updated_at, project_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8, '')::uuid)`,
+		e.ID, e.Name, e.Color, e.Description, e.IsProtected, e.CreatedAt, e.UpdatedAt, e.ProjectID,
 	)
 	return err
 }
@@ -2500,18 +2517,30 @@ func (r *Repository) BulkSetRepoSelections(ctx context.Context, userID string, i
 
 // ─── Deployment Repository ──────────────────────────────────────────────────
 
-func (r *Repository) ListDeployments(ctx context.Context, environmentID string) ([]*model.Deployment, error) {
+func (r *Repository) ListDeployments(ctx context.Context, environmentID string, projectID string) ([]*model.Deployment, error) {
 	query := `SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
 		d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
 		d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
+		d.project_id,
 		COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
 		FROM deployments d
 		LEFT JOIN environments e ON e.id = d.environment_id
 		LEFT JOIN servers s ON s.id = d.server_id`
 	var args []interface{}
+	argIdx := 1
+	var conditions []string
 	if environmentID != "" {
-		query += ` WHERE d.environment_id = $1`
+		conditions = append(conditions, fmt.Sprintf("d.environment_id = $%d", argIdx))
 		args = append(args, environmentID)
+		argIdx++
+	}
+	if projectID != "" {
+		conditions = append(conditions, fmt.Sprintf("d.project_id = $%d::uuid", argIdx))
+		args = append(args, projectID)
+		argIdx++
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 	query += ` ORDER BY d.deployed_at DESC`
 
@@ -2526,6 +2555,7 @@ func (r *Repository) ListDeployments(ctx context.Context, environmentID string) 
 		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
 			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
 			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
+			&d.ProjectID,
 			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
 			return nil, err
 		}
@@ -2540,6 +2570,7 @@ func (r *Repository) GetDeployment(ctx context.Context, id string) (*model.Deplo
 		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
 			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
 			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
+			d.project_id,
 			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
 			FROM deployments d
 			LEFT JOIN environments e ON e.id = d.environment_id
@@ -2548,6 +2579,7 @@ func (r *Repository) GetDeployment(ctx context.Context, id string) (*model.Deplo
 	).Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
 		&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
 		&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
+		&d.ProjectID,
 		&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName)
 	if err != nil {
 		return nil, err
@@ -2558,11 +2590,11 @@ func (r *Repository) GetDeployment(ctx context.Context, id string) (*model.Deplo
 func (r *Repository) CreateDeployment(ctx context.Context, d *model.Deployment) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`INSERT INTO deployments (id, name, environment_id, repo_provider, repo_owner, repo_name,
-			branch, commit_sha, server_id, service_name, image, status, deployed_by, deployed_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+			branch, commit_sha, server_id, service_name, image, status, deployed_by, deployed_at, updated_at, project_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 		d.ID, d.Name, d.EnvironmentID, d.RepoProvider, d.RepoOwner, d.RepoName,
 		d.Branch, d.CommitSHA, d.ServerID, d.ServiceName, d.Image, d.Status,
-		d.DeployedBy, d.DeployedAt, d.UpdatedAt,
+		d.DeployedBy, d.DeployedAt, d.UpdatedAt, d.ProjectID,
 	)
 	return err
 }
@@ -2625,6 +2657,7 @@ func (r *Repository) ListDeploymentsByRepo(ctx context.Context, provider, owner,
 		`SELECT d.id, d.name, d.environment_id, d.repo_provider, d.repo_owner, d.repo_name,
 			d.branch, d.commit_sha, d.server_id, d.service_name, d.image, d.status,
 			d.deployed_by, d.deployed_at, d.updated_at, d.rollback_from,
+			d.project_id,
 			COALESCE(e.name,''), COALESCE(e.color,'#10b981'), COALESCE(s.name,'')
 			FROM deployments d
 			LEFT JOIN environments e ON e.id = d.environment_id
@@ -2642,6 +2675,7 @@ func (r *Repository) ListDeploymentsByRepo(ctx context.Context, provider, owner,
 		if err := rows.Scan(&d.ID, &d.Name, &d.EnvironmentID, &d.RepoProvider, &d.RepoOwner, &d.RepoName,
 			&d.Branch, &d.CommitSHA, &d.ServerID, &d.ServiceName, &d.Image, &d.Status,
 			&d.DeployedBy, &d.DeployedAt, &d.UpdatedAt, &d.RollbackFrom,
+			&d.ProjectID,
 			&d.EnvironmentName, &d.EnvironmentColor, &d.ServerName); err != nil {
 			return nil, err
 		}
@@ -2926,7 +2960,8 @@ const sslMonitorColumns = `id, domain, port, COALESCE(display_name, ''), COALESC
 	COALESCE(san_names, '{}'), COALESCE(san_mismatch, false),
 	COALESCE(created_by, ''), COALESCE(enabled, true),
 	COALESCE(server_id::text, ''), COALESCE(source_provider, 'manual'),
-	created_at, updated_at`
+	created_at, updated_at,
+	COALESCE(project_id::text, '')`
 
 func scanSSLMonitor(scanner interface {
 	Scan(dest ...interface{}) error
@@ -2944,6 +2979,7 @@ func scanSSLMonitor(scanner interface {
 		&m.CreatedBy, &m.Enabled,
 		&m.ServerID, &m.SourceProvider,
 		&m.CreatedAt, &m.UpdatedAt,
+		&m.ProjectID,
 	)
 	if err != nil {
 		return nil, err
@@ -2954,14 +2990,15 @@ func scanSSLMonitor(scanner interface {
 func (r *Repository) CreateSSLMonitor(ctx context.Context, m *model.SSLMonitor) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`INSERT INTO ssl_monitors (id, domain, port, display_name, check_interval, notify_before,
-		 webhook_ids, last_status, created_by, enabled, server_id, source_provider, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		 webhook_ids, last_status, created_by, enabled, server_id, source_provider, created_at, updated_at, project_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		m.ID, m.Domain, m.Port, m.DisplayName, m.CheckInterval, m.NotifyBefore,
-		m.WebhookIDs, "pending", m.CreatedBy, m.Enabled, m.ServerID, m.SourceProvider, m.CreatedAt, m.UpdatedAt)
+		m.WebhookIDs, "pending", m.CreatedBy, m.Enabled, m.ServerID, m.SourceProvider, m.CreatedAt, m.UpdatedAt,
+		m.ProjectID)
 	return err
 }
 
-func (r *Repository) ListSSLMonitors(ctx context.Context, search string, status string, enabledOnly bool) ([]*model.SSLMonitor, error) {
+func (r *Repository) ListSSLMonitors(ctx context.Context, search string, status string, enabledOnly bool, projectID string) ([]*model.SSLMonitor, error) {
 	var conditions []string
 	var args []interface{}
 	argIdx := 1
@@ -2978,6 +3015,11 @@ func (r *Repository) ListSSLMonitors(ctx context.Context, search string, status 
 	}
 	if enabledOnly {
 		conditions = append(conditions, "enabled = TRUE")
+	}
+	if projectID != "" {
+		conditions = append(conditions, fmt.Sprintf("project_id = $%d", argIdx))
+		args = append(args, projectID)
+		argIdx++
 	}
 
 	whereClause := ""
@@ -3004,7 +3046,7 @@ func (r *Repository) ListSSLMonitors(ctx context.Context, search string, status 
 	return monitors, nil
 }
 
-func (r *Repository) ListSSLMonitorsPaginated(ctx context.Context, page, limit int, search, status, sort, order string, enabledOnly bool) (*model.SSLMonitorListResponse, error) {
+func (r *Repository) ListSSLMonitorsPaginated(ctx context.Context, page, limit int, search, status, sort, order string, enabledOnly bool, projectID string) (*model.SSLMonitorListResponse, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -3031,6 +3073,11 @@ func (r *Repository) ListSSLMonitorsPaginated(ctx context.Context, page, limit i
 	}
 	if enabledOnly {
 		conditions = append(conditions, "enabled = TRUE")
+	}
+	if projectID != "" {
+		conditions = append(conditions, fmt.Sprintf("project_id = $%d", argIdx))
+		args = append(args, projectID)
+		argIdx++
 	}
 
 	whereClause := ""
@@ -3433,7 +3480,7 @@ func (r *Repository) ListSSLNotificationTargetsByIDs(ctx context.Context, ids []
 // ─── Uptime Monitors CRUD ───────────────────────────────────────────────────
 
 // ListUptimeMonitors returns paginated uptime monitors with optional filters.
-func (r *Repository) ListUptimeMonitors(ctx context.Context, page, limit int, status, search, sort, order string) ([]model.UptimeMonitor, int, error) {
+func (r *Repository) ListUptimeMonitors(ctx context.Context, page, limit int, status, search, sort, order string, projectID string) ([]model.UptimeMonitor, int, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -3456,6 +3503,11 @@ func (r *Repository) ListUptimeMonitors(ctx context.Context, page, limit int, st
 	if status != "" {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argIdx))
 		args = append(args, status)
+		argIdx++
+	}
+	if projectID != "" {
+		conditions = append(conditions, fmt.Sprintf("project_id = $%d", argIdx))
+		args = append(args, projectID)
 		argIdx++
 	}
 
@@ -3494,7 +3546,8 @@ func (r *Repository) ListUptimeMonitors(ctx context.Context, page, limit int, st
 		 expected_status_min, expected_status_max, expected_body, enabled,
 		 COALESCE(notification_target_ids, '{}'), status, last_status,
 		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
-		 last_check_at, COALESCE(created_by, ''), created_at, updated_at
+		 last_check_at, COALESCE(created_by, ''), created_at, updated_at,
+		 COALESCE(project_id, '')
 		 FROM uptime_monitors %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
 		whereClause, sortCol, orderDir, argIdx, argIdx+1)
 	args = append(args, limit, offset)
@@ -3514,6 +3567,7 @@ func (r *Repository) ListUptimeMonitors(ctx context.Context, page, limit int, st
 			&m.NotificationTargetIDs, &m.Status, &m.LastStatus,
 			&m.LastStatusCode, &m.LastResponseTimeMs, &m.LastError,
 			&m.LastCheckAt, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt,
+			&m.ProjectID,
 		)
 		if err != nil {
 			return nil, 0, err
@@ -3535,13 +3589,15 @@ func (r *Repository) GetUptimeMonitor(ctx context.Context, id string) (*model.Up
 		 expected_status_min, expected_status_max, expected_body, enabled,
 		 COALESCE(notification_target_ids, '{}'), status, last_status,
 		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
-		 last_check_at, COALESCE(created_by, ''), created_at, updated_at
+		 last_check_at, COALESCE(created_by, ''), created_at, updated_at,
+		 COALESCE(project_id, '')
 		 FROM uptime_monitors WHERE id = $1`, id).
 		Scan(&m.ID, &m.Name, &m.URL, &m.CheckType, &m.IntervalSeconds, &m.TimeoutSeconds,
 			&m.ExpectedStatusMin, &m.ExpectedStatusMax, &m.ExpectedBody, &m.Enabled,
 			&m.NotificationTargetIDs, &m.Status, &m.LastStatus,
 			&m.LastStatusCode, &m.LastResponseTimeMs, &m.LastError,
-			&m.LastCheckAt, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt)
+			&m.LastCheckAt, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt,
+			&m.ProjectID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -3559,11 +3615,13 @@ func (r *Repository) CreateUptimeMonitor(ctx context.Context, m *model.UptimeMon
 	_, err := r.db.Pool.Exec(ctx,
 		`INSERT INTO uptime_monitors (id, name, url, check_type, interval_seconds, timeout_seconds,
 		 expected_status_min, expected_status_max, expected_body, enabled,
-		 notification_target_ids, status, last_status, created_by, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		 notification_target_ids, status, last_status, created_by, created_at, updated_at,
+		 project_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 		m.ID, m.Name, m.URL, m.CheckType, m.IntervalSeconds, m.TimeoutSeconds,
 		m.ExpectedStatusMin, m.ExpectedStatusMax, m.ExpectedBody, m.Enabled,
-		m.NotificationTargetIDs, m.Status, m.LastStatus, m.CreatedBy, m.CreatedAt, m.UpdatedAt)
+		m.NotificationTargetIDs, m.Status, m.LastStatus, m.CreatedBy, m.CreatedAt, m.UpdatedAt,
+		m.ProjectID)
 	return err
 }
 
@@ -3593,7 +3651,8 @@ func (r *Repository) ListEnabledUptimeMonitors(ctx context.Context) ([]model.Upt
 		 expected_status_min, expected_status_max, expected_body, enabled,
 		 COALESCE(notification_target_ids, '{}'), status, last_status,
 		 last_status_code, last_response_time_ms, COALESCE(last_error, ''),
-		 last_check_at, COALESCE(created_by, ''), created_at, updated_at
+		 last_check_at, COALESCE(created_by, ''), created_at, updated_at,
+		 COALESCE(project_id, '')
 		 FROM uptime_monitors WHERE enabled = true`)
 	if err != nil {
 		return nil, err
@@ -3609,6 +3668,7 @@ func (r *Repository) ListEnabledUptimeMonitors(ctx context.Context) ([]model.Upt
 			&m.NotificationTargetIDs, &m.Status, &m.LastStatus,
 			&m.LastStatusCode, &m.LastResponseTimeMs, &m.LastError,
 			&m.LastCheckAt, &m.CreatedBy, &m.CreatedAt, &m.UpdatedAt,
+			&m.ProjectID,
 		)
 		if err != nil {
 			return nil, err
@@ -3987,15 +4047,24 @@ func (r *Repository) ListActiveMaintenanceWindows(ctx context.Context, monitorID
 
 // ─── Notification Targets (shared — SSL + Uptime) ──────────────────────────
 
-// ListNotificationTargets returns enabled notification targets, optionally filtered by scope.
-func (r *Repository) ListNotificationTargets(ctx context.Context, scope string) ([]model.NotificationTarget, error) {
+// ListNotificationTargets returns enabled notification targets, optionally filtered by scope and project.
+func (r *Repository) ListNotificationTargets(ctx context.Context, scope string, projectID string) ([]model.NotificationTarget, error) {
 	var args []interface{}
 	query := `SELECT id, name, url, platform, COALESCE(webhook_secret, ''), enabled,
-		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at
+		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at,
+		 COALESCE(project_id, '')
 		 FROM notification_targets WHERE enabled=true`
 	if scope != "" {
 		query += ` AND scopes @> ARRAY[$1]`
 		args = append(args, scope)
+	}
+	if projectID != "" {
+		placeholder := "$1"
+		if scope != "" {
+			placeholder = "$2"
+		}
+		query += fmt.Sprintf(` AND project_id = %s`, placeholder)
+		args = append(args, projectID)
 	}
 
 	rows, err := r.db.Pool.Query(ctx, query, args...)
@@ -4007,7 +4076,7 @@ func (r *Repository) ListNotificationTargets(ctx context.Context, scope string) 
 	var items []model.NotificationTarget
 	for rows.Next() {
 		var t model.NotificationTarget
-		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &t.ProjectID); err != nil {
 			return nil, err
 		}
 		items = append(items, t)
@@ -4023,9 +4092,10 @@ func (r *Repository) GetNotificationTarget(ctx context.Context, id string) (*mod
 	t := &model.NotificationTarget{}
 	err := r.db.Pool.QueryRow(ctx,
 		`SELECT id, name, url, platform, COALESCE(webhook_secret, ''), enabled,
-		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at
+		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at,
+		 COALESCE(project_id, '')
 		 FROM notification_targets WHERE id = $1`, id).
-		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
+		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &t.ProjectID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -4041,9 +4111,9 @@ func (r *Repository) CreateNotificationTarget(ctx context.Context, t *model.Noti
 		t.ID = uuid.New().String()
 	}
 	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO notification_targets (id, name, url, platform, webhook_secret, enabled, scopes, created_by, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.Scopes, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
+		`INSERT INTO notification_targets (id, name, url, platform, webhook_secret, enabled, scopes, created_by, created_at, updated_at, project_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.Scopes, t.CreatedBy, t.CreatedAt, t.UpdatedAt, t.ProjectID)
 	return err
 }
 
