@@ -560,3 +560,26 @@ WHERE checked_at < NOW() - INTERVAL '30 days';
 | | **Total** | **4.75 days** | |
 
 ### Total Estimated Effort: ~15.75 days (All 3 phases)
+
+---
+
+## 8. Mockup Screenshots
+
+> Mockup HTML: `sketches/uptime-monitoring/mockup.html`  
+> Playwright script: `sketches/uptime-monitoring/screenshot.js`
+
+### List View — All Monitors
+
+![Uptime Monitor List](../sketches/uptime-monitoring/uptime-monitor-list.png)
+
+### Add Monitor Form
+
+![Add Uptime Monitor](../sketches/uptime-monitoring/uptime-monitor-add.png)
+
+### Monitor Detail — Status, Chart & History
+
+![Uptime Monitor Detail](../sketches/uptime-monitoring/uptime-monitor-detail.png)
+
+### Notification Targets (Shared with SSL)
+
+![Uptime Notification Targets](../sketches/uptime-monitoring/uptime-notification-targets.png)
