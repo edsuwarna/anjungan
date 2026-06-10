@@ -38,6 +38,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Get("/export/csv", h.ExportCSV)
 	r.Post("/import", h.BatchImport)
 	r.Post("/check-all", h.CheckAll)
+	r.Post("/discover", h.Discover)
+	r.Post("/discover/import", h.DiscoverImport)
 	r.Get("/{id}", h.Get)
 	r.Put("/{id}", h.Update)
 	r.Delete("/{id}", h.Delete)
@@ -996,5 +998,88 @@ func (h *Handler) TestNotificationTarget(w http.ResponseWriter, r *http.Request)
 		"success":     statusCode >= 200 && statusCode < 300,
 		"status_code": statusCode,
 		"response":    respBody,
+	})
+}
+
+// ─── Discovery ─────────────────────────────────────────────────────────────────
+
+func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
+	var req model.SSLDiscoveryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "Invalid request")
+		return
+	}
+
+	server, err := h.repo.GetServerByIDFull(r.Context(), req.ServerID)
+	if err != nil {
+		common.Error(w, http.StatusNotFound, "Server not found")
+		return
+	}
+
+	provider := req.Provider
+	if provider == "" {
+		provider = "auto"
+	}
+
+	disc := NewDiscoverer(h.repo)
+	result, err := disc.Discover(r.Context(), server, provider)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	common.JSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) DiscoverImport(w http.ResponseWriter, r *http.Request) {
+	var req model.SSLDiscoveryImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "Invalid request")
+		return
+	}
+
+	claims := auth.GetClaims(r.Context())
+	createdBy := ""
+	if claims != nil {
+		createdBy = claims.UserID
+	}
+
+	var imported []model.SSLMonitorResponse
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	for _, d := range req.Domains {
+		// Check if already exists by domain+port
+		existing, _ := h.repo.GetSSLMonitorByDomainPort(r.Context(), d.Domain, d.Port)
+		if existing != nil {
+			continue // skip duplicates
+		}
+
+		now := time.Now()
+		monitor := &model.SSLMonitor{
+			ID:             uuid.New().String(),
+			Domain:         d.Domain,
+			Port:           d.Port,
+			DisplayName:    d.DisplayName,
+			CreatedBy:      createdBy,
+			Enabled:        enabled,
+			LastStatus:     "pending",
+			SourceProvider: d.SourceProvider,
+			ServerID:       d.ServerID,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+
+		if err := h.repo.CreateSSLMonitor(r.Context(), monitor); err != nil {
+			continue
+		}
+		imported = append(imported, monitor.ToResponse())
+	}
+
+	common.JSON(w, http.StatusOK, map[string]interface{}{
+		"imported": imported,
+		"count":    len(imported),
 	})
 }

@@ -996,6 +996,42 @@ type UpdateSSLMonitorRequest struct {
 	Enabled       *bool     `json:"enabled,omitempty"`
 }
 
+// ─── SSL Discovery ─────────────────────────────────────────────────────────
+
+type SSLDiscoveryRequest struct {
+	ServerID string `json:"server_id"`
+	Provider string `json:"provider"` // "auto", "traefik", "nginx", "caddy", "letsencrypt", "filesystem"
+}
+
+type SSLDiscoveryResult struct {
+	Domain         string   `json:"domain"`
+	Port           int      `json:"port"`
+	DisplayName    string   `json:"display_name"`
+	CertExpiresAt  string   `json:"cert_expires_at"`
+	Issuer         string   `json:"issuer"`
+	SANNames       []string `json:"san_names"`
+	CertPath       string   `json:"cert_path,omitempty"`
+	SourceProvider string   `json:"source_provider"`
+}
+
+type SSLDiscoveryResponse struct {
+	Domains []SSLDiscoveryResult `json:"domains"`
+	Error   string               `json:"error,omitempty"`
+}
+
+type SSLDiscoveryImportRequest struct {
+	Domains []SSLDiscoveryImportDomain `json:"domains"`
+	Enabled *bool                      `json:"enabled,omitempty"`
+}
+
+type SSLDiscoveryImportDomain struct {
+	Domain         string `json:"domain"`
+	Port           int    `json:"port"`
+	DisplayName    string `json:"display_name"`
+	SourceProvider string `json:"source_provider"`
+	ServerID       string `json:"server_id"`
+}
+
 // SSLSummary is the dashboard KPI card data
 type SSLSummary struct {
 	Total       int `json:"total"`
