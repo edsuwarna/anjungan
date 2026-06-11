@@ -20,7 +20,6 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
-	"github.com/edsuwarna/anjungan/internal/project"
 )
 
 type Handler struct {
@@ -66,10 +65,8 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(q.Get("page"))
 	limit, _ := strconv.Atoi(q.Get("limit"))
 
-	projectID := project.GetProjectID(r.Context())
-
 	if q.Get("all") == "true" {
-		monitors, err := h.repo.ListSSLMonitors(r.Context(), q.Get("search"), q.Get("status"), false, projectID)
+		monitors, err := h.repo.ListSSLMonitors(r.Context(), q.Get("search"), q.Get("status"), false)
 		if err != nil {
 			common.Error(w, http.StatusInternalServerError, "failed to list monitors")
 			return
@@ -83,7 +80,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.repo.ListSSLMonitorsPaginated(r.Context(), page, limit,
-		q.Get("search"), q.Get("status"), q.Get("sort"), q.Get("order"), false, projectID)
+		q.Get("search"), q.Get("status"), q.Get("sort"), q.Get("order"), false)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to list monitors")
 		return
@@ -147,7 +144,6 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		WebhookIDs:    input.WebhookIDs,
 		Enabled:       enabled,
 		CreatedBy:     userID,
-		ProjectID:     project.GetProjectID(r.Context()),
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -628,7 +624,7 @@ func formatSlackNotification(payload map[string]interface{}) ([]byte, error) {
 // ─── Export CSV ───────────────────────────────────────────────────────────────
 
 func (h *Handler) ExportCSV(w http.ResponseWriter, r *http.Request) {
-	monitors, err := h.repo.ListSSLMonitors(r.Context(), "", "", false, project.GetProjectID(r.Context()))
+	monitors, err := h.repo.ListSSLMonitors(r.Context(), "", "", false)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to list monitors")
 		return

@@ -19,10 +19,11 @@ import (
 	"github.com/edsuwarna/anjungan/internal/config"
 	"github.com/edsuwarna/anjungan/internal/container"
 	"github.com/edsuwarna/anjungan/internal/dashboard"
+	"github.com/edsuwarna/anjungan/internal/deployment"
 	"github.com/edsuwarna/anjungan/internal/infra"
-	"github.com/edsuwarna/anjungan/internal/project"
 	"github.com/edsuwarna/anjungan/internal/ratelimit"
 	"github.com/edsuwarna/anjungan/internal/registry"
+	repoapi "github.com/edsuwarna/anjungan/internal/repository"
 	"github.com/edsuwarna/anjungan/internal/self"
 	"github.com/edsuwarna/anjungan/internal/settings"
 	"github.com/edsuwarna/anjungan/internal/sslmonitor"
@@ -115,6 +116,8 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 		regHandler := registry.NewHandler(s.cfg.Registry, repo)
 		regHandler.Start(context.Background())
 		r.Mount("/registry", regHandler.Routes())
+			r.Mount("/repositories", repoapi.NewHandler(repo).Routes())
+			r.Mount("/deployments", deployment.NewHandler(repo).Routes())
 			r.Mount("/compliance", compliance.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
 			sslMonH := sslmonitor.NewHandler(repo)
 			r.Mount("/ssl-monitors", sslMonH.Routes())
@@ -134,22 +137,6 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
 			r.Mount("/settings", settingsH.Routes())
 			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
-
-			// Projects
-			projectH := project.NewHandler(repo)
-			r.Mount("/projects", projectH.Routes())
-
-			// Project-scoped resource routes (Phase 2)
-			r.Route("/projects/{slug}", func(r chi.Router) {
-				r.Use(project.ProjectContextMiddleware(repo))
-
-				// Resource handlers read project_id from context via project.GetProjectID()
-				r.Mount("/servers", infra.NewHandler(repo, s.cfg.SelfServer.DockerSocketPath).Routes())
-				r.Mount("/ssh-keys", infra.NewSSHKeyHandler(repo).Routes())
-				r.Mount("/ssl-monitors", sslMonH.Routes())
-				r.Mount("/uptime-monitors", uptimeH.Routes())
-				r.Mount("/notification-targets", uptimeH.NotificationTargetRoutes())
-			})
 		})
 	})
 

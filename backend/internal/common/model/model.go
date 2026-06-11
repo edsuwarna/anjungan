@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -47,7 +48,6 @@ type Server struct {
 	CreatedBy      string    `json:"created_by"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
-	ProjectID      string    `json:"project_id,omitempty"`
 }
 
 // ServerResponse is the public-safe version (no credentials exposed)
@@ -76,7 +76,6 @@ type ServerResponse struct {
 	CreatedBy      string     `json:"created_by"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
-	ProjectID      string     `json:"project_id,omitempty"`
 	// Compliance fields — populated on list queries, may be nil/zero if unscanned
 	Score     *int       `json:"score"`
 	Criticals int        `json:"criticals"`
@@ -171,7 +170,6 @@ type ServerListQuery struct {
 	Region     string `json:"region"`
 	ServerType string `json:"server_type"`
 	Tags       string `json:"tags"` // comma-separated
-	ProjectID  string `json:"project_id,omitempty"`
 }
 
 type ServerListResponse struct {
@@ -518,12 +516,196 @@ type ContainerSecurityServer struct {
 	Port int    `json:"port"`
 }
 
+// ─── Environments ───────────────────────────────────────────────────────────
 
+type Environment struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Color       string    `json:"color"`
+	Description string    `json:"description"`
+	IsProtected bool      `json:"is_protected"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
 
+type CreateEnvironmentRequest struct {
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Description string `json:"description,omitempty"`
+}
 
+type UpdateEnvironmentRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Color       *string `json:"color,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+// ─── Repo Connections ───────────────────────────────────────────────────────
+
+type RepoConnection struct {
+	ID             string    `json:"id"`
+	UserID         string    `json:"user_id"`
+	Provider       string    `json:"provider"`
+	Label          string    `json:"label"`
+	BaseURL        string    `json:"base_url"`
+	TokenEncrypted string    `json:"-"` // never exposed via API
+	IsActive       bool      `json:"is_active"`
+	Affiliations   string    `json:"affiliations"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type CreateRepoConnectionRequest struct {
+	Provider     string   `json:"provider"`
+	Label        string   `json:"label,omitempty"`
+	BaseURL      string   `json:"base_url,omitempty"`
+	Token        string   `json:"token"`
+	Affiliations []string `json:"affiliations,omitempty"`
+}
+
+type RepoConnectionResponse struct {
+	ID           string    `json:"id"`
+	Provider     string    `json:"provider"`
+	Label        string    `json:"label"`
+	BaseURL      string    `json:"base_url"`
+	IsActive     bool      `json:"is_active"`
+	Affiliations []string  `json:"affiliations"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (c *RepoConnection) ToResponse() RepoConnectionResponse {
+	affiliations := strings.Split(c.Affiliations, ",")
+	// Trim whitespace
+	var cleaned []string
+	for _, a := range affiliations {
+		trimmed := strings.TrimSpace(a)
+		if trimmed != "" {
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+	if cleaned == nil {
+		cleaned = []string{}
+	}
+	return RepoConnectionResponse{
+		ID:           c.ID,
+		Provider:     c.Provider,
+		Label:        c.Label,
+		BaseURL:      c.BaseURL,
+		IsActive:     c.IsActive,
+		Affiliations: cleaned,
+		CreatedAt:    c.CreatedAt,
+		UpdatedAt:    c.UpdatedAt,
+	}
+}
+
+// ─── Deployments ────────────────────────────────────────────────────────────
+
+type Deployment struct {
+	ID            string     `json:"id"`
+	Name          string     `json:"name"`
+	EnvironmentID *string    `json:"environment_id"`
+	RepoProvider  string     `json:"repo_provider"`
+	RepoOwner     string     `json:"repo_owner"`
+	RepoName      string     `json:"repo_name"`
+	Branch        string     `json:"branch"`
+	CommitSHA     string     `json:"commit_sha"`
+	ServerID      *string    `json:"server_id"`
+	ServiceName   string     `json:"service_name"`
+	Image         string     `json:"image"`
+	Status        string     `json:"status"`
+	DeployedBy    *string    `json:"deployed_by"`
+	DeployedAt    time.Time  `json:"deployed_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	RollbackFrom  *string    `json:"rollback_from,omitempty"`
+
+	// Joined fields (not stored directly)
+	EnvironmentName *string `json:"environment_name,omitempty"`
+	EnvironmentColor *string `json:"environment_color,omitempty"`
+	ServerName      *string `json:"server_name,omitempty"`
+}
+
+type CreateDeploymentRequest struct {
+	Name          string `json:"name"`
+	EnvironmentID string `json:"environment_id"`
+	RepoProvider  string `json:"repo_provider"`
+	RepoOwner     string `json:"repo_owner"`
+	RepoName      string `json:"repo_name"`
+	Branch        string `json:"branch"`
+	CommitSHA     string `json:"commit_sha"`
+	ServerID      string `json:"server_id"`
+	ServiceName   string `json:"service_name"`
+	Image         string `json:"image,omitempty"`
+}
+
+type UpdateDeploymentStatusRequest struct {
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+}
+
+// DeploymentHistory represents an audit trail entry for a deployment
+type DeploymentHistory struct {
+	ID           string    `json:"id"`
+	DeploymentID string    `json:"deployment_id"`
+	Status       string    `json:"status"`
+	Message      string    `json:"message"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// ─── Repo Selections (user-defined visibility) ─────────────────────────────
+
+type RepoSelection struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Provider  string    `json:"provider"`
+	Owner     string    `json:"owner"`
+	RepoName  string    `json:"repo_name"`
+	Selected  bool      `json:"selected"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type RepoSelectionItem struct {
+	Provider string `json:"provider"`
+	Owner    string `json:"owner"`
+	RepoName string `json:"repo_name"`
+	Selected bool   `json:"selected"`
+}
+
+type BulkRepoSaveSelectionRequest struct {
+	Selections []RepoSelectionItem `json:"selections"`
+}
 
 // ─── Repository Listing (from git providers) ────────────────────────────────
 
+type GitRepo struct {
+	Provider    string `json:"provider"`
+	Owner       string `json:"owner"`
+	Name        string `json:"name"`
+	FullName    string `json:"full_name"`
+	Description string `json:"description"`
+	DefaultBranch string `json:"default_branch"`
+	Language    string `json:"language"`
+	Visibility  string `json:"visibility"`
+	CloneURL    string `json:"clone_url"`
+	HTMLURL     string `json:"html_url"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+type RepoCIStatus struct {
+	Provider string `json:"provider"`
+	Owner    string `json:"owner"`
+	Repo     string `json:"repo"`
+	Branch   string `json:"branch"`
+	State    string `json:"state"` // success, failure, pending
+}
+
+type RepoDetail struct {
+	Repo      GitRepo      `json:"repo"`
+	CIStatus  *RepoCIStatus `json:"ci_status,omitempty"`
+	OpenPRs   int           `json:"open_prs"`
+	Deployments []Deployment `json:"deployments,omitempty"`
+}
 
 type SecuritySummary struct {
 	Score     int           `json:"score"`
@@ -674,7 +856,7 @@ type SSLMonitor struct {
 
 	// Server association for auto-discovery
 	ServerID      string `json:"server_id,omitempty"`
-	SourceProvider string `json:"source_provider,omitempty"`
+	SourceProvider string `json:"source_provider,omitempty"` // manual, traefik, nginx, caddy, letsencrypt, discovered
 
 	// Core
 	DisplayName   string `json:"display_name"`
@@ -683,8 +865,8 @@ type SSLMonitor struct {
 	WebhookIDs    []string `json:"webhook_ids"`
 	Enabled       bool   `json:"enabled"`
 
-	// Last check results
-	LastStatus    string     `json:"last_status"`
+	// Last check results (TLS engine output)
+	LastStatus    string     `json:"last_status"`    // pending, valid, expiring_soon, expired, error
 	LastCheckAt   *time.Time `json:"last_check_at"`
 	LastError     string     `json:"last_error,omitempty"`
 
@@ -706,14 +888,13 @@ type SSLMonitor struct {
 	OCSPStatus string `json:"ocsp_status"`
 	OCSPError  string `json:"ocsp_error,omitempty"`
 
-	// SAN validation
+	// SAN coverage
 	SANNames    []string `json:"san_names,omitempty"`
 	SANMismatch bool     `json:"san_mismatch"`
 
 	// Timestamps
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	ProjectID string    `json:"project_id,omitempty"`
 }
 
 // SSLMonitorResponse is the public API shape (safe, no internal fields)
@@ -948,7 +1129,6 @@ type UptimeMonitor struct {
 	CreatedBy             string     `json:"created_by"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
-	ProjectID             string     `json:"project_id,omitempty"`
 }
 
 type UptimeMaintenanceWindow struct {
@@ -1010,7 +1190,6 @@ type NotificationTarget struct {
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
-	ProjectID     string    `json:"project_id,omitempty"`
 }
 
 type NotificationTargetRequest struct {
@@ -1043,77 +1222,4 @@ func (r *NotificationTargetRequest) Validate() string {
 		}
 	}
 	return ""
-}
-
-// ─── Projects ─────────────────────────────────────────────────────────────────
-
-type Project struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Slug        string    `json:"slug"`
-	Description string    `json:"description"`
-	CreatedBy   string    `json:"created_by"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type ProjectResponse struct {
-	ID            string               `json:"id"`
-	Name          string               `json:"name"`
-	Slug          string               `json:"slug"`
-	Description   string               `json:"description"`
-	ResourceCount *ProjectResourceCount `json:"resource_count,omitempty"`
-	MemberCount   int                  `json:"member_count,omitempty"`
-	CreatedBy     string               `json:"created_by"`
-	CreatedAt     time.Time            `json:"created_at"`
-	UpdatedAt     time.Time            `json:"updated_at"`
-}
-
-type ProjectResourceCount struct {
-	Servers             int `json:"servers"`
-	SSLMonitors         int `json:"ssl_monitors"`
-	UptimeMonitors      int `json:"uptime_monitors"`
-	NotificationTargets int `json:"notification_targets"`
-}
-
-type ProjectListResponse struct {
-	Projects []ProjectResponse `json:"projects"`
-	Total    int               `json:"total"`
-}
-
-type CreateProjectRequest struct {
-	Name        string `json:"name"`
-	Slug        string `json:"slug"`
-	Description string `json:"description,omitempty"`
-}
-
-type UpdateProjectRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Slug        *string `json:"slug,omitempty"`
-	Description *string `json:"description,omitempty"`
-}
-
-type ProjectMember struct {
-	ProjectID string    `json:"project_id"`
-	UserID    string    `json:"user_id"`
-	UserName  string    `json:"user_name,omitempty"`
-	UserEmail string    `json:"user_email,omitempty"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type AddProjectMemberRequest struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
-}
-
-type UpdateProjectMemberRequest struct {
-	Role string `json:"role"`
-}
-
-type ProjectDeleteResponse struct {
-	ProjectID      string               `json:"project_id"`
-	ProjectName    string               `json:"project_name"`
-	ResourcesMoved *ProjectResourceCount `json:"resources_moved"`
-	MovedToProject string               `json:"moved_to_project_name"`
 }

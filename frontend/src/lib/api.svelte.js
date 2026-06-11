@@ -195,6 +195,47 @@ export const api = {
 		},
 	},
 
+	repositories: {
+		list: () => request('/repositories'),
+		connections: {
+			list: () => request('/repositories/connections'),
+			create: (data) => request('/repositories/connections', { method: 'POST', body: JSON.stringify(data) }),
+			delete: (id) => request(`/repositories/connections/${id}`, { method: 'DELETE' }),
+		},
+		selections: {
+			list: () => request('/repositories/selections'),
+			save: (data) => request('/repositories/selections', { method: 'POST', body: JSON.stringify(data) }),
+		},
+		branches: (provider, owner, repo) => request(`/repositories/${provider}/${owner}/${repo}/branches`),
+		ciStatus: (provider, owner, repo, branch) => {
+			const q = branch ? `?branch=${branch}` : '';
+			return request(`/repositories/${provider}/${owner}/${repo}/ci-status${q}`);
+		},
+		deployments: (provider, owner, repo) => request(`/repositories/${provider}/${owner}/${repo}/deployments`),
+	},
+
+	deployments: {
+		list: (params) => {
+			const q = params ? '?' + new URLSearchParams(params).toString() : '';
+			return request(`/deployments${q}`);
+		},
+		create: (data) => request('/deployments', { method: 'POST', body: JSON.stringify(data) }),
+		get: (id) => request(`/deployments/${id}`),
+		restart: (id) => request(`/deployments/${id}/restart`, { method: 'POST' }),
+		redeploy: (id) => request(`/deployments/${id}/redeploy`, { method: 'POST' }),
+		rollback: (id) => request(`/deployments/${id}/rollback`, { method: 'POST' }),
+		history: {
+			list: () => request('/deployments/history'),
+			get: (id) => request(`/deployments/${id}/history`),
+		},
+		environments: {
+			list: () => request('/deployments/environments'),
+			create: (data) => request('/deployments/environments', { method: 'POST', body: JSON.stringify(data) }),
+			update: (id, data) => request(`/deployments/environments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+			delete: (id) => request(`/deployments/environments/${id}`, { method: 'DELETE' }),
+		},
+	},
+
 	sshKeys: {
 		list: () => request('/ssh-keys'),
 		get: (id) => request(`/ssh-keys/${id}`),
@@ -426,20 +467,5 @@ export const api = {
 
 	registryWebhooks: {
 		list: () => request('/registry/webhooks'),
-	},
-
-	projects: {
-		list: () => request('/projects'),
-		get: (id) => request(`/projects/${id}`),
-		create: (data) => request('/projects', { method: 'POST', body: JSON.stringify(data) }),
-		update: (id, data) => request(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-		delete: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
-		resourceCount: (id) => request(`/projects/${id}/resource-count`),
-		members: {
-			list: (id) => request(`/projects/${id}/members`),
-			add: (id, data) => request(`/projects/${id}/members`, { method: 'POST', body: JSON.stringify(data) }),
-			update: (id, userId, data) => request(`/projects/${id}/members/${userId}`, { method: 'PUT', body: JSON.stringify(data) }),
-			remove: (id, userId) => request(`/projects/${id}/members/${userId}`, { method: 'DELETE' }),
-		},
 	},
 };

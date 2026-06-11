@@ -29,11 +29,6 @@
 		} catch (_) {}
 	});
 
-	async function redirectToDashboard() {
-		// Always go to the full Overview dashboard (global context)
-		goto('/');
-	}
-
 	async function handleSubmit(e) {
 		e.preventDefault();
 		loading = true;
@@ -54,7 +49,7 @@
 				setAuthToken(data.access_token);
 				user.set(data.user);
 				localStorage.setItem('user', JSON.stringify(data.user));
-				await redirectToDashboard();
+				goto('/');
 			} else {
 				await api.auth.register(email, name, password);
 				// Auto-navigate to login after successful registration
@@ -81,7 +76,7 @@
 			setAuthToken(data.access_token);
 			user.set(data.user);
 			localStorage.setItem('user', JSON.stringify(data.user));
-			await redirectToDashboard();
+			goto('/');
 		} catch (e) {
 			error = e.message || 'Invalid 2FA code';
 		} finally {

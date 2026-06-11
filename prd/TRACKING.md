@@ -1,13 +1,12 @@
 # Anjungan — Feature Implementation Tracking
 
 > Auto-tracked from `main` branch. Cross-references every PRD against implementation.
-> Last updated: June 10, 2026 | 25 DB migrations | 12 backend handler packages | 26 frontend route pages
+> Last updated: June 10, 2026 | 24 DB migrations | 11 backend handler packages | 20 frontend route pages
 
 ---
 
 > 📘 **New PRD:** [`PRD-uptime-monitoring.md`](PRD-uptime-monitoring.md) — Uptime Monitoring (HTTP/TCP health checks)
 > 📘 **New PRD:** [`PRD-ssl-monitoring.md`](PRD-ssl-monitoring.md) — SSL Certificate Monitoring (standalone)
-> 📘 **New PRD:** [`PRD-projects.md`](PRD-projects.md) — Projects (Multi-Tenant Isolation)
 
 ---
 
@@ -236,25 +235,9 @@
 | API Key Management | PRD.md §F3.10 | ❌ | ❌ | — | User/service scoped tokens — not implemented |
 | Deployment Freeze | PRD.md §F3.11 | ❌ | ❌ | — | Freeze schedule, reject deploy — not implemented |
 
-|---
-
-## 13. Projects — Multi-Tenant Isolation (PRD-projects.md)
-
-> 🟡 **In Development** — Branch `feat/projects`
-
-| Feature | PRD Source | Backend | Frontend | DB Migration | Notes |
-|---------|-----------|---------|----------|-------------|-------|
-| F1 — Project CRUD | PRD-projects.md §F1 | ❌ | ❌ | 000033 | Create/read/update/delete, admin-only |
-| F2 — Project Members & Roles | PRD-projects.md §F2 | ❌ | ❌ | 000033 | project_members table, per-project roles |
-| F3 — Resource Scoping | PRD-projects.md §F3 | ❌ | ❌ | 000033 | project_id on servers, ssl_monitors, uptime_monitors, deployments, environments, notification_targets |
-| F4 — Project Dashboard | PRD-projects.md §F4 | ❌ | ❌ | — | Project-level overview with KPIs |
-| F5 — Default Project | PRD-projects.md §F5 | ❌ | ❌ | 000033 | System-protected default for legacy resources |
-| F6 — Project Switcher UI | PRD-projects.md §UX | ❌ | ❌ | — | Top bar dropdown + URL-based context |
-| F7 — Delete + Rehome Resources | PRD-projects.md §F3 | ❌ | ❌ | — | Move to default on delete, warning modal |
-
 ---
 
-## 14. Database Migration Coverage
+## 13. Database Migration Coverage
 
 | # | Table | Status | PRD |
 |---|-------|--------|-----|
@@ -288,7 +271,6 @@
 | 000030 | `uptime_daily_summary` | ✅ | PRD-uptime-monitoring.md |
 | 000031 | `notification_targets` | ✅ | PRD-uptime-monitoring.md |
 | 000032 | — (drop `ssl_notification_targets`) | ❌ | PRD-uptime-monitoring.md | (Planned in PRDs, Not Migrated)
-| 000033 | `projects` + `project_members` + `project_id` columns | ❌ | PRD-projects.md | (Planned — feat/projects)
 
 | Table | Purpose | PRD |
 |-------|---------|-----|
@@ -314,9 +296,7 @@
 | `service_templates` | Scaffold templates | PRD-templates-scaffolding.md |
 | `template_versions` | Template versioning | PRD-templates-scaffolding.md |
 | `scaffold_logs` | Scaffold/deploy audit | PRD-templates-scaffolding.md |
-|| `deployment_templates` | Deployment scaffold templates | PRD.md |
-|| `projects` | Project entities for multi-tenant isolation | PRD-projects.md |
-|| `project_members` | User membership + role per project | PRD-projects.md |
+| `deployment_templates` | Deployment scaffold templates | PRD.md |
 
 ---
 
@@ -326,9 +306,9 @@
 |--------|-------|
 | ✅ Done (fully implemented) | **67** features |
 | 🟡 Partial (some gaps) | **3** features |
-| 🟡 In Development | **7** features |
+| 🟡 In Development | **0** features |
 | ❌ Not Started (PRD exists) | **41** features |
-| **Total PRD-documented features** | **118** |
+| **Total PRD-documented features** | **111** |
 
 ### By Domain
 
@@ -348,8 +328,7 @@
 || Uptime Monitoring (PRD-uptime-monitoring.md) | 10 | 0 | 0 |
 || Resource & Cost (PRD-resource-usage-cost.md) | 0 | 0 | 7 |
 | Templates (PRD-templates-scaffolding.md) | 0 | 0 | 6 |
-|| Observability & Ecosystem (PRD.md future) | 0 | 1 | 6 |
-|| Projects (PRD-projects.md) | 0 | 0 | 7 |
+| Observability & Ecosystem (PRD.md future) | 0 | 1 | 6 |
 
 ### Frontend Route Coverage
 
@@ -382,16 +361,9 @@
 || `/infra/resources` | ❌ | Resource dashboard — not created |
 | `/infra/templates` | ❌ | Template scaffold — not created |
 | `/agents` | ❌ | Agent management — not created |
-|| `/services` | ❌ | Service catalog — not created |
-|| `/admin/projects` | ❌ | Project management (admin) — planned for feat/projects |
-|| `/projects/[slug]` | ❌ | Project dashboard — planned for feat/projects |
-|| `/projects/[slug]/servers` | ❌ | Project-scoped servers — planned for feat/projects |
-|| `/projects/[slug]/ssl-monitors` | ❌ | Project-scoped SSL monitors — planned for feat/projects |
-|| `/projects/[slug]/uptime` | ❌ | Project-scoped uptime — planned for feat/projects |
-|| `/projects/[slug]/deployments` | ❌ | Project-scoped deployments — planned for feat/projects |
-|| `/projects/[slug]/settings` | ❌ | Project settings + members — planned for feat/projects |
+| `/services` | ❌ | Service catalog — not created |
 
 ---
 
-*Generated from cross-referencing 14 PRD files against `feat/projects` branch implementation.
+*Generated from cross-referencing 10 PRD files against `feat/ssl-monitoring` branch implementation.
 For detailed specs, see individual PRDs in this directory.*
