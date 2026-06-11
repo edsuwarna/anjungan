@@ -52,6 +52,11 @@
 		return 0;
 	}));
 
+	// Derived stats
+	let totalUsers = $derived(users.length);
+	let adminCount = $derived(users.filter(u => u.role === 'admin').length);
+	let activeCount = $derived(users.filter(u => u.status !== 'locked').length);
+
 	// Modals
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
@@ -228,6 +233,43 @@
 		</button>
 	</div>
 
+	<!-- User Stats Summary -->
+	<div class="mb-6 grid grid-cols-3 gap-4">
+		<div class="stat-card" style="border-left: 3px solid var(--color-primary);">
+			<div class="flex items-center justify-between">
+				<div>
+					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Total Users</p>
+					<p class="mt-1 text-2xl font-bold" style="color: var(--color-text);">{totalUsers}</p>
+				</div>
+				<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: var(--color-primary-subtle);">
+					<Icon icon="solar:users-group-rounded-bold" class="h-5 w-5" style="color: var(--color-primary);" />
+				</div>
+			</div>
+		</div>
+		<div class="stat-card" style="border-left: 3px solid #8b5cf6;">
+			<div class="flex items-center justify-between">
+				<div>
+					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Admins</p>
+					<p class="mt-1 text-2xl font-bold" style="color: #8b5cf6;">{adminCount}</p>
+				</div>
+				<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #8b5cf615;">
+					<Icon icon="solar:shield-user-bold" class="h-5 w-5" style="color: #8b5cf6;" />
+				</div>
+			</div>
+		</div>
+		<div class="stat-card" style="border-left: 3px solid #22c55e;">
+			<div class="flex items-center justify-between">
+				<div>
+					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Active</p>
+					<p class="mt-1 text-2xl font-bold" style="color: #22c55e;">{activeCount}</p>
+				</div>
+				<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #22c55e15;">
+					<Icon icon="solar:check-circle-bold" class="h-5 w-5" style="color: #22c55e;" />
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- Login Security Policy -->
 	<div class="card" style="border-left: 3px solid var(--color-success);">
 		<div class="flex items-center gap-2 mb-3">
@@ -255,7 +297,7 @@
 	</div>
 
 	<!-- Recent Lockout Events -->
-	<div class="card">
+	<div class="card" style="border-left: 3px solid var(--color-warning);">
 		<div class="flex items-center gap-2 mb-3">
 			<Icon icon="solar:lock-bold" class="h-4 w-4" style="color: var(--color-warning);" />
 			<h3 class="text-sm font-semibold" style="color: var(--color-text);">Recent Lockout Events</h3>

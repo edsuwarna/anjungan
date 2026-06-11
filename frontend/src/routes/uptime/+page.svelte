@@ -356,6 +356,92 @@
 </script>
 
 <div class="page-container">
+	{#if summary}
+		{@const totalActive = (summary.up ?? 0) + (summary.down ?? 0)}
+		{@const uptimePct = totalActive > 0 ? ((summary.up ?? 0) / totalActive * 100) : 0}
+		<!-- KPI Cards -->
+		<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
+			<div class="stat-card" style="border-left: 3px solid var(--color-primary);">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Total</p>
+						<p class="mt-1 text-2xl font-bold" style="color: var(--color-text);">{summary?.total ?? '-'}</p>
+					</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: var(--color-primary-subtle);">
+						<Icon icon="solar:chart-2-bold" class="h-5 w-5" style="color: var(--color-primary);" />
+					</div>
+				</div>
+			</div>
+			<div class="stat-card" style="border-left: 3px solid #22c55e;">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Up</p>
+						<p class="mt-1 text-2xl font-bold" style="color: #22c55e;">{summary?.up ?? 0}</p>
+					</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #22c55e15;">
+						<Icon icon="solar:check-circle-bold" class="h-5 w-5" style="color: #22c55e;" />
+					</div>
+				</div>
+			</div>
+			<div class="stat-card" style="border-left: 3px solid #ef4444;">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Down</p>
+						<p class="mt-1 text-2xl font-bold" style="color: #ef4444;">{summary?.down ?? 0}</p>
+					</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #ef444415;">
+						<Icon icon="solar:danger-circle-bold" class="h-5 w-5" style="color: #ef4444;" />
+					</div>
+				</div>
+			</div>
+			<div class="stat-card" style="border-left: 3px solid #94a3b8;">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Paused</p>
+						<p class="mt-1 text-2xl font-bold" style="color: #94a3b8;">{summary?.paused ?? 0}</p>
+					</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #94a3b815;">
+						<Icon icon="solar:pause-circle-bold" class="h-5 w-5" style="color: #94a3b8;" />
+					</div>
+				</div>
+			</div>
+			<div class="stat-card" style="border-left: 3px solid var(--color-primary);">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Avg Response</p>
+						<p class="mt-1 text-2xl font-bold" style="color: var(--color-primary);">
+							{summary?.avg_response_time ? `${Math.round(summary.avg_response_time)}ms` : '-'}
+						</p>
+					</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: var(--color-primary-subtle);">
+						<Icon icon="solar:clock-circle-bold" class="h-5 w-5" style="color: var(--color-primary);" />
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Uptime Progress Bar -->
+		<div class="mb-6">
+			<div class="card" style="border-left: 3px solid #22c55e;">
+				<div class="mb-2 flex items-center justify-between">
+					<span class="text-sm font-medium" style="color: var(--color-text);">Overall Uptime</span>
+					<span class="text-sm font-bold" style="color: #22c55e;">{uptimePct.toFixed(1)}%</span>
+				</div>
+				<div class="h-2 w-full overflow-hidden rounded-full" style="background-color: var(--color-border);">
+					<div
+						class="h-full rounded-full transition-all duration-500"
+						style="width: {uptimePct}%; background: linear-gradient(90deg, #22c55e, #16a34a);"
+					></div>
+				</div>
+				<div class="mt-2 flex items-center justify-between text-xs" style="color: var(--color-text-muted);">
+					<span>{summary?.up ?? 0} up</span>
+					<span>{summary?.down ?? 0} down</span>
+					<span>{summary?.paused ?? 0} paused</span>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Page Header -->
 	<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
 		<div>
@@ -388,67 +474,6 @@
 				<Icon icon="solar:add-circle-bold" class="h-4 w-4" />
 				Add Monitor
 			</button>
-		</div>
-	</div>
-
-	<!-- KPI Cards -->
-	<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
-		<div class="stat-card">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Total</p>
-					<p class="mt-1 text-2xl font-bold" style="color: var(--color-text);">{summary?.total ?? '-'}</p>
-				</div>
-				<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: var(--color-primary-subtle);">
-					<Icon icon="solar:chart-2-bold" class="h-5 w-5" style="color: var(--color-primary);" />
-				</div>
-			</div>
-		</div>
-		<div class="stat-card">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Up</p>
-					<p class="mt-1 text-2xl font-bold" style="color: #22c55e;">{summary?.up ?? 0}</p>
-				</div>
-				<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #22c55e15;">
-					<Icon icon="solar:check-circle-bold" class="h-5 w-5" style="color: #22c55e;" />
-				</div>
-			</div>
-		</div>
-		<div class="stat-card">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Down</p>
-					<p class="mt-1 text-2xl font-bold" style="color: #ef4444;">{summary?.down ?? 0}</p>
-				</div>
-				<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #ef444415;">
-					<Icon icon="solar:danger-circle-bold" class="h-5 w-5" style="color: #ef4444;" />
-				</div>
-			</div>
-		</div>
-		<div class="stat-card">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Paused</p>
-					<p class="mt-1 text-2xl font-bold" style="color: #94a3b8;">{summary?.paused ?? 0}</p>
-				</div>
-				<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #94a3b815;">
-					<Icon icon="solar:pause-circle-bold" class="h-5 w-5" style="color: #94a3b8;" />
-				</div>
-			</div>
-		</div>
-		<div class="stat-card">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Avg Response</p>
-					<p class="mt-1 text-2xl font-bold" style="color: var(--color-primary);">
-						{summary?.avg_response_time ? `${Math.round(summary.avg_response_time)}ms` : '-'}
-					</p>
-				</div>
-				<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: var(--color-primary-subtle);">
-					<Icon icon="solar:clock-circle-bold" class="h-5 w-5" style="color: var(--color-primary);" />
-				</div>
-			</div>
 		</div>
 	</div>
 
@@ -946,6 +971,7 @@
 		padding: 1rem 1.25rem;
 		background: var(--color-card);
 		border: 1px solid var(--color-border);
+		border-left: 3px solid var(--color-primary);
 		cursor: pointer;
 		transition: all 0.15s;
 		gap: 0.75rem;

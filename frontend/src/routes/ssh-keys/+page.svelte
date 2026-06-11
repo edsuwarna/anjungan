@@ -16,6 +16,18 @@
 	let privateKey = $state('');
 	let publicKey = $state('');
 
+	let totalServersUsing = $derived(keys.reduce((sum, k) => sum + (k.server_count || 0), 0));
+
+	// Key type badge colors
+	let keyTypeColor = $derived.by(() => (type) => {
+		const colors = {
+			'ed25519': { bg: 'rgba(16,185,129,0.12)', text: '#10b981' },
+			'rsa': { bg: 'rgba(99,102,241,0.12)', text: '#6366f1' },
+			'ecdsa': { bg: 'rgba(245,158,11,0.12)', text: '#f59e0b' },
+		};
+		return colors[type] || { bg: 'var(--color-primary-subtle)', text: 'var(--color-primary)' };
+	});
+
 	onMount(loadKeys);
 
 	async function loadKeys() {
@@ -82,13 +94,13 @@
 
 	function truncatedFingerprint(fp) {
 		if (!fp) return '-';
-		return fp.length > 20 ? fp.substring(0, 20) + '...' : fp;
+		return fp.length > 24 ? fp.substring(0, 24) + '...' : fp;
 	}
 </script>
 
 <div class="page-container">
 	<!-- Header -->
-	<div class="flex items-center justify-between mb-6">
+	<div class="flex items-center justify-between mb-4">
 		<div>
 			<h1 class="page-title">SSH Keys</h1>
 			<p class="page-subtitle">Manage saved SSH keys for server access</p>
@@ -126,28 +138,44 @@
 			</button>
 		</div>
 	{:else}
+		<!-- Stat bar -->
+		<div class="flex items-center gap-4 mb-4 px-1">
+			<span class="flex items-center gap-1.5 text-sm font-medium" style="color: var(--color-text);">
+				<Icon icon="solar:key-minimalistic-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+				{keys.length} key{keys.length !== 1 ? 's' : ''}
+			</span>
+			<span class="flex items-center gap-1.5 text-sm" style="color: var(--color-text-secondary);">
+				<Icon icon="solar:server-square-bold" class="h-4 w-4" />
+				{totalServersUsing} server{totalServersUsing !== 1 ? 's' : ''} using keys
+			</span>
+		</div>
+
+		<!-- Key Cards -->
 		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 			{#each keys as k}
-				<div class="card group relative">
+				{@const badgeColor = keyTypeColor(k.key_type)}
+				<div class="card" style="border-left: 3px solid var(--color-primary);">
+					<!-- Top row -->
 					<div class="flex items-start justify-between">
-						<div class="flex items-center gap-3">
-							<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: var(--color-primary-subtle);">
+						<div class="flex items-center gap-3 min-w-0">
+							<div class="flex h-10 w-10 items-center justify-center rounded-lg shrink-0" style="background-color: var(--color-primary-subtle);">
 								<Icon icon="solar:key-minimalistic-bold" class="h-5 w-5" style="color: var(--color-primary);" />
 							</div>
-							<div>
-								<h3 class="text-sm font-semibold" style="color: var(--color-text);">{k.name}</h3>
-								<p class="text-xs font-mono" style="color: var(--color-text-muted);">{truncatedFingerprint(k.fingerprint)}</p>
+							<div class="min-w-0">
+								<h3 class="text-sm font-semibold truncate" style="color: var(--color-text);">{k.name}</h3>
+								<p class="text-xs font-mono truncate" style="color: var(--color-text-muted);">{truncatedFingerprint(k.fingerprint)}</p>
 							</div>
 						</div>
-						<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" style="background-color: var(--color-primary-subtle); color: var(--color-primary);">
+						<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ml-2" style="background-color: {badgeColor.bg}; color: {badgeColor.text};">
 							{k.key_type}
 						</span>
 					</div>
 
+					<!-- Meta row -->
 					<div class="mt-3 flex items-center gap-4 text-xs" style="color: var(--color-text-muted);">
 						<span class="flex items-center gap-1">
 							<Icon icon="solar:server-square-bold" class="h-3.5 w-3.5" />
-							{k.server_count || 0} server(s)
+							{k.server_count || 0} server{k.server_count !== 1 ? 's' : ''}
 						</span>
 						<span class="flex items-center gap-1">
 							<Icon icon="solar:calendar-bold" class="h-3.5 w-3.5" />
@@ -155,12 +183,15 @@
 						</span>
 					</div>
 
-					<div class="absolute right-3 top-3 hidden gap-1 group-hover:flex">
-						<button onclick={() => openEdit(k)} class="btn-icon h-8 w-8" title="Edit key">
+					<!-- Actions -->
+					<div class="mt-3 pt-3 border-t flex items-center gap-2" style="border-color: var(--color-border);">
+						<button onclick={() => openEdit(k)} class="btn-secondary text-xs flex items-center gap-1">
 							<Icon icon="solar:pen-bold" class="h-3.5 w-3.5" />
+							Edit
 						</button>
-						<button onclick={() => handleDelete(k)} class="btn-icon h-8 w-8" title="Delete key" style="color: var(--color-danger);">
+						<button onclick={() => handleDelete(k)} class="btn-danger text-xs flex items-center gap-1">
 							<Icon icon="solar:trash-bin-trash-bold" class="h-3.5 w-3.5" />
+							Delete
 						</button>
 					</div>
 				</div>

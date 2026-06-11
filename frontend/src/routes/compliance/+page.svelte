@@ -238,7 +238,7 @@ const scanProfilePages = {
 			</div>
 		</div>
 	{:else if error}
-		<div class="card flex flex-col items-center gap-3 py-10 text-center">
+		<div class="card flex flex-col items-center gap-3 py-10 text-center" style="border-left: 3px solid var(--color-danger);">
 			<Icon icon="solar:danger-triangle-bold" class="mb-1 h-8 w-8" style="color: var(--color-danger);" />
 			<p style="color: var(--color-danger);">Failed to load compliance data</p>
 			<p class="text-sm" style="color: var(--color-text-secondary);">{error}</p>
@@ -334,7 +334,35 @@ const scanProfilePages = {
 				</div>
 			</div>
 		</div>
-			<div class="flex items-center gap-2 mb-3">
+
+		<!-- Stat Summary Bar: Pass/Warn/Critical -->
+		<div class="flex flex-wrap items-center gap-4 mb-4 p-3 rounded-xl" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
+			<div class="flex items-center gap-1.5">
+				<span class="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold" style="background-color: rgba(16,185,129,0.12); color: var(--color-success);">
+					✓ {totalPassed}
+				</span>
+				<span class="text-xs" style="color: var(--color-text-muted);">pass</span>
+			</div>
+			<div class="flex items-center gap-1.5">
+				<span class="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold" style="background-color: rgba(245,158,11,0.12); color: var(--color-warning);">
+					⚠ {totalWarnings}
+				</span>
+				<span class="text-xs" style="color: var(--color-text-muted);">warnings</span>
+			</div>
+			<div class="flex items-center gap-1.5">
+				<span class="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold" style="background-color: rgba(239,68,68,0.12); color: var(--color-danger);">
+					✗ {totalCritical}
+				</span>
+				<span class="text-xs" style="color: var(--color-text-muted);">critical</span>
+			</div>
+			<div class="flex-1"></div>
+			<div class="flex items-center gap-1.5">
+				<span class="text-xs" style="color: var(--color-text-muted);">total findings:</span>
+				<span class="text-sm font-bold" style="color: var(--color-text);">{totalFindings}</span>
+			</div>
+		</div>
+
+		<div class="flex items-center gap-2 mb-3">
 				<h3 class="text-sm font-semibold" style="color: var(--color-text);">Benchmarks</h3>
 				<span class="text-xs" style="color: var(--color-text-muted);">Aggregate scores across all scanned targets</span>
 			</div>
@@ -506,7 +534,7 @@ const scanProfilePages = {
 
 		<!-- SERVER LIST — expandable score cards -->
 		{#if servers.length === 0}
-			<div class="card flex flex-col items-center py-16 text-center">
+			<div class="card flex flex-col items-center py-16 text-center" style="border-left: 3px solid var(--color-accent);">
 				<Icon icon="solar:shield-check-bold" class="mb-3 h-12 w-12" style="color: var(--color-text-muted);" />
 				<h3 class="mb-1 text-base font-semibold" style="color: var(--color-text);">No servers</h3>
 				<p class="text-sm" style="color: var(--color-text-secondary);">Add servers to start monitoring compliance.</p>
@@ -613,7 +641,7 @@ const scanProfilePages = {
 			{:else if globalHistory.length > 0}
 				<div class="flex flex-col gap-2">
 					{#each globalHistory as item}
-						<div class="card !p-3 flex items-center justify-between">
+						<div class="card !p-3 flex items-center justify-between" style="border-left: 3px solid {scoreColor(item.score)};">
 							<div class="flex items-center gap-3 min-w-0">
 								<div class="w-2 h-2 rounded-full shrink-0" style="background: {scoreColor(item.score)};"></div>
 								<div class="min-w-0">
@@ -660,7 +688,7 @@ const scanProfilePages = {
 					</div>
 				{/if}
 			{:else}
-				<div class="card flex flex-col items-center py-10 text-center">
+				<div class="card flex flex-col items-center py-10 text-center" style="border-left: 3px solid var(--color-accent);">
 					<Icon icon="solar:history-bold" class="h-10 w-10 mb-3" style="color: var(--color-text-muted);" />
 					<p class="text-sm" style="color: var(--color-text-muted);">No scan history yet.</p>
 					<p class="text-xs mt-1" style="color: var(--color-text-muted);">Run a scan from any server to see results here.</p>

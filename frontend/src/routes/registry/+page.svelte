@@ -771,6 +771,40 @@ let copiedTarget = $state('');
 </script>
 
 <div class="page-container">
+	<!-- Page Header -->
+	<div class="mb-4">
+		<h1 class="page-title">Registry</h1>
+		<p class="page-subtitle">Container image registry — manage repositories, credentials, and webhooks</p>
+	</div>
+
+	<!-- Stat Summary Bar -->
+	<div class="flex flex-wrap items-center gap-4 mb-4 p-3 rounded-xl" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
+		<div class="flex items-center gap-1.5">
+			<Icon icon="solar:archive-down-minimlistic-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+			<span class="text-sm font-bold" style="color: var(--color-text);">{statsSummary?.total_repos ?? repos.length}</span>
+			<span class="text-xs" style="color: var(--color-text-muted);">repositories</span>
+		</div>
+		<span class="h-4 w-px" style="background-color: var(--color-border);"></span>
+		<div class="flex items-center gap-1.5">
+			<Icon icon="solar:hashtag-bold" class="h-4 w-4" style="color: var(--color-accent);" />
+			<span class="text-sm font-bold" style="color: var(--color-text);">{statsSummary?.total_tags ?? totalTags}</span>
+			<span class="text-xs" style="color: var(--color-text-muted);">tags</span>
+		</div>
+		<span class="h-4 w-px" style="background-color: var(--color-border);"></span>
+		<div class="flex items-center gap-1.5">
+			<Icon icon="solar:diskette-bold" class="h-4 w-4" style="color: var(--color-success);" />
+			<span class="text-sm font-bold" style="color: var(--color-text);">{statsSummary ? formatBytes(statsSummary.total_storage) : '—'}</span>
+			<span class="text-xs" style="color: var(--color-text-muted);">storage</span>
+		</div>
+		<div class="flex-1"></div>
+		{#if registryHealth}
+			<div class="flex items-center gap-1.5">
+				<span class="inline-flex h-2 w-2 rounded-full" style="background-color: {registryHealth?.status === 'up' ? 'var(--color-success)' : 'var(--color-danger)'};"></span>
+				<span class="text-xs" style="color: var(--color-text-muted);">{registryHealth?.status === 'up' ? 'Online' : 'Offline'}</span>
+			</div>
+		{/if}
+	</div>
+
 	<!-- Tab Bar -->
 	<div class="flex items-center gap-1 mb-4 rounded-lg p-1 overflow-x-auto" style="background-color: var(--color-topbar-bg);">
 		{#each filteredTabs as tab}
@@ -788,7 +822,7 @@ let copiedTarget = $state('');
 	<!-- ─── Tab: Credentials ─── -->
 	{#if activeTab === 'credentials'}
 	<!-- Connection Info — Self-Service Credentials -->
-	<div class="card p-5">
+	<div class="card p-5" style="border-left: 3px solid var(--color-primary);">
 		<div class="flex items-start justify-between mb-4">
 			<div>
 				<div class="flex items-center gap-2 mb-0.5">
@@ -961,7 +995,7 @@ let copiedTarget = $state('');
 	{#if activeTab === 'admin'}
 	<!-- Registry Users -->
 	{#if isAdmin}
-	<div class="card p-5">
+	<div class="card p-5" style="border-left: 3px solid var(--color-primary);">
 		<div class="flex items-center justify-between mb-3">
 			<div class="flex items-center gap-2">
 				<Icon icon="solar:users-group-rounded-bold" class="h-4 w-4" style="color: var(--color-primary);" />
@@ -1027,7 +1061,7 @@ let copiedTarget = $state('');
 
 	<!-- Registry Webhooks -->
 	{#if isAdmin}
-	<div class="card p-5">
+	<div class="card p-5" style="border-left: 3px solid var(--color-primary);">
 		<div class="flex items-center justify-between mb-3">
 			<div class="flex items-center gap-2">
 				<Icon icon="solar:bell-bing-bold" class="h-4 w-4" style="color: var(--color-primary);" />
@@ -1191,19 +1225,19 @@ let copiedTarget = $state('');
 	<!-- KPI Header Cards -->
 	{#if statsSummary}
 		<div class="grid grid-cols-2 gap-3 mb-3 sm:grid-cols-4">
-			<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
+			<div class="card !p-4 text-center" style="border-left: 3px solid var(--color-primary);">
 				<div class="text-lg font-bold" style="color: var(--color-primary);">{statsSummary.total_repos}</div>
 				<div class="text-[10px]" style="color: var(--color-text-muted);">Repositories</div>
 			</div>
-			<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
-				<div class="text-lg font-bold" style="color: var(--color-primary);">{statsSummary.total_tags}</div>
+			<div class="card !p-4 text-center" style="border-left: 3px solid var(--color-accent);">
+				<div class="text-lg font-bold" style="color: var(--color-accent);">{statsSummary.total_tags}</div>
 				<div class="text-[10px]" style="color: var(--color-text-muted);">Tags</div>
 			</div>
-			<div class="rounded-lg p-3 text-center" style="background-color: var(--color-primary-subtle);">
-				<div class="text-lg font-bold" style="color: var(--color-primary);">{formatBytes(statsSummary.total_storage)}</div>
+			<div class="card !p-4 text-center" style="border-left: 3px solid var(--color-success);">
+				<div class="text-lg font-bold" style="color: var(--color-success);">{formatBytes(statsSummary.total_storage)}</div>
 				<div class="text-[10px]" style="color: var(--color-text-muted);">Storage</div>
 			</div>
-			<div class="rounded-lg p-3 text-center" style="background-color: {registryHealth?.status === 'up' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)'};">
+			<div class="card !p-4 text-center" style="border-left: 3px solid {registryHealth?.status === 'up' ? 'var(--color-success)' : 'var(--color-danger)'};">
 				{#if healthLoading}
 					<div class="text-lg font-bold" style="color: var(--color-text-muted);">
 						<Icon icon="solar:spinner-bold" class="h-5 w-5 inline animate-spin" />
@@ -1231,7 +1265,7 @@ let copiedTarget = $state('');
 
 	<!-- Recent Activity -->
 	{#if webhookEvents.length > 0}
-	<div class="card p-4 mb-3">
+	<div class="card p-4 mb-3" style="border-left: 3px solid var(--color-primary);">
 		<div class="flex items-center justify-between mb-3">
 			<div class="flex items-center gap-2">
 				<Icon icon="solar:clock-circle-bold" class="h-4 w-4" style="color: var(--color-primary);" />
@@ -1366,7 +1400,7 @@ let copiedTarget = $state('');
 
 	<!-- Storage Stats Dashboard -->
 	{#if showStats}
-		<div class="card p-5">
+		<div class="card p-5" style="border-left: 3px solid var(--color-primary);">
 			<div class="flex items-center justify-between mb-4">
 				<div class="flex items-center gap-2">
 					<Icon icon="solar:chart-square-bold" class="h-4 w-4" style="color: var(--color-primary);" />
@@ -1445,7 +1479,7 @@ let copiedTarget = $state('');
 				<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-primary);" />
 			</div>
 		{:else if tagSearchQuery && tagSearchResults.length > 0}
-			<div class="card p-0 overflow-hidden">
+			<div class="card p-0 overflow-hidden" style="border-left: 3px solid var(--color-primary);">
 				<div class="divide-y" style="border-color: var(--color-border);">
 					{#each tagSearchResults as result}
 						<div class="flex items-center justify-between px-4 py-2.5 transition-colors hover:opacity-80">
@@ -1509,8 +1543,8 @@ let copiedTarget = $state('');
 		<div class="space-y-1.5">
 			{#each filteredRepos as repo}
 				<button
-					class="flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:opacity-80"
-					style="background-color: var(--color-card); border-color: var(--color-border);"
+					class="card !p-3 flex w-full items-center gap-3 text-left transition-colors hover:opacity-80"
+					style="display: flex; align-items: center; border-left: 3px solid var(--color-primary);"
 					onclick={() => goto(`/registry/${repo.name}`)}
 				>
 					<Icon icon="solar:archive-down-minimlistic-bold" class="h-5 w-5 flex-shrink-0" style="color: var(--color-primary);" />
@@ -1565,7 +1599,7 @@ let copiedTarget = $state('');
 	{#if activeTab === 'activity'}
 	<!-- Recent Activity -->
 	{#if webhookEvents.length > 0}
-	<div class="card p-4 mb-3">
+	<div class="card p-4 mb-3" style="border-left: 3px solid var(--color-primary);">
 		<div class="flex items-center justify-between mb-3">
 			<div class="flex items-center gap-2">
 				<Icon icon="solar:clock-circle-bold" class="h-4 w-4" style="color: var(--color-primary);" />
@@ -1618,7 +1652,7 @@ let copiedTarget = $state('');
 	{/if}
 
 	<!-- Webhook Events Timeline -->
-	<div class="card p-4">
+	<div class="card p-4" style="border-left: 3px solid var(--color-primary);">
 		<div class="flex items-center justify-between mb-3">
 			<div class="flex items-center gap-2">
 				<Icon icon="solar:history-bold" class="h-4 w-4" style="color: var(--color-primary);" />

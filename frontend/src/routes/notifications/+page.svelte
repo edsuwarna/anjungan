@@ -125,6 +125,11 @@
 			default: return 'solar:link-bold';
 		}
 	}
+
+	// ── Derived Stats ──
+	let totalTargets = $derived(targets.length);
+	let sslCount = $derived(targets.filter(t => t.scopes?.includes('ssl')).length);
+	let uptimeCount = $derived(targets.filter(t => t.scopes?.includes('uptime')).length);
 </script>
 
 <div class="page-container">
@@ -144,18 +149,41 @@
 		</div>
 	</div>
 
+	<!-- Stat Summary Bar -->
+	{#if targets.length > 0}
+	<div class="flex flex-wrap items-center gap-3 mb-5 p-3 rounded-xl" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
+		<div class="flex items-center gap-1.5">
+			<Icon icon="solar:bell-bold" class="h-4 w-4" style="color: var(--color-primary);" />
+			<span class="text-sm font-bold" style="color: var(--color-text);">{totalTargets}</span>
+			<span class="text-xs" style="color: var(--color-text-muted);">targets</span>
+		</div>
+		<span class="h-4 w-px" style="background-color: var(--color-border);"></span>
+		<div class="flex items-center gap-1.5">
+			<Icon icon="solar:shield-check-bold" class="h-4 w-4" style="color: var(--color-success);" />
+			<span class="text-sm font-bold" style="color: var(--color-text);">{sslCount}</span>
+			<span class="text-xs" style="color: var(--color-text-muted);">SSL</span>
+		</div>
+		<span class="h-4 w-px" style="background-color: var(--color-border);"></span>
+		<div class="flex items-center gap-1.5">
+			<Icon icon="solar:chart-2-bold" class="h-4 w-4" style="color: var(--color-accent);" />
+			<span class="text-sm font-bold" style="color: var(--color-text);">{uptimeCount}</span>
+			<span class="text-xs" style="color: var(--color-text-muted);">Uptime</span>
+		</div>
+	</div>
+	{/if}
+
 	<!-- Loading -->
 	{#if loading}
 		<div class="flex items-center justify-center py-16">
 			<Icon icon="svg-spinners:180-ring" class="h-8 w-8" style="color: var(--color-primary);" />
 		</div>
 	{:else if error}
-		<div class="card p-6 text-center">
+		<div class="card p-6 text-center" style="border-left: 3px solid var(--color-accent);">
 			<p style="color: var(--color-error);">{error}</p>
 			<button class="btn-secondary mt-3" onclick={loadTargets}>Retry</button>
 		</div>
 	{:else if targets.length === 0}
-		<div class="card p-12 text-center">
+		<div class="card p-12 text-center" style="border-left: 3px solid var(--color-accent);">
 			<Icon icon="solar:bell-bold" class="mx-auto h-12 w-12" style="color: var(--color-text-muted);" />
 			<p class="mt-4 text-lg font-medium" style="color: var(--color-text);">No notification targets</p>
 			<p class="mt-1 text-sm" style="color: var(--color-text-secondary);">
@@ -168,7 +196,8 @@
 		<div class="space-y-3 max-w-2xl">
 			{#each targets as t (t.id)}
 				<div
-					class="target-card"
+					class="card"
+					style="display: flex; align-items: center; border-left: 3px solid var(--color-accent);"
 				>
 					<div class="flex items-center gap-3 min-w-0 flex-1">
 						<div class="flex h-10 w-10 items-center justify-center rounded-full" style="background: var(--color-primary-subtle);">
@@ -565,7 +594,6 @@
 		box-shadow: 0 20px 60px rgba(0,0,0,0.2);
 	}
 	:global(body.dark) .card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
-	:global(body.dark) .target-card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
 	:global(body.dark) .modal-panel { background: #1a1d23; }
 	:global(body.dark) .scope-chip.active { background: rgba(16,185,129,0.15); }
 	:global(body.dark) .scope-toggle.active { background: rgba(16,185,129,0.15); }

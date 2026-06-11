@@ -409,7 +409,7 @@
 
 	<!-- KPI Cards -->
 	<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
-		<div class="stat-card">
+		<div class="stat-card" style="border-left: 3px solid var(--color-primary);">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Total</p>
@@ -422,7 +422,7 @@
 		</div>
 		{#each filterChips.filter(f => f.value) as { value, label }}
 			{@const cfg = getStatusConfig(value)}
-			<div class="stat-card">
+			<div class="stat-card" style="border-left: 3px solid {cfg.color};">
 				<div class="flex items-center justify-between">
 					<div>
 						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">{label}</p>
@@ -437,6 +437,57 @@
 			</div>
 		{/each}
 	</div>
+
+	{#if summary}
+		{@const totalActive = (summary.valid ?? 0) + (summary.expiring_soon ?? 0) + (summary.expired ?? 0) + (summary.error ?? 0)}
+		{@const validPct = totalActive > 0 ? ((summary.valid ?? 0) / totalActive * 100) : 0}
+		{@const expiringPct = totalActive > 0 ? ((summary.expiring_soon ?? 0) / totalActive * 100) : 0}
+		{@const expiredPct = totalActive > 0 ? ((summary.expired ?? 0) / totalActive * 100) : 0}
+		{@const errorPct = totalActive > 0 ? ((summary.error ?? 0) / totalActive * 100) : 0}
+		<!-- SSL Status Breakdown -->
+		<div class="mb-6">
+			<div class="card" style="border-left: 3px solid var(--color-primary);">
+				<div class="mb-3 flex items-center justify-between">
+					<span class="text-sm font-medium" style="color: var(--color-text);">Certificate Status Breakdown</span>
+					<span class="text-sm font-bold" style="color: var(--color-text);">{summary?.total ?? 0} certificates</span>
+				</div>
+				<div class="h-2.5 w-full overflow-hidden rounded-full" style="background-color: var(--color-border);">
+					<div class="flex h-full">
+						{#if (summary.valid ?? 0) > 0}
+							<div class="h-full transition-all duration-500" style="width: {validPct}%; background-color: #10b981;" title="Valid: {summary.valid}"></div>
+						{/if}
+						{#if (summary.expiring_soon ?? 0) > 0}
+							<div class="h-full transition-all duration-500" style="width: {expiringPct}%; background-color: #f59e0b;" title="Expiring: {summary.expiring_soon}"></div>
+						{/if}
+						{#if (summary.expired ?? 0) > 0}
+							<div class="h-full transition-all duration-500" style="width: {expiredPct}%; background-color: #ef4444;" title="Expired: {summary.expired}"></div>
+						{/if}
+						{#if (summary.error ?? 0) > 0}
+							<div class="h-full transition-all duration-500" style="width: {errorPct}%; background-color: #6b7280;" title="Error: {summary.error}"></div>
+						{/if}
+					</div>
+				</div>
+				<div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style="color: var(--color-text-muted);">
+					<span class="inline-flex items-center gap-1.5">
+						<span class="h-2.5 w-2.5 rounded-full" style="background-color: #10b981;"></span>
+						{summary?.valid ?? 0} valid
+					</span>
+					<span class="inline-flex items-center gap-1.5">
+						<span class="h-2.5 w-2.5 rounded-full" style="background-color: #f59e0b;"></span>
+						{summary?.expiring_soon ?? 0} expiring
+					</span>
+					<span class="inline-flex items-center gap-1.5">
+						<span class="h-2.5 w-2.5 rounded-full" style="background-color: #ef4444;"></span>
+						{summary?.expired ?? 0} expired
+					</span>
+					<span class="inline-flex items-center gap-1.5">
+						<span class="h-2.5 w-2.5 rounded-full" style="background-color: #6b7280;"></span>
+						{summary?.error ?? 0} error
+					</span>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Filters -->
 	<div class="mb-6 flex flex-wrap items-center gap-3">
@@ -500,6 +551,7 @@
 				{@const cfg = getStatusConfig(m.last_status)}
 				<div
 					class="card cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+					style="border-left: 3px solid {cfg.color};"
 					onclick={() => goto(`/ssl-monitors/${m.id}`)}
 					role="button"
 					tabindex="0"

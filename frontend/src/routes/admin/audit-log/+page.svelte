@@ -239,8 +239,47 @@
 		<p class="page-subtitle">Track all administrative actions across the platform</p>
 	</div>
 
+	<!-- Stats Summary -->
+	{#if !loading}
+		<div class="mb-6 grid grid-cols-3 gap-4">
+			<div class="stat-card" style="border-left: 3px solid var(--color-primary);">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Total Entries</p>
+						<p class="mt-1 text-2xl font-bold" style="color: var(--color-text);">{total}</p>
+					</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: var(--color-primary-subtle);">
+						<Icon icon="solar:notes-bold" class="h-5 w-5" style="color: var(--color-primary);" />
+					</div>
+				</div>
+			</div>
+			<div class="stat-card" style="border-left: 3px solid #8b5cf6;">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Pages</p>
+						<p class="mt-1 text-2xl font-bold" style="color: #8b5cf6;">{totalPages}</p>
+					</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #8b5cf615;">
+						<Icon icon="solar:document-bold" class="h-5 w-5" style="color: #8b5cf6;" />
+					</div>
+				</div>
+			</div>
+			<div class="stat-card" style="border-left: 3px solid #22c55e;">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium" style="color: var(--color-text-secondary);">Per Page</p>
+						<p class="mt-1 text-2xl font-bold" style="color: #22c55e;">{limit}</p>
+					</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg" style="background-color: #22c55e15;">
+						<Icon icon="solar:list-bold" class="h-5 w-5" style="color: #22c55e;" />
+					</div>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Filters -->
-	<div class="card">
+	<div class="card" style="border-left: 3px solid var(--color-primary);">
 		<div class="grid grid-cols-1 gap-3 md:grid-cols-5">
 			<div>
 				<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Action</label>
@@ -310,14 +349,14 @@
 			</div>
 		</div>
 	{:else if error}
-		<div class="card flex flex-col items-center gap-3 py-10 text-center">
+		<div class="card flex flex-col items-center gap-3 py-10 text-center" style="border-left: 3px solid var(--color-danger);">
 			<Icon icon="solar:danger-triangle-bold" class="mb-1 h-8 w-8" style="color: var(--color-danger);" />
 			<p style="color: var(--color-danger);">Failed to load audit log</p>
 			<p class="text-sm" style="color: var(--color-text-muted);">{error}</p>
 			<button onclick={loadLogs} class="btn-secondary mt-2">Retry</button>
 		</div>
 	{:else if entries.length === 0}
-		<div class="card flex flex-col items-center py-16 text-center">
+		<div class="card flex flex-col items-center py-16 text-center" style="border-left: 3px solid var(--color-text-muted);">
 			<Icon icon="solar:notes-bold" class="mb-3 h-12 w-12" style="color: var(--color-text-muted);" />
 			<h3 class="mb-1 text-base font-semibold" style="color: var(--color-text);">No entries found</h3>
 			<p class="text-sm" style="color: var(--color-text-secondary);">
