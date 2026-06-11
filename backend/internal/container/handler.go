@@ -67,6 +67,7 @@ type ServerContainers struct {
 	Server     ServerBrief     `json:"server"`
 	Stats      ServerCtrStats  `json:"stats"`
 	Containers []ContainerInfo `json:"containers"`
+	Error      string          `json:"error,omitempty"`
 }
 
 type ServerBrief struct {
@@ -373,6 +374,20 @@ func (h *Handler) ByServer(w http.ResponseWriter, r *http.Request) {
 
 	for res := range results {
 		if res.err != nil {
+			// Include server even if Docker query failed — show error indicator
+			byServer = append(byServer, ServerContainers{
+				Server: ServerBrief{
+					ID:      res.server.ID,
+					Name:    res.server.Name,
+					Host:    res.server.Host,
+					Port:    res.server.Port,
+					CPUInfo: res.server.CPUInfo,
+					OSInfo:  res.server.OSInfo,
+				},
+				Stats:      ServerCtrStats{},
+				Containers: []ContainerInfo{},
+				Error:      res.err.Error(),
+			})
 			continue
 		}
 		serverCount++

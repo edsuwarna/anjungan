@@ -231,7 +231,7 @@
 			});
 
 			return { ...sv, containers };
-		}).filter(sv => sv.containers.length > 0);
+		}).filter(sv => sv.containers.length > 0 || sv.error);
 
 		// Sort servers by name
 		servers.sort((a, b) => (a.server?.name || '').localeCompare(b.server?.name || ''));
@@ -978,7 +978,14 @@
 						</div>
 					</div>
 					<div class="flex items-center gap-3 shrink-0">
-						<span class="text-xs font-semibold" style="color: var(--color-text-muted);">{svContainers.length} container{svContainers.length !== 1 ? 's' : ''}</span>
+				<span class="text-xs font-semibold" style="color: var(--color-text-muted);">{svContainers.length} container{svContainers.length !== 1 ? 's' : ''}</span>
+					{#if sv.error}
+						<span class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium"
+							style="background-color: rgba(239,68,68,0.1); color: var(--color-danger);">
+							<Icon icon="solar:danger-triangle-bold" class="h-3 w-3" />
+							Docker unreachable
+						</span>
+					{:else}
 						<span onclick={(e) => { e.stopPropagation(); scanServerContainers(sv.server.id); }}
 							onkeydown={(e) => e.key === 'Enter' && (e.stopPropagation(), scanServerContainers(sv.server.id))}
 							role="button" tabindex="0"
@@ -995,6 +1002,7 @@
 								{avgScore}
 							</span>
 						{/if}
+					{/if}
 						<Icon
 							icon={isServerExpanded ? 'solar:alt-arrow-up-bold' : 'solar:alt-arrow-down-bold'}
 							class="h-4 w-4 transition-transform duration-200"
@@ -1005,6 +1013,13 @@
 
 				<!-- Server Container Grid -->
 				{#if isServerExpanded}
+					{#if sv.error}
+						<div class="px-4 py-6 text-center">
+							<Icon icon="solar:danger-triangle-bold" class="h-8 w-8 mx-auto mb-2" style="color: var(--color-danger);" />
+							<p class="text-sm font-semibold" style="color: var(--color-text);">Docker unreachable</p>
+							<p class="text-xs mt-1" style="color: var(--color-text-muted);">{sv.error}</p>
+						</div>
+					{:else}
 					<div class="grid gap-3 p-3" style="grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));">
 						{#each svContainers as c (c.id)}
 							{@const col = serverColor(sv.server.name)}
@@ -1384,6 +1399,7 @@
 							</div>
 						{/each}
 					</div>
+					{/if}
 				{/if}
 			</div>
 		{/each}
