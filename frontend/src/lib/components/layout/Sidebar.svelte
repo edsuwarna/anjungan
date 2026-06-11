@@ -33,13 +33,11 @@
 			name: 'Artifact',
 			items: [
 				{ href: '/registry', icon: 'solar:archive-down-minimlistic-bold', label: 'Registry' },
-				{ href: '/repositories', icon: 'solar:code-square-bold', label: 'Repositories' },
 			],
 		},
 		{
 			name: 'Ops',
 			items: [
-				{ href: '/deployments', icon: 'solar:rocket-bold', label: 'Deployments' },
 				{ href: '/uptime', icon: 'solar:chart-2-bold', label: 'Uptime' },
 				{ href: '/notifications', icon: 'solar:bell-bold', label: 'Notifications' },
 			],

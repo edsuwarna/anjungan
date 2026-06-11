@@ -11,8 +11,6 @@
 		'/servers': 'Servers',
 		'/containers': 'Containers',
 		'/registry': 'Registry',
-		'/repositories': 'Repositories',
-		'/deployments': 'Deployments',
 		'/admin/users': 'User Management'
 	};
 

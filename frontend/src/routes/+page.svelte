@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thresholds.svelte.js';
 
-	let stats = $state({ servers: 0, containers: 0, deployments: 0, users: 0, server_status: {}, deployment_status: {}, compliance: null, server_scores: {}, recent_activity: [], recent_deployments: [] });
+	let stats = $state({ servers: 0, containers: 0, users: 0, server_status: {}, compliance: null, server_scores: {}, recent_activity: [] });
 	let serverList = $state([]);
 	let loading = $state(true);
 	let error = $state('');
@@ -19,8 +19,6 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 	let uptimeSummary = $derived(stats.uptime_summary || { total: 0, up: 0, down: 0, paused: 0 });
 
 	let compliance = $derived(stats.compliance || { total_servers: 0, scanned_servers: 0, average_score: null, by_status: {} });
-	let deploymentStatus = $derived(stats.deployment_status || {});
-	let activeDeployments = $derived(deploymentStatus['running'] || 0);
 	let serverScores = $derived(stats.server_scores || {});
 
 	// Overall health: green if all online + avg compliance meets threshold
@@ -44,7 +42,7 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 	async function loadDashboard() {
 		try {
 			const data = await api.dashboard.summary();
-			stats = { servers: 0, containers: 0, deployments: 0, users: 0, server_status: {}, deployment_status: {}, compliance: null, server_scores: {}, recent_activity: [], recent_deployments: [], ...data };
+			stats = { servers: 0, containers: 0, users: 0, server_status: {}, compliance: null, server_scores: {}, recent_activity: [], ...data };
 		} catch (e) {
 			error = e.message;
 		} finally {
@@ -96,18 +94,8 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 	function activityIcon(type) {
 		switch (type) {
 			case 'server_added': return 'solar:server-square-bold';
-			case 'deployment': return 'solar:rocket-bold';
 			case 'alert': return 'solar:danger-triangle-bold';
 			default: return 'solar:info-circle-bold';
-		}
-	}
-
-	function deployStatusColor(status) {
-		switch (status) {
-			case 'running': return 'var(--color-success)';
-			case 'completed': return 'var(--color-primary)';
-			case 'failed': return 'var(--color-danger)';
-			default: return 'var(--color-text-muted)';
 		}
 	}
 
@@ -168,8 +156,6 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 				subtitle={onlineCount > 0 || offlineCount > 0 ? `${onlineCount} online · ${offlineCount} offline` : ''} />
 			<StatCard title="Containers" value={stats.containers} icon="solar:box-bold"
 				subtitle={stats.servers > 0 ? `across ${stats.servers} server${stats.servers !== 1 ? 's' : ''}` : ''} />
-			<StatCard title="Deployments" value={stats.deployments} icon="solar:rocket-bold"
-				subtitle={activeDeployments > 0 ? `${activeDeployments} running` : deploymentStatus['completed'] ? `${deploymentStatus['completed']} completed` : ''} />
 			<StatCard title="Users" value={stats.users} icon="solar:users-group-rounded-bold" />
 			<button class="text-left" onclick={() => goto('/ssl-monitors')}>
 				<StatCard title="SSL Certs" value={sslSummary.valid ?? '—'} icon="solar:shield-check-bold"
@@ -183,9 +169,8 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 				subtitle={compliance.scanned_servers > 0 ? `${compliance.scanned_servers} scanned` : 'no scans'} />
 		</div>
 
-		<!-- Two-column: Server Health + Recent Deployments -->
-		<div class="grid gap-4 lg:grid-cols-2 min-w-0 mt-4">
-			<!-- Server Status Distribution -->
+		<!-- Server Health -->
+		<div class="grid gap-4 mt-4">
 			<div class="card min-w-0 overflow-hidden" style="border-left: 3px solid var(--color-primary);">
 				<h3 class="mb-3 text-base font-semibold" style="color: var(--color-text);">
 					<Icon icon="solar:server-square-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-primary);" /> Server Health
@@ -242,43 +227,6 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 								{/if}
 							{/each}
 						</div>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Recent Deployments -->
-			<div class="card min-w-0 overflow-hidden" style="border-left: 3px solid var(--color-accent);">
-				<div class="flex items-center justify-between mb-3">
-					<h3 class="text-base font-semibold" style="color: var(--color-text);">
-						<Icon icon="solar:rocket-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-accent);" /> Recent Deployments
-					</h3>
-					<button onclick={() => goto('/deployments')} class="text-xs font-medium hover:underline" style="color: var(--color-primary);">View All</button>
-				</div>
-				{#if stats.recent_deployments.length === 0}
-					<div class="flex flex-col items-center py-8 text-center">
-						<Icon icon="solar:rocket-bold" class="mb-2 inline-block h-10 w-10" style="color: var(--color-text-muted);" />
-						<p class="text-sm" style="color: var(--color-text-muted);">No deployments yet</p>
-						<button onclick={() => goto('/deployments')} class="btn-secondary mt-3 text-xs">Create Deployment</button>
-					</div>
-				{:else}
-					<div class="space-y-1 max-h-[240px] overflow-y-auto">
-						{#each stats.recent_deployments as dep}
-							<button
-								onclick={() => goto(`/deployments/${dep.id}`)}
-								class="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-opacity-50"
-								style="background-color: var(--color-surface);"
-							>
-								<span class="h-2 w-2 rounded-full shrink-0" style="background-color: {deployStatusColor(dep.status)};"></span>
-								<div class="flex-1 min-w-0">
-									<p class="text-sm font-medium truncate" style="color: var(--color-text);">{dep.name}</p>
-									{#if dep.server_name}
-										<p class="text-xs truncate" style="color: var(--color-text-muted);">{dep.server_name}</p>
-									{/if}
-								</div>
-								<span class="text-xs px-2 py-0.5 rounded-full font-medium shrink-0" style="color: {deployStatusColor(dep.status)}; background-color: {deployStatusColor(dep.status)}15;">{dep.status}</span>
-								<span class="shrink-0 text-xs whitespace-nowrap" style="color: var(--color-text-muted);">{formatDate(dep.deployed_at)}</span>
-							</button>
-						{/each}
 					</div>
 				{/if}
 			</div>
@@ -354,9 +302,6 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 					</button>
 					<button onclick={() => goto('/containers')} class="btn-secondary flex items-center gap-2">
 						<Icon icon="solar:box-bold" class="h-4 w-4" /> View Containers
-					</button>
-					<button onclick={() => goto('/deployments')} class="btn-secondary flex items-center gap-2">
-						<Icon icon="solar:rocket-bold" class="h-4 w-4" /> Deployments
 					</button>
 				</div>
 			</div>
