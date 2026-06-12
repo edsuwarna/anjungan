@@ -454,6 +454,12 @@ func (h *Handler) dispatchNotification(ctx context.Context, m *model.SSLMonitor,
 		displayName = m.DisplayName
 	}
 
+	// Format expiry date for display
+	expiryStr := "N/A"
+	if r.CertExpiresAt != nil {
+		expiryStr = r.CertExpiresAt.Format("2006-01-02")
+	}
+
 	// Build notification payload
 	payload := map[string]interface{}{
 		"event_type":      "ssl.expiry",
@@ -464,11 +470,13 @@ func (h *Handler) dispatchNotification(ctx context.Context, m *model.SSLMonitor,
 		"days_remaining":  r.DaysRemaining,
 		"issuer":          r.Issuer,
 		"subject":         r.Subject,
-		"expires_at":      r.CertExpiresAt.Format(time.RFC3339),
+		"expires_at":      expiryStr,
 		"cipher_grade":    r.CipherGrade,
+		"tls_version":     r.TLSVersion,
+		"san_mismatch":    r.SANMismatch,
+		"ocsp_status":     r.OCSPStatus,
 		"previous_status": prevStatus,
 		"timestamp":       time.Now().UTC().Format(time.RFC3339),
-		"message":         fmt.Sprintf("🔒 SSL Certificate %s — %s (%d days remaining)", displayName, r.Status, r.DaysRemaining),
 	}
 
 	for _, target := range targets {
@@ -525,63 +533,153 @@ func dispatchToTarget(target *model.SSLNotificationTarget, payload map[string]in
 
 func formatTelegramNotification(payload map[string]interface{}) ([]byte, error) {
 	domain, _ := payload["domain"].(string)
+	displayName, _ := payload["display_name"].(string)
 	status, _ := payload["status"].(string)
 	days, _ := payload["days_remaining"].(int)
 	issuer, _ := payload["issuer"].(string)
-	msg, _ := payload["message"].(string)
+	expiresAt, _ := payload["expires_at"].(string)
+	grade, _ := payload["cipher_grade"].(string)
+	tlsVer, _ := payload["tls_version"].(string)
+	sanMismatch, _ := payload["san_mismatch"].(bool)
 
-	var emoji string
-	switch status {
-	case "expiring_soon":
-		emoji = "🟡"
-	case "expired":
-		emoji = "🔴"
-	default:
-		emoji = "🟢"
+	name := domain
+	if displayName != "" {
+		name = displayName
 	}
 
-	text := fmt.Sprintf(`%s *SSL Certificate Alert*
+	// Timezone WIB
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	nowWIB := time.Now().In(loc).Format("2006-01-02 15:04:05")
 
-%s
+	var text string
 
-*Domain:* %s
-*Status:* %s
-*Days Remaining:* %d
-*Issuer:* %s`,
-		emoji, msg, domain, status, days, issuer)
+	switch status {
+	case "valid":
+		text = fmt.Sprintf("🟢 *%s certificate is valid*\n", name) +
+			fmt.Sprintf("Domain: `%s`\n", domain) +
+			fmt.Sprintf("Expires: `%s` (%d days)\n", expiresAt, days) +
+			fmt.Sprintf("Issuer: `%s`\n", issuer)
+		if grade != "" {
+			text += fmt.Sprintf("Grade: `%s`", grade)
+		}
+
+	case "expiring_soon":
+		text = fmt.Sprintf("🟡 *%s certificate expiring soon*\n", name) +
+			fmt.Sprintf("Domain: `%s`\n", domain) +
+			fmt.Sprintf("Expires: `%s` (%d days)\n", expiresAt, days) +
+			fmt.Sprintf("Issuer: `%s`\n", issuer)
+		if grade != "" {
+			text += fmt.Sprintf("Grade: `%s`\n", grade)
+		}
+		if tlsVer != "" {
+			text += fmt.Sprintf("TLS: `%s`\n", tlsVer)
+		}
+		if sanMismatch {
+			text += "⚠️ SAN mismatch detected\n"
+		}
+		text += fmt.Sprintf("\n⚠️ Renew needed in %d days", days)
+
+	case "expired":
+		text = fmt.Sprintf("🔴 *%s certificate EXPIRED*\n", name) +
+			fmt.Sprintf("Domain: `%s`\n", domain) +
+			fmt.Sprintf("Expired: `%s` (%d days ago)\n", expiresAt, days) +
+			fmt.Sprintf("Issuer: `%s`\n", issuer)
+		if sanMismatch {
+			text += "⚠️ SAN mismatch detected"
+		}
+
+	default: // error
+		errMsg, _ := payload["error"].(string)
+		text = fmt.Sprintf("❌ *%s — check error*\n", name) +
+			fmt.Sprintf("Domain: `%s`\n", domain)
+		if errMsg != "" {
+			text += fmt.Sprintf("Error: `%s`", errMsg)
+		}
+	}
+
+	text += fmt.Sprintf("\n🕐 `%s WIB`", nowWIB)
 
 	return json.Marshal(map[string]string{
-		"text":                text,
-		"parse_mode":          "Markdown",
+		"text":                 text,
+		"parse_mode":           "Markdown",
 		"disable_notification": "false",
 	})
 }
 
 func formatDiscordNotification(payload map[string]interface{}) ([]byte, error) {
 	domain, _ := payload["domain"].(string)
+	displayName, _ := payload["display_name"].(string)
 	status, _ := payload["status"].(string)
 	days, _ := payload["days_remaining"].(int)
+	issuer, _ := payload["issuer"].(string)
+	expiresAt, _ := payload["expires_at"].(string)
+	grade, _ := payload["cipher_grade"].(string)
+	tlsVer, _ := payload["tls_version"].(string)
+	sanMismatch, _ := payload["san_mismatch"].(bool)
+	errMsg, _ := payload["error"].(string)
+
+	name := domain
+	if displayName != "" {
+		name = displayName
+	}
 
 	var color int
+	var title, desc string
 	switch status {
+	case "valid":
+		color = 0x10B981
+		title = fmt.Sprintf("🟢 %s certificate is valid", name)
+		desc = fmt.Sprintf("**%s** — certificate is valid", domain)
 	case "expiring_soon":
 		color = 0xF59E0B
+		title = fmt.Sprintf("🟡 %s certificate expiring soon", name)
+		desc = fmt.Sprintf("**%s** — expires in **%d days**", domain, days)
 	case "expired":
 		color = 0xEF4444
+		title = fmt.Sprintf("🔴 %s certificate EXPIRED", name)
+		desc = fmt.Sprintf("**%s** — expired **%d days ago**", domain, days)
 	default:
-		color = 0x10B981
+		color = 0x94A3B8
+		title = fmt.Sprintf("❌ %s — check error", name)
+		desc = fmt.Sprintf("**%s** — check failed", domain)
+	}
+
+	fields := []map[string]interface{}{
+		{"name": "Domain", "value": domain, "inline": true},
+	}
+	if expiresAt != "" {
+		fields = append(fields, map[string]interface{}{"name": "Expires", "value": expiresAt, "inline": true})
+	}
+	if days > 0 || (status == "expired" && days <= 0) {
+		label := "Days Remaining"
+		if status == "expired" {
+			label = "Days Overdue"
+		}
+		fields = append(fields, map[string]interface{}{"name": label, "value": fmt.Sprintf("%d", days), "inline": true})
+	}
+	if issuer != "" {
+		fields = append(fields, map[string]interface{}{"name": "Issuer", "value": issuer, "inline": false})
+	}
+	if grade != "" {
+		fields = append(fields, map[string]interface{}{"name": "Grade", "value": grade, "inline": true})
+	}
+	if tlsVer != "" {
+		fields = append(fields, map[string]interface{}{"name": "TLS", "value": tlsVer, "inline": true})
+	}
+	if sanMismatch {
+		fields = append(fields, map[string]interface{}{"name": "⚠️ SAN Mismatch", "value": "Detected", "inline": false})
+	}
+	if errMsg != "" {
+		fields = append(fields, map[string]interface{}{"name": "Error", "value": errMsg, "inline": false})
 	}
 
 	embed := map[string]interface{}{
-		"title":       "🔒 SSL Certificate Alert",
-		"description": fmt.Sprintf("**%s** — %s", domain, status),
+		"title":       title,
+		"description": desc,
 		"color":       color,
-		"fields": []map[string]interface{}{
-			{"name": "Domain", "value": domain, "inline": false},
-			{"name": "Status", "value": status, "inline": false},
-			{"name": "Days Remaining", "value": fmt.Sprintf("%d", days), "inline": false},
-		},
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"fields":      fields,
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+		"footer":      map[string]interface{}{"text": "Anjungan SSL Monitor"},
 	}
 
 	return json.Marshal(map[string]interface{}{
@@ -591,17 +689,35 @@ func formatDiscordNotification(payload map[string]interface{}) ([]byte, error) {
 
 func formatSlackNotification(payload map[string]interface{}) ([]byte, error) {
 	domain, _ := payload["domain"].(string)
+	displayName, _ := payload["display_name"].(string)
 	status, _ := payload["status"].(string)
 	days, _ := payload["days_remaining"].(int)
+	issuer, _ := payload["issuer"].(string)
+	expiresAt, _ := payload["expires_at"].(string)
+	grade, _ := payload["cipher_grade"].(string)
+	sanMismatch, _ := payload["san_mismatch"].(bool)
+	errMsg, _ := payload["error"].(string)
+
+	name := domain
+	if displayName != "" {
+		name = displayName
+	}
 
 	var emoji string
+	var statusLine string
 	switch status {
+	case "valid":
+		emoji = ":white_check_mark:"
+		statusLine = "valid"
 	case "expiring_soon":
 		emoji = ":warning:"
+		statusLine = "expiring soon"
 	case "expired":
 		emoji = ":red_circle:"
+		statusLine = "EXPIRED"
 	default:
-		emoji = ":white_check_mark:"
+		emoji = ":x:"
+		statusLine = "error"
 	}
 
 	blocks := []map[string]interface{}{
@@ -609,11 +725,43 @@ func formatSlackNotification(payload map[string]interface{}) ([]byte, error) {
 			"type": "section",
 			"text": map[string]interface{}{
 				"type": "mrkdwn",
-				"text": fmt.Sprintf("%s *SSL Certificate Alert*\n*Domain:* %s\n*Status:* %s\n*Days Remaining:* %d",
-					emoji, domain, strings.ToUpper(status), days),
+				"text": fmt.Sprintf("%s *%s* — %s", emoji, name, strings.ToUpper(statusLine)),
 			},
 		},
 	}
+
+	// Fields block
+	fieldText := fmt.Sprintf("*Domain:* %s\n", domain)
+	if expiresAt != "" {
+		fieldText += fmt.Sprintf("*Expires:* %s\n", expiresAt)
+	}
+	if days > 0 || status == "expired" {
+		label := "Days Remaining"
+		if status == "expired" {
+			label = "Days Overdue"
+		}
+		fieldText += fmt.Sprintf("*%s:* %d\n", label, days)
+	}
+	if issuer != "" {
+		fieldText += fmt.Sprintf("*Issuer:* %s\n", issuer)
+	}
+	if grade != "" {
+		fieldText += fmt.Sprintf("*Grade:* %s\n", grade)
+	}
+	if sanMismatch {
+		fieldText += ":warning: SAN mismatch detected\n"
+	}
+	if errMsg != "" {
+		fieldText += fmt.Sprintf("*Error:* %s", errMsg)
+	}
+
+	blocks = append(blocks, map[string]interface{}{
+		"type": "section",
+		"text": map[string]interface{}{
+			"type": "mrkdwn",
+			"text": fieldText,
+		},
+	})
 
 	return json.Marshal(map[string]interface{}{
 		"text":   fmt.Sprintf("%s SSL Alert: %s", emoji, domain),
@@ -996,12 +1144,13 @@ func (h *Handler) TestNotificationTarget(w http.ResponseWriter, r *http.Request)
 		"days_remaining":  14,
 		"issuer":          "R3 (Let's Encrypt)",
 		"subject":         "CN=example.com",
-		"expires_at":      time.Now().AddDate(0, 0, 14).Format(time.RFC3339),
+		"expires_at":      time.Now().AddDate(0, 0, 14).Format("2006-01-02"),
 		"cipher_grade":    "A",
-		"message":         "🔔 This is a test notification from SSL Monitor",
+		"tls_version":     "TLS 1.3",
+		"san_mismatch":    false,
+		"ocsp_status":     "good",
 		"previous_status": "valid",
 		"timestamp":       time.Now().UTC().Format(time.RFC3339),
-		"test":            true,
 	}
 
 	statusCode, respBody, err := dispatchToTarget(target, testPayload)
