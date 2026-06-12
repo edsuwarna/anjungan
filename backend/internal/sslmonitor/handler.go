@@ -481,7 +481,7 @@ func buildSSLNotificationPayload(m *model.SSLMonitor, r *CheckResult, prevStatus
 
 	expiresAt := ""
 	if r.CertExpiresAt != nil {
-		expiresAt = r.CertExpiresAt.Format(time.RFC3339)
+		expiresAt = r.CertExpiresAt.In(loc).Format("2006-01-02 15:04:05 WIB")
 	}
 
 	// Build human-readable message

@@ -194,39 +194,64 @@ func formatDiscordUptimeNotification(payload map[string]interface{}) ([]byte, er
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
 	status, _ := payload["status"].(string)
+	prevStatus, _ := payload["previous_status"].(string)
+	checkType, _ := payload["check_type"].(string)
 	msg, _ := payload["message"].(string)
 	errorVal, _ := payload["error"].(string)
 	timestampWIB, _ := payload["timestamp_wib"].(string)
 
 	var color int
+	var statusEmoji string
 	switch status {
 	case "down":
 		color = 0xEF4444
+		statusEmoji = "🔴"
 	case "up":
 		color = 0x10B981
+		statusEmoji = "🟢"
 	default:
 		color = 0x94A3B8
+		statusEmoji = "⚪"
 	}
 
-	// Build fields — Service Name and URL are always shown
+	// Build status transition text
+	statusTransition := statusEmoji + " " + status
+	if prevStatus != "" && prevStatus != status {
+		statusTransition += " (was " + prevStatus + ")"
+	}
+
+	// Build fields
 	fields := []map[string]interface{}{
 		{"name": "Service Name", "value": monitorName, "inline": true},
+		{"name": "Check Type", "value": checkType, "inline": true},
+		{"name": "Status", "value": statusTransition, "inline": false},
 		{"name": "Service URL", "value": monitorURL, "inline": false},
-		{"name": "Time (Asia/Jakarta)", "value": timestampWIB, "inline": false},
 	}
 
-	// Add status-specific field
+	// Status code — always shown if available
+	if sc, ok := payload["status_code"].(int); ok && sc > 0 {
+		fields = append(fields, map[string]interface{}{
+			"name": "Status Code", "value": fmt.Sprintf("%d", sc), "inline": true,
+		})
+	}
+
+	// Response time — always shown if available
+	if ping, ok := payload["response_time_ms"].(float64); ok && ping > 0 {
+		fields = append(fields, map[string]interface{}{
+			"name": "Response Time", "value": fmt.Sprintf("%.0f ms", ping), "inline": true,
+		})
+	}
+
+	// Error — shown when down
 	if status == "down" && errorVal != "" {
 		fields = append(fields, map[string]interface{}{
 			"name": "Error", "value": errorVal, "inline": false,
 		})
-	} else if status == "up" {
-		if ping, ok := payload["response_time_ms"].(float64); ok {
-			fields = append(fields, map[string]interface{}{
-				"name": "Ping", "value": fmt.Sprintf("%.0f ms", ping), "inline": false,
-			})
-		}
 	}
+
+	fields = append(fields, map[string]interface{}{
+		"name": "Time (Asia/Jakarta)", "value": timestampWIB, "inline": false,
+	})
 
 	embed := map[string]interface{}{
 		"title":       msg,
@@ -245,23 +270,47 @@ func formatTelegramUptimeNotification(payload map[string]interface{}) ([]byte, e
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
 	status, _ := payload["status"].(string)
+	prevStatus, _ := payload["previous_status"].(string)
+	checkType, _ := payload["check_type"].(string)
 	msg, _ := payload["message"].(string)
 	errorVal, _ := payload["error"].(string)
 	timestampWIB, _ := payload["timestamp_wib"].(string)
 
-	// Build text
+	var statusEmoji string
+	switch status {
+	case "up":
+		statusEmoji = "🟢"
+	case "down":
+		statusEmoji = "🔴"
+	default:
+		statusEmoji = "⚪"
+	}
+
+	// Build status transition
+	statusLine := statusEmoji + " **" + status + "**"
+	if prevStatus != "" && prevStatus != status {
+		statusLine += " (was " + prevStatus + ")"
+	}
+
 	text := msg + "\n\n"
-	text += fmt.Sprintf("Service Name: %s\n", monitorName)
-	text += fmt.Sprintf("Service URL: %s\n", monitorURL)
-	text += fmt.Sprintf("Time (Asia/Jakarta): %s\n", timestampWIB)
+	text += fmt.Sprintf("**Service Name:** %s\n", monitorName)
+	text += fmt.Sprintf("**Service URL:** %s\n", monitorURL)
+	text += fmt.Sprintf("**Check Type:** %s\n", checkType)
+	text += fmt.Sprintf("**Status:** %s\n", statusLine)
+
+	if sc, ok := payload["status_code"].(int); ok && sc > 0 {
+		text += fmt.Sprintf("**Status Code:** %d\n", sc)
+	}
+
+	if ping, ok := payload["response_time_ms"].(float64); ok && ping > 0 {
+		text += fmt.Sprintf("**Response Time:** %.0f ms\n", ping)
+	}
 
 	if status == "down" && errorVal != "" {
-		text += fmt.Sprintf("Error: %s\n", errorVal)
-	} else if status == "up" {
-		if ping, ok := payload["response_time_ms"].(float64); ok {
-			text += fmt.Sprintf("Ping: %.0f ms\n", ping)
-		}
+		text += fmt.Sprintf("**Error:** %s\n", errorVal)
 	}
+
+	text += fmt.Sprintf("**Time (Asia/Jakarta):** %s\n", timestampWIB)
 
 	return json.Marshal(map[string]interface{}{
 		"text":                  text,
@@ -275,6 +324,8 @@ func formatSlackUptimeNotification(payload map[string]interface{}) ([]byte, erro
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
 	status, _ := payload["status"].(string)
+	prevStatus, _ := payload["previous_status"].(string)
+	checkType, _ := payload["check_type"].(string)
 	msg, _ := payload["message"].(string)
 	errorVal, _ := payload["error"].(string)
 	timestampWIB, _ := payload["timestamp_wib"].(string)
@@ -289,16 +340,29 @@ func formatSlackUptimeNotification(payload map[string]interface{}) ([]byte, erro
 		emoji = ":white_circle:"
 	}
 
+	// Build status transition
+	statusLine := emoji + " *" + status + "*"
+	if prevStatus != "" && prevStatus != status {
+		statusLine += " (was " + prevStatus + ")"
+	}
+
 	// Build fields text
-	fieldsText := fmt.Sprintf("*Service Name:* %s\n*Service URL:* %s\n*Time (Asia/Jakarta):* %s",
-		monitorName, monitorURL, timestampWIB)
+	fieldsText := fmt.Sprintf("*Service Name:* %s\n*Service URL:* %s\n*Check Type:* %s\n*Status:* %s",
+		monitorName, monitorURL, checkType, statusLine)
+
+	if sc, ok := payload["status_code"].(int); ok && sc > 0 {
+		fieldsText += fmt.Sprintf("\n*Status Code:* %d", sc)
+	}
+
+	if ping, ok := payload["response_time_ms"].(float64); ok && ping > 0 {
+		fieldsText += fmt.Sprintf("\n*Response Time:* %.0f ms", ping)
+	}
+
 	if status == "down" && errorVal != "" {
 		fieldsText += fmt.Sprintf("\n*Error:* %s", errorVal)
-	} else if status == "up" {
-		if ping, ok := payload["response_time_ms"].(float64); ok {
-			fieldsText += fmt.Sprintf("\n*Ping:* %.0f ms", ping)
-		}
 	}
+
+	fieldsText += fmt.Sprintf("\n*Time (Asia/Jakarta):* %s", timestampWIB)
 
 	blocks := []map[string]interface{}{
 		{
