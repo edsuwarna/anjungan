@@ -145,25 +145,13 @@
 		</div>
 	</div>
 
-	<!-- Stat Summary Bar -->
+	<!-- Total Targets Count -->
 	{#if targets.length > 0}
 	<div class="flex flex-wrap items-center gap-3 mb-5 p-3 rounded-xl" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 		<div class="flex items-center gap-1.5">
 			<Icon icon="solar:bell-bold" class="h-4 w-4" style="color: var(--color-primary);" />
 			<span class="text-sm font-bold" style="color: var(--color-text);">{totalTargets}</span>
 			<span class="text-xs" style="color: var(--color-text-muted);">targets</span>
-		</div>
-		<span class="h-4 w-px" style="background-color: var(--color-border);"></span>
-		<div class="flex items-center gap-1.5">
-			<Icon icon="solar:shield-check-bold" class="h-4 w-4" style="color: var(--color-success);" />
-			<span class="text-sm font-bold" style="color: var(--color-text);">{sslCount}</span>
-			<span class="text-xs" style="color: var(--color-text-muted);">SSL</span>
-		</div>
-		<span class="h-4 w-px" style="background-color: var(--color-border);"></span>
-		<div class="flex items-center gap-1.5">
-			<Icon icon="solar:chart-2-bold" class="h-4 w-4" style="color: var(--color-accent);" />
-			<span class="text-sm font-bold" style="color: var(--color-text);">{uptimeCount}</span>
-			<span class="text-xs" style="color: var(--color-text-muted);">Uptime</span>
 		</div>
 	</div>
 	{/if}
