@@ -1267,6 +1267,30 @@ func formatDiscordUptimeNotification(payload map[string]interface{}) ([]byte, er
 		fields = append(fields, map[string]interface{}{"name": "Error", "value": errorMsg, "inline": false})
 	}
 
+	// Downtime duration (only on UP recovery)
+	if status == "up" {
+		if dur, ok := payload["downtime_seconds"].(float64); ok && dur > 0 {
+			durInt := int(dur)
+			hours := durInt / 3600
+			mins := (durInt % 3600) / 60
+			secs := durInt % 60
+			durStr := ""
+			if hours > 0 {
+				durStr = fmt.Sprintf("%dh %dm %ds", hours, mins, secs)
+			} else if mins > 0 {
+				durStr = fmt.Sprintf("%dm %ds", mins, secs)
+			} else {
+				durStr = fmt.Sprintf("%ds", secs)
+			}
+			fields = append(fields, map[string]interface{}{"name": "⏱ Downtime", "value": durStr, "inline": true})
+		}
+	}
+
+	// Uptime 24h
+	if uptime, ok := payload["uptime_24h"].(float64); ok && uptime > 0 {
+		fields = append(fields, map[string]interface{}{"name": "📊 Uptime 24h", "value": fmt.Sprintf("%.1f%%", uptime), "inline": true})
+	}
+
 	embed := map[string]interface{}{
 		"title":       title,
 		"color":       color,
@@ -1317,7 +1341,11 @@ func formatTelegramUptimeNotification(payload map[string]interface{}) ([]byte, e
 			text += fmt.Sprintf("Status: `%s`\n", statusCodeStr)
 		}
 		if responseTimeStr != "" {
-			text += fmt.Sprintf("Response: `%s`", responseTimeStr)
+			text += fmt.Sprintf("Response: `%s`\n", responseTimeStr)
+		}
+		// Uptime % on down — shows reliability context
+		if uptime, ok := payload["uptime_24h"].(float64); ok && uptime > 0 {
+			text += fmt.Sprintf("📊 Uptime 24h: `%.1f%%`", uptime)
 		}
 	} else if status == "up" {
 		text = fmt.Sprintf("✅ *%s is UP again*\n", monitorName)
@@ -1328,6 +1356,26 @@ func formatTelegramUptimeNotification(payload map[string]interface{}) ([]byte, e
 		}
 		if statusCodeStr != "" {
 			text += fmt.Sprintf("Status: `%s`\n", statusCodeStr)
+		}
+		// Downtime duration
+		if dur, ok := payload["downtime_seconds"].(float64); ok && dur > 0 {
+			durInt := int(dur)
+			hours := durInt / 3600
+			mins := (durInt % 3600) / 60
+			secs := durInt % 60
+			durStr := ""
+			if hours > 0 {
+				durStr = fmt.Sprintf("%dh %dm %ds", hours, mins, secs)
+			} else if mins > 0 {
+				durStr = fmt.Sprintf("%dm %ds", mins, secs)
+			} else {
+				durStr = fmt.Sprintf("%ds", secs)
+			}
+			text += fmt.Sprintf("⏱ Downtime: `%s`\n", durStr)
+		}
+		// Uptime %
+		if uptime, ok := payload["uptime_24h"].(float64); ok && uptime > 0 {
+			text += fmt.Sprintf("📊 Uptime 24h: `%.1f%%`\n", uptime)
 		}
 		if previousStatus == "down" || previousStatus == "error" {
 			text += "\n✅ Service recovered"

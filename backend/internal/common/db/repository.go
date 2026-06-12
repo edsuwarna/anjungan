@@ -3534,12 +3534,40 @@ func (r *Repository) GetUptimeTrendCustom(ctx context.Context, monitorID, from, 
 	return items, nil
 }
 
-// PurgeOldUptimeHistory deletes check history entries older than the given retention period.
+// PurgeOldUptimeHistory deletes check history older than retentionDays.
 func (r *Repository) PurgeOldUptimeHistory(ctx context.Context, retentionDays int) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`DELETE FROM uptime_check_history WHERE checked_at < NOW() - $1::interval`,
 		fmt.Sprintf("%d days", retentionDays))
 	return err
+}
+
+// GetUptimeLastIncidentDuration returns the duration in seconds of the most recent
+// incident (consecutive down/error checks). Returns 0 if no incident found.
+func (r *Repository) GetUptimeLastIncidentDuration(ctx context.Context, monitorID string) (int, error) {
+	var startTime time.Time
+	err := r.db.Pool.QueryRow(ctx, `
+		WITH ordered AS (
+			SELECT checked_at, status,
+				LAG(status) OVER (ORDER BY checked_at) AS prev_status
+			FROM uptime_check_history
+			WHERE monitor_id = $1
+		)
+		SELECT checked_at FROM ordered
+		WHERE status IN ('down', 'error')
+		  AND (prev_status IS NULL OR prev_status IN ('up', 'pending'))
+		ORDER BY checked_at DESC
+		LIMIT 1
+	`, monitorID).Scan(&startTime)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	return int(time.Since(startTime).Seconds()), nil
 }
 
 // UpsertUptimeDailySummary inserts or updates a daily summary record.

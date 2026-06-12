@@ -198,14 +198,23 @@ func (s *Scheduler) dispatchNotification(ctx context.Context, m *model.UptimeMon
 		targetMap[t.ID] = t
 	}
 
+	// Gather extra notification data (duration, uptime %)
+	extraData := s.gatherExtraNotificationData(ctx, m, prevStatus)
+
 	for _, targetID := range m.NotificationTargetIDs {
 		target, ok := targetMap[targetID]
 		if !ok || !target.Enabled {
 			continue
 		}
 
-		// Build payload based on platform
+		// Build uniform payload
 		payload := buildNotificationPayload(m, prevStatus, result, target.Platform)
+
+		// Add extra data to payload
+		for k, v := range extraData {
+			payload[k] = v
+		}
+
 		statusCode, respBody, err := sendToTarget(&target, payload)
 		if err != nil {
 			log.Printf("[uptime] failed to send notification to %s (%s): %v", target.Name, target.URL, err)
@@ -214,6 +223,25 @@ func (s *Scheduler) dispatchNotification(ctx context.Context, m *model.UptimeMon
 			_ = respBody
 		}
 	}
+}
+
+// gatherExtraNotificationData collects additional context for notifications.
+func (s *Scheduler) gatherExtraNotificationData(ctx context.Context, m *model.UptimeMonitor, prevStatus string) map[string]interface{} {
+	data := make(map[string]interface{})
+
+	// Downtime duration: only meaningful when service just recovered
+	if prevStatus == "down" || prevStatus == "error" {
+		if duration, err := s.repo.GetUptimeLastIncidentDuration(ctx, m.ID); err == nil && duration > 0 {
+			data["downtime_seconds"] = duration
+		}
+	}
+
+	// Uptime stats for the last 24h
+	if stats, err := s.repo.GetUptimeStats(ctx, m.ID); err == nil && stats != nil && stats.Uptime24h != nil {
+		data["uptime_24h"] = *stats.Uptime24h
+	}
+
+	return data
 }
 
 // buildNotificationPayload creates a uniform payload for all platforms.
