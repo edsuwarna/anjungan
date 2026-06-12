@@ -13,54 +13,14 @@ export function getAuthToken() {
 
 async function request(path, options = {}) {
 	const headers = { 'Content-Type': 'application/json', ...options.headers };
-	const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
-
-	async function doRequest(token) {
-		const h = { ...headers };
-		if (token) {
-			h['Authorization'] = `Bearer ${token}`;
-		}
-		return fetch(`${API_BASE}${path}`, { ...options, headers: h });
-	}
-
 	if (token) {
 		headers['Authorization'] = `Bearer ${token}`;
 	}
 
-	let res = await fetch(`${API_BASE}${path}`, {
+	const res = await fetch(`${API_BASE}${path}`, {
 		...options,
 		headers,
 	});
-
-	if (res.status === 401 && refreshToken) {
-		// Token expired — try refresh before giving up
-		try {
-			const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ refresh_token: refreshToken }),
-			});
-
-			if (refreshRes.ok) {
-				const refreshData = await refreshRes.json();
-				const newToken = refreshData.access_token || refreshData.data?.access_token;
-
-				if (newToken) {
-					const newRefreshToken = refreshData.refresh_token || refreshData.data?.refresh_token;
-					token = newToken;
-					localStorage.setItem('access_token', newToken);
-					if (newRefreshToken) {
-						localStorage.setItem('refresh_token', newRefreshToken);
-					}
-
-					// Retry original request with new token
-					res = await doRequest(newToken);
-				}
-			}
-		} catch (_) {
-			// Refresh failed — fall through to 401 handling below
-		}
-	}
 
 	if (res.status === 401) {
 		// Token expired/invalid — clear auth state and let SvelteKit redirect

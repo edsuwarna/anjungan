@@ -304,22 +304,6 @@ func (s *Service) ValidateAccessToken(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
-// RefreshAccessToken validates a refresh token and issues a new token pair.
-func (s *Service) RefreshAccessToken(ctx context.Context, refreshTokenStr string) (*TokenResponse, error) {
-	claims, err := s.ValidateAccessToken(refreshTokenStr)
-	if err != nil {
-		return nil, ErrInvalidToken
-	}
-
-	// Verify the user still exists
-	user, err := s.users.GetUserByID(ctx, claims.UserID)
-	if err != nil {
-		return nil, ErrInvalidToken
-	}
-
-	return s.generateTokenPair(user)
-}
-
 func (s *Service) generateTokenPair(user *model.User) (*TokenResponse, error) {
 	now := time.Now()
 	claims := Claims{
@@ -338,15 +322,9 @@ func (s *Service) generateTokenPair(user *model.User) (*TokenResponse, error) {
 		return nil, err
 	}
 
-	// Refresh token carries full claims so we can re-issue without DB lookup
-	refreshClaims := Claims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(s.cfg.RefreshTTL)),
-		},
+	refreshClaims := jwt.RegisteredClaims{
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(now.Add(s.cfg.RefreshTTL)),
 	}
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
 	refreshStr, err := refreshToken.SignedString([]byte(s.cfg.Secret))

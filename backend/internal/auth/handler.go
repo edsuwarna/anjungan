@@ -111,25 +111,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.Error(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.RefreshToken == "" {
-		common.Error(w, http.StatusBadRequest, "refresh_token is required")
-		return
-	}
-
-	resp, err := h.svc.RefreshAccessToken(r.Context(), req.RefreshToken)
-	if err != nil {
-		common.Error(w, http.StatusUnauthorized, "invalid or expired refresh token")
-		return
-	}
-
-	common.JSON(w, http.StatusOK, resp)
+	common.Error(w, http.StatusNotImplemented, "not implemented yet")
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
