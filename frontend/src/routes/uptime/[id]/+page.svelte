@@ -79,7 +79,7 @@
 		testingTarget = targetId;
 		testTargetResult = null;
 		try {
-			const result = await api.notificationTargets.test(targetId);
+			const result = await api.notificationTargets.test(targetId, 'uptime');
 			testTargetResult = { id: targetId, ...result };
 		} catch (e) {
 			testTargetResult = { id: targetId, success: false, error: e.message || 'Test request failed' };

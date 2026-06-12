@@ -201,19 +201,15 @@ func (h *Handler) TestDelivery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if target has SSL scope
-	hasSSL := false
-	for _, scope := range target.Scopes {
-		if scope == "ssl" {
-			hasSSL = true
-			break
-		}
-	}
+	// Optional query param overrides which format to use
+	// "ssl" → SendSSLToTarget, "uptime" → SendToTarget
+	// If not provided, fall back to checking target's scopes
+	testScope := r.URL.Query().Get("scope")
 
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	var testPayload map[string]interface{}
 
-	if hasSSL {
+	if testScope == "ssl" {
 		testPayload = map[string]interface{}{
 			"event_type":      "ssl.test",
 			"monitor_id":      "test",
@@ -253,12 +249,27 @@ func (h *Handler) TestDelivery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var useSSL bool
+	if testScope == "ssl" {
+		useSSL = true
+	} else if testScope == "uptime" {
+		useSSL = false
+	} else {
+		// Fallback: check if target has SSL scope
+		for _, scope := range target.Scopes {
+			if scope == "ssl" {
+				useSSL = true
+				break
+			}
+		}
+	}
+
 	var statusCode int
 	var respBody string
 	var sendErr error
 
-	if hasSSL {
-		statusCode, respBody, sendErr = SendRawJSON(target, testPayload)
+	if useSSL {
+		statusCode, respBody, sendErr = SendSSLToTarget(target, testPayload)
 	} else {
 		statusCode, respBody, sendErr = SendToTarget(target, testPayload)
 	}
