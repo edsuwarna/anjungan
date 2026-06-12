@@ -443,9 +443,40 @@ func (h *Handler) runCheck(ctx context.Context, m *model.SSLMonitor) {
 // ─── Notification Dispatch ──────────────────────────────────────────────────
 
 func (h *Handler) dispatchNotification(ctx context.Context, m *model.SSLMonitor, r *CheckResult, prevStatus string) {
-	// Fetch the notification targets assigned to this monitor
-	targets, err := h.repo.ListSSLNotificationTargetsByIDs(ctx, m.WebhookIDs)
-	if err != nil || len(targets) == 0 {
+	// Fetch notification targets from the shared table with scope 'ssl'
+	var targets []model.NotificationTarget
+	if len(m.WebhookIDs) > 0 {
+		allTargets, err := h.repo.ListNotificationTargets(ctx, "ssl")
+		if err == nil {
+			for _, t := range allTargets {
+				for _, wid := range m.WebhookIDs {
+					if t.ID == wid {
+						targets = append(targets, t)
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback: legacy ssl_notification_targets table
+	if len(targets) == 0 {
+		legacyTargets, err := h.repo.ListSSLNotificationTargetsByIDs(ctx, m.WebhookIDs)
+		if err == nil {
+			for _, lt := range legacyTargets {
+				targets = append(targets, model.NotificationTarget{
+					ID:            lt.ID,
+					Name:          lt.Name,
+					URL:           lt.URL,
+					Platform:      lt.Platform,
+					WebhookSecret: lt.WebhookSecret,
+					Enabled:       lt.Enabled,
+				})
+			}
+		}
+	}
+
+	if len(targets) == 0 {
 		return
 	}
 
@@ -480,7 +511,7 @@ func (h *Handler) dispatchNotification(ctx context.Context, m *model.SSLMonitor,
 	}
 
 	for _, target := range targets {
-		statusCode, respBody, err := dispatchToTarget(target, payload)
+		statusCode, respBody, err := dispatchToTarget(&target, payload)
 		if err != nil {
 			log.Printf("[sslmonitor] notification target %s failed: %v", target.Name, err)
 			continue
@@ -492,7 +523,7 @@ func (h *Handler) dispatchNotification(ctx context.Context, m *model.SSLMonitor,
 }
 
 // dispatchToTarget sends the payload to the notification target URL.
-func dispatchToTarget(target *model.SSLNotificationTarget, payload map[string]interface{}) (int, string, error) {
+func dispatchToTarget(target *model.NotificationTarget, payload map[string]interface{}) (int, string, error) {
 	var bodyBytes []byte
 	var err error
 
@@ -1134,6 +1165,16 @@ func (h *Handler) TestNotificationTarget(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Convert to shared NotificationTarget for dispatch
+	sharedTarget := &model.NotificationTarget{
+		ID:            target.ID,
+		Name:          target.Name,
+		URL:           target.URL,
+		Platform:      target.Platform,
+		WebhookSecret: target.WebhookSecret,
+		Enabled:       target.Enabled,
+	}
+
 	// Build a test payload mimicking an SSL expiry alert
 	testPayload := map[string]interface{}{
 		"event_type":      "ssl.expiry.test",
@@ -1153,7 +1194,7 @@ func (h *Handler) TestNotificationTarget(w http.ResponseWriter, r *http.Request)
 		"timestamp":       time.Now().UTC().Format(time.RFC3339),
 	}
 
-	statusCode, respBody, err := dispatchToTarget(target, testPayload)
+	statusCode, respBody, err := dispatchToTarget(sharedTarget, testPayload)
 	if err != nil {
 		log.Printf("[sslmonitor] test notification target %s failed: %v", target.Name, err)
 		common.JSON(w, http.StatusOK, map[string]interface{}{

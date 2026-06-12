@@ -953,20 +953,53 @@ func (h *Handler) TestNotificationTargetDelivery(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Build a test payload mimicking an uptime alert
-	testPayload := map[string]interface{}{
-		"event_type":   "uptime.test",
-		"monitor_name": "Test Monitor",
-		"monitor_url":  "https://example.com",
-		"check_type":   "http",
-		"status":       "up",
-		"status_code":  200,
-		"response_time_ms": 42,
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-		"message":      "🔍 Uptime Monitor Test — This is a test notification from your uptime monitoring system.",
+	// Detect scope to build the right test payload
+	hasSSLScope := false
+	for _, s := range target.Scopes {
+		if s == "ssl" {
+			hasSSLScope = true
+			break
+		}
 	}
 
-	statusCode, respBody, err := sendToTarget(target, testPayload)
+	var statusCode int
+	var respBody string
+
+	if hasSSLScope {
+		// Build SSL-style test payload and send as raw JSON (no platform formatting)
+		testPayload := map[string]interface{}{
+			"event_type":      "ssl.expiry.test",
+			"domain":          "example.com",
+			"port":            443,
+			"display_name":    "Test Notification",
+			"status":          "expiring_soon",
+			"days_remaining":  14,
+			"issuer":          "R3 (Let's Encrypt)",
+			"subject":         "CN=example.com",
+			"expires_at":      time.Now().AddDate(0, 0, 14).Format("2006-01-02"),
+			"cipher_grade":    "A",
+			"tls_version":     "TLS 1.3",
+			"previous_status": "valid",
+			"timestamp":       time.Now().UTC().Format(time.RFC3339),
+		}
+		bodyBytes, _ := json.Marshal(testPayload)
+		statusCode, respBody, err = sendRawJSON(target, bodyBytes)
+	} else {
+		// Build an uptime-style test payload
+		testPayload := map[string]interface{}{
+			"event_type":       "uptime.test",
+			"monitor_name":     "Test Monitor",
+			"monitor_url":      "https://example.com",
+			"check_type":       "http",
+			"status":           "up",
+			"status_code":      200,
+			"response_time_ms": 42,
+			"timestamp":        time.Now().UTC().Format(time.RFC3339),
+			"message":          "🔍 Uptime Monitor Test — This is a test notification from your uptime monitoring system.",
+		}
+		statusCode, respBody, err = sendToTarget(target, testPayload)
+	}
+
 	if err != nil {
 		common.JSON(w, http.StatusOK, map[string]interface{}{
 			"success": false,
@@ -991,6 +1024,29 @@ func (h *Handler) TestNotificationTargetDelivery(w http.ResponseWriter, r *http.
 		"status_code": statusCode,
 		"response":    truncateString(respBody, 1000),
 	})
+}
+
+// sendRawJSON sends a raw JSON payload to the target without platform-specific formatting.
+func sendRawJSON(target *model.NotificationTarget, bodyBytes []byte) (int, string, error) {
+	req, err := http.NewRequest("POST", target.URL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return 0, "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "anjungan-webhook/1.0")
+	if target.WebhookSecret != "" {
+		req.Header.Set("X-Webhook-Secret", target.WebhookSecret)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, "", fmt.Errorf("send: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(respBody), nil
 }
 
 // ─── Maintenance Windows ────────────────────────────────────────────────
