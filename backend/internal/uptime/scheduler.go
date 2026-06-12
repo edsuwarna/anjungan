@@ -11,6 +11,7 @@ import (
 
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/notification"
 )
 
 // ─── Scheduler ──────────────────────────────────────────────────────────────
@@ -206,7 +207,7 @@ func (s *Scheduler) dispatchNotification(ctx context.Context, m *model.UptimeMon
 
 		// Build payload based on platform
 		payload := buildNotificationPayload(m, prevStatus, result, target.Platform)
-		statusCode, respBody, err := sendToTarget(&target, payload)
+		statusCode, respBody, err := notification.SendToTarget(&target, payload)
 		if err != nil {
 			log.Printf("[uptime] failed to send notification to %s (%s): %v", target.Name, target.URL, err)
 		} else {

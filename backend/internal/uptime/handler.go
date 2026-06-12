@@ -1,11 +1,9 @@
 package uptime
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -22,6 +20,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/notification"
 )
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
@@ -119,20 +118,7 @@ func (h *Handler) Routes() chi.Router {
 	return r
 }
 
-// ─── NotificationTargetRoutes ────────────────────────────────────────────────
-
-func (h *Handler) NotificationTargetRoutes() chi.Router {
-	r := chi.NewRouter()
-	r.Get("/", h.ListNotificationTargets)
-	r.Post("/", h.CreateNotificationTarget)
-	r.Get("/{id}", h.GetNotificationTarget)
-	r.Put("/{id}", h.UpdateNotificationTarget)
-	r.Delete("/{id}", h.DeleteNotificationTarget)
-	r.Post("/{id}/test", h.TestNotificationTargetDelivery)
-	return r
-}
-
-// ─── Request / Response types ────────────────────────────────────────────────
+// ─── Uptime Monitor Routes ────────────────────────────────────────────────────
 
 type createUptimeMonitorRequest struct {
 	Name                  string   `json:"name"`
@@ -767,7 +753,7 @@ func (h *Handler) TestNotification(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		statusCode, respBody, err := sendToTarget(&target, testPayload)
+		statusCode, respBody, err := notification.SendToTarget(&target, testPayload)
 		if err != nil {
 			results = append(results, targetResult{
 				TargetID:   target.ID,
@@ -782,219 +768,13 @@ func (h *Handler) TestNotification(w http.ResponseWriter, r *http.Request) {
 			TargetID:   target.ID,
 			TargetName: target.Name,
 			Status:     statusCode,
-			Response:   truncateString(respBody, 500),
+			Response:   notification.TruncateString(respBody, 500),
 		})
 	}
 
 	common.JSON(w, http.StatusOK, map[string]interface{}{
 		"message": fmt.Sprintf("sent test to %d target(s)", len(results)),
 		"results": results,
-	})
-}
-
-// ─── Notification Target CRUD ────────────────────────────────────────────────
-
-func (h *Handler) ListNotificationTargets(w http.ResponseWriter, r *http.Request) {
-	scope := r.URL.Query().Get("scope")
-
-	targets, err := h.repo.ListNotificationTargets(r.Context(), scope)
-	if err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to list notification targets")
-		return
-	}
-	if targets == nil {
-		targets = []model.NotificationTarget{}
-	}
-
-	common.JSON(w, http.StatusOK, targets)
-}
-
-func (h *Handler) CreateNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	var req model.NotificationTargetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.Error(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	if msg := req.Validate(); msg != "" {
-		common.Error(w, http.StatusBadRequest, msg)
-		return
-	}
-
-	enabled := true
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-
-	userID := ""
-	claims := auth.GetClaims(r.Context())
-	if claims != nil {
-		userID = claims.UserID
-	}
-
-	now := time.Now()
-	target := &model.NotificationTarget{
-		ID:            uuid.New().String(),
-		Name:          req.Name,
-		URL:           req.URL,
-		Platform:      req.Platform,
-		WebhookSecret: req.WebhookSecret,
-		Enabled:       enabled,
-		Scopes:        req.Scopes,
-		CreatedBy:     userID,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-
-	if err := h.repo.CreateNotificationTarget(r.Context(), target); err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to create notification target")
-		return
-	}
-
-	// Audit log
-	if claims != nil {
-		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
-			"notification_target.created", "notification_target", target.ID,
-			fmt.Sprintf("Created notification target %s (%s)", target.Name, target.Platform), nil)
-	}
-
-	common.JSON(w, http.StatusCreated, target)
-}
-
-func (h *Handler) GetNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	target, err := h.repo.GetNotificationTarget(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "notification target not found")
-		return
-	}
-	common.JSON(w, http.StatusOK, target)
-}
-
-func (h *Handler) UpdateNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	existing, err := h.repo.GetNotificationTarget(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "notification target not found")
-		return
-	}
-
-	var req model.NotificationTargetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.Error(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	if msg := req.Validate(); msg != "" {
-		common.Error(w, http.StatusBadRequest, msg)
-		return
-	}
-
-	enabled := existing.Enabled
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-
-	existing.Name = req.Name
-	existing.URL = req.URL
-	existing.Platform = req.Platform
-	existing.WebhookSecret = req.WebhookSecret
-	existing.Enabled = enabled
-	existing.Scopes = req.Scopes
-	existing.UpdatedAt = time.Now()
-
-	if err := h.repo.UpdateNotificationTarget(r.Context(), existing); err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to update notification target")
-		return
-	}
-
-	// Audit log
-	if claims := auth.GetClaims(r.Context()); claims != nil {
-		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
-			"notification_target.updated", "notification_target", id,
-			fmt.Sprintf("Updated notification target %s", existing.Name), nil)
-	}
-
-	common.JSON(w, http.StatusOK, existing)
-}
-
-func (h *Handler) DeleteNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	_, err := h.repo.GetNotificationTarget(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "notification target not found")
-		return
-	}
-
-	if err := h.repo.DeleteNotificationTarget(r.Context(), id); err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to delete notification target")
-		return
-	}
-
-	// Audit log
-	if claims := auth.GetClaims(r.Context()); claims != nil {
-		audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
-			"notification_target.deleted", "notification_target", id,
-			"Deleted notification target", nil)
-	}
-
-	common.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}
-
-// ─── TestNotificationTargetDelivery ──────────────────────────────────────────
-
-func (h *Handler) TestNotificationTargetDelivery(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	target, err := h.repo.GetNotificationTarget(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "notification target not found")
-		return
-	}
-
-	// Build a test payload mimicking an uptime alert
-	loc, _ := time.LoadLocation("Asia/Jakarta")
-	testPayload := map[string]interface{}{
-		"event_type":      "uptime.test",
-		"monitor_id":      "test",
-		"monitor_name":    "Test Monitor",
-		"monitor_url":     "https://example.com",
-		"check_type":      "http",
-		"status":          "up",
-		"previous_status": "down",
-		"status_code":     200,
-		"response_time_ms": 42,
-		"error":           "",
-		"timestamp":       time.Now().UTC().Format(time.RFC3339),
-		"timestamp_wib":   time.Now().In(loc).Format("2006-01-02 15:04:05"),
-		"message":         "✅ Your service Test Monitor is back up! ✅",
-	}
-
-	statusCode, respBody, err := sendToTarget(target, testPayload)
-	if err != nil {
-		common.JSON(w, http.StatusOK, map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	success := statusCode >= 200 && statusCode < 300
-	if !success {
-		common.JSON(w, http.StatusOK, map[string]interface{}{
-			"success":     false,
-			"status_code": statusCode,
-			"error":       fmt.Sprintf("Webhook returned HTTP %d: %s", statusCode, truncateString(respBody, 200)),
-			"response":    truncateString(respBody, 1000),
-		})
-		return
-	}
-
-	common.JSON(w, http.StatusOK, map[string]interface{}{
-		"success":     true,
-		"status_code": statusCode,
-		"response":    truncateString(respBody, 1000),
 	})
 }
 
@@ -1181,222 +961,4 @@ func parseTCPAddress(rawURL string) (string, int) {
 		}
 	}
 	return s, 80 // default port
-}
-
-// sendToTarget sends a platform-formatted notification to the target URL.
-func sendToTarget(target *model.NotificationTarget, payload map[string]interface{}) (int, string, error) {
-	var bodyBytes []byte
-	var err error
-
-	// For telegram, hot-path via Bot API with chat_id
-	if target.Platform == "telegram" {
-		text, err := formatTelegramUptimeNotification(payload)
-		if err != nil {
-			return 0, "", fmt.Errorf("format message: %w", err)
-		}
-
-		apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", target.BotToken)
-		botPayload := map[string]interface{}{
-			"chat_id":    target.ChatID,
-			"text":       string(text),
-			"parse_mode": "HTML",
-		}
-		bodyBytes, err = json.Marshal(botPayload)
-		if err != nil {
-			return 0, "", fmt.Errorf("marshal bot payload: %w", err)
-		}
-
-		req, err := http.NewRequest("POST", apiURL, bytes.NewReader(bodyBytes))
-		if err != nil {
-			return 0, "", fmt.Errorf("create request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", "anjungan-uptime-webhook/1.0")
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			return 0, "", fmt.Errorf("send: %w", err)
-		}
-		defer resp.Body.Close()
-
-		respBody, _ := io.ReadAll(resp.Body)
-		return resp.StatusCode, string(respBody), nil
-	}
-
-	switch target.Platform {
-	case "discord":
-		bodyBytes, err = formatDiscordUptimeNotification(payload)
-	case "slack":
-		bodyBytes, err = formatSlackUptimeNotification(payload)
-	default:
-		bodyBytes, err = json.Marshal(payload)
-	}
-
-	if err != nil {
-		return 0, "", fmt.Errorf("format message: %w", err)
-	}
-
-	req, err := http.NewRequest("POST", target.URL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return 0, "", fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "anjungan-uptime-webhook/1.0")
-
-	if target.WebhookSecret != "" {
-		req.Header.Set("X-Webhook-Secret", target.WebhookSecret)
-	}
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, "", fmt.Errorf("send: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, string(respBody), nil
-}
-
-// formatDiscordUptimeNotification formats payload as a Discord embed (Uptime Kuma style).
-func formatDiscordUptimeNotification(payload map[string]interface{}) ([]byte, error) {
-	monitorName, _ := payload["monitor_name"].(string)
-	monitorURL, _ := payload["monitor_url"].(string)
-	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
-	errorVal, _ := payload["error"].(string)
-	timestampWIB, _ := payload["timestamp_wib"].(string)
-
-	var color int
-	switch status {
-	case "down":
-		color = 0xEF4444
-	case "up":
-		color = 0x10B981
-	default:
-		color = 0x94A3B8
-	}
-
-	// Build fields — Service Name and URL are always shown
-	fields := []map[string]interface{}{
-		{"name": "Service Name", "value": monitorName, "inline": true},
-		{"name": "Service URL", "value": monitorURL, "inline": false},
-		{"name": "Time (Asia/Jakarta)", "value": timestampWIB, "inline": false},
-	}
-
-	// Add status-specific field
-	if status == "down" && errorVal != "" {
-		fields = append(fields, map[string]interface{}{
-			"name": "Error", "value": errorVal, "inline": false,
-		})
-	} else if status == "up" {
-		if ping, ok := payload["response_time_ms"].(float64); ok {
-			fields = append(fields, map[string]interface{}{
-				"name": "Ping", "value": fmt.Sprintf("%.0f ms", ping), "inline": false,
-			})
-		}
-	}
-
-	embed := map[string]interface{}{
-		"title":       msg,
-		"color":       color,
-		"timestamp":   time.Now().UTC().Format(time.RFC3339),
-		"fields":      fields,
-	}
-
-	return json.Marshal(map[string]interface{}{
-		"embeds": []map[string]interface{}{embed},
-	})
-}
-
-// formatTelegramUptimeNotification formats payload as a Telegram message (Uptime Kuma style).
-func formatTelegramUptimeNotification(payload map[string]interface{}) ([]byte, error) {
-	monitorName, _ := payload["monitor_name"].(string)
-	monitorURL, _ := payload["monitor_url"].(string)
-	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
-	errorVal, _ := payload["error"].(string)
-	timestampWIB, _ := payload["timestamp_wib"].(string)
-
-	// Build text
-	text := msg + "\n\n"
-	text += fmt.Sprintf("Service Name: %s\n", monitorName)
-	text += fmt.Sprintf("Service URL: %s\n", monitorURL)
-	text += fmt.Sprintf("Time (Asia/Jakarta): %s\n", timestampWIB)
-
-	if status == "down" && errorVal != "" {
-		text += fmt.Sprintf("Error: %s\n", errorVal)
-	} else if status == "up" {
-		if ping, ok := payload["response_time_ms"].(float64); ok {
-			text += fmt.Sprintf("Ping: %.0f ms\n", ping)
-		}
-	}
-
-	return json.Marshal(map[string]interface{}{
-		"text":             text,
-		"parse_mode":       "Markdown",
-		"disable_web_page_preview": true,
-	})
-}
-
-// formatSlackUptimeNotification formats payload as a Slack message (Uptime Kuma style).
-func formatSlackUptimeNotification(payload map[string]interface{}) ([]byte, error) {
-	monitorName, _ := payload["monitor_name"].(string)
-	monitorURL, _ := payload["monitor_url"].(string)
-	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
-	errorVal, _ := payload["error"].(string)
-	timestampWIB, _ := payload["timestamp_wib"].(string)
-
-	var emoji string
-	switch status {
-	case "down":
-		emoji = ":red_circle:"
-	case "up":
-		emoji = ":white_check_mark:"
-	default:
-		emoji = ":white_circle:"
-	}
-
-	// Build fields text
-	fieldsText := fmt.Sprintf("*Service Name:* %s\n*Service URL:* %s\n*Time (Asia/Jakarta):* %s",
-		monitorName, monitorURL, timestampWIB)
-	if status == "down" && errorVal != "" {
-		fieldsText += fmt.Sprintf("\n*Error:* %s", errorVal)
-	} else if status == "up" {
-		if ping, ok := payload["response_time_ms"].(float64); ok {
-			fieldsText += fmt.Sprintf("\n*Ping:* %.0f ms", ping)
-		}
-	}
-
-	blocks := []map[string]interface{}{
-		{
-			"type": "section",
-			"text": map[string]interface{}{
-				"type": "mrkdwn",
-				"text": fmt.Sprintf("%s %s", emoji, msg),
-			},
-		},
-		{
-			"type": "section",
-			"text": map[string]interface{}{
-				"type": "mrkdwn",
-				"text": fieldsText,
-			},
-		},
-	}
-
-	return json.Marshal(map[string]interface{}{
-		"text":   fmt.Sprintf("%s Uptime Alert: %s", emoji, monitorName),
-		"blocks": blocks,
-	})
-}
-
-// truncateString truncates a string to the given max length.
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen]
 }

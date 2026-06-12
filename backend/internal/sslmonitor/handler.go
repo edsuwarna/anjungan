@@ -1,11 +1,9 @@
 package sslmonitor
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -20,6 +18,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/common/model"
+	"github.com/edsuwarna/anjungan/internal/notification"
 )
 
 type Handler struct {
@@ -460,7 +459,7 @@ func (h *Handler) dispatchNotification(ctx context.Context, m *model.SSLMonitor,
 			continue
 		}
 
-		statusCode, respBody, err := sendToTarget(&target, payload)
+		statusCode, respBody, err := notification.SendSSLToTarget(&target, payload)
 		if err != nil {
 			log.Printf("[sslmonitor] failed to send notification to %s (%s): %v", target.Name, target.URL, err)
 		} else {
@@ -528,227 +527,6 @@ func buildSSLNotificationPayload(m *model.SSLMonitor, r *CheckResult, prevStatus
 		"timestamp":       time.Now().UTC().Format(time.RFC3339),
 		"timestamp_wib":   wib.Format("2006-01-02 15:04:05"),
 	}
-}
-
-// sendToTarget sends a platform-formatted notification to the target URL.
-func sendToTarget(target *model.NotificationTarget, payload map[string]interface{}) (int, string, error) {
-	var bodyBytes []byte
-	var err error
-
-	// For telegram, we format the message text and send via Bot API
-	if target.Platform == "telegram" {
-		text, err := formatTelegramSSLNotification(payload)
-		if err != nil {
-			return 0, "", fmt.Errorf("format message: %w", err)
-		}
-
-		apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", target.BotToken)
-		botPayload := map[string]interface{}{
-			"chat_id":    target.ChatID,
-			"text":       string(text),
-			"parse_mode": "HTML",
-		}
-		bodyBytes, err = json.Marshal(botPayload)
-		if err != nil {
-			return 0, "", fmt.Errorf("marshal bot payload: %w", err)
-		}
-
-		req, err := http.NewRequest("POST", apiURL, bytes.NewReader(bodyBytes))
-		if err != nil {
-			return 0, "", fmt.Errorf("create request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", "anjungan-sslmonitor-webhook/1.0")
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			return 0, "", fmt.Errorf("send: %w", err)
-		}
-		defer resp.Body.Close()
-
-		respBody, _ := io.ReadAll(resp.Body)
-		return resp.StatusCode, string(respBody), nil
-	}
-
-	switch target.Platform {
-	case "discord":
-		bodyBytes, err = formatDiscordSSLNotification(payload)
-	case "slack":
-		bodyBytes, err = formatSlackSSLNotification(payload)
-	default:
-		bodyBytes, err = json.Marshal(payload)
-	}
-
-	if err != nil {
-		return 0, "", fmt.Errorf("format message: %w", err)
-	}
-
-	req, err := http.NewRequest("POST", target.URL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return 0, "", fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "anjungan-sslmonitor-webhook/1.0")
-
-	if target.WebhookSecret != "" {
-		req.Header.Set("X-Webhook-Secret", target.WebhookSecret)
-	}
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, "", fmt.Errorf("send: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, string(respBody), nil
-}
-
-// ─── Notification Formatters (Uptime Kuma style) ─────────────────────────────
-
-// formatDiscordSSLNotification formats payload as a Discord embed (Uptime Kuma style).
-func formatDiscordSSLNotification(payload map[string]interface{}) ([]byte, error) {
-	domain, _ := payload["domain"].(string)
-	port, _ := payload["port"].(int)
-	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
-	days, _ := payload["days_remaining"].(int)
-	issuer, _ := payload["issuer"].(string)
-	expiresAt, _ := payload["expires_at"].(string)
-	cipherGrade, _ := payload["cipher_grade"].(string)
-	timestampWIB, _ := payload["timestamp_wib"].(string)
-
-	var color int
-	switch status {
-	case "expired":
-		color = 0xEF4444
-	case "expiring_soon":
-		color = 0xF59E0B
-	case "valid":
-		color = 0x10B981
-	default:
-		color = 0x94A3B8
-	}
-
-	// Build fields
-	fields := []map[string]interface{}{
-		{"name": "Domain", "value": fmt.Sprintf("%s:%d", domain, port), "inline": true},
-		{"name": "Days Remaining", "value": fmt.Sprintf("%d days", days), "inline": true},
-		{"name": "Issuer", "value": issuer, "inline": false},
-		{"name": "Cipher Grade", "value": cipherGrade, "inline": true},
-		{"name": "Expires At", "value": expiresAt, "inline": false},
-		{"name": "Time (Asia/Jakarta)", "value": timestampWIB, "inline": false},
-	}
-
-	// Add status-specific info
-	if status == "expired" {
-		if err, ok := payload["error"].(string); ok && err != "" {
-			fields = append(fields, map[string]interface{}{
-				"name": "Error", "value": err, "inline": false,
-			})
-		}
-	}
-
-	embed := map[string]interface{}{
-		"title":     msg,
-		"color":     color,
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"fields":    fields,
-	}
-
-	return json.Marshal(map[string]interface{}{
-		"embeds": []map[string]interface{}{embed},
-	})
-}
-
-// formatTelegramSSLNotification formats payload as a Telegram message (Uptime Kuma style).
-func formatTelegramSSLNotification(payload map[string]interface{}) ([]byte, error) {
-	domain, _ := payload["domain"].(string)
-	port, _ := payload["port"].(int)
-	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
-	days, _ := payload["days_remaining"].(int)
-	issuer, _ := payload["issuer"].(string)
-	cipherGrade, _ := payload["cipher_grade"].(string)
-	timestampWIB, _ := payload["timestamp_wib"].(string)
-
-	// Build text
-	text := msg + "\n\n"
-	text += fmt.Sprintf("Domain: %s:%d\n", domain, port)
-	text += fmt.Sprintf("Days Remaining: %d\n", days)
-	text += fmt.Sprintf("Issuer: %s\n", issuer)
-	text += fmt.Sprintf("Cipher Grade: %s\n", cipherGrade)
-	text += fmt.Sprintf("Time (Asia/Jakarta): %s\n", timestampWIB)
-
-	if status == "expired" || status == "error" {
-		if errVal, ok := payload["error"].(string); ok && errVal != "" {
-			text += fmt.Sprintf("Error: %s\n", errVal)
-		}
-	}
-
-	return json.Marshal(map[string]interface{}{
-		"text":                  text,
-		"parse_mode":            "Markdown",
-		"disable_web_page_preview": true,
-	})
-}
-
-// formatSlackSSLNotification formats payload as a Slack message (Uptime Kuma style).
-func formatSlackSSLNotification(payload map[string]interface{}) ([]byte, error) {
-	domain, _ := payload["domain"].(string)
-	port, _ := payload["port"].(int)
-	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
-	days, _ := payload["days_remaining"].(int)
-	issuer, _ := payload["issuer"].(string)
-	cipherGrade, _ := payload["cipher_grade"].(string)
-	timestampWIB, _ := payload["timestamp_wib"].(string)
-
-	var emoji string
-	switch status {
-	case "expired":
-		emoji = ":red_circle:"
-	case "expiring_soon":
-		emoji = ":warning:"
-	case "valid":
-		emoji = ":white_check_mark:"
-	default:
-		emoji = ":white_circle:"
-	}
-
-	// Build fields text
-	fieldsText := fmt.Sprintf("*Domain:* %s:%d\n*Days Remaining:* %d\n*Issuer:* %s\n*Cipher Grade:* %s\n*Time (Asia/Jakarta):* %s",
-		domain, port, days, issuer, cipherGrade, timestampWIB)
-
-	if status == "expired" || status == "error" {
-		if errVal, ok := payload["error"].(string); ok && errVal != "" {
-			fieldsText += fmt.Sprintf("\n*Error:* %s", errVal)
-		}
-	}
-
-	blocks := []map[string]interface{}{
-		{
-			"type": "section",
-			"text": map[string]interface{}{
-				"type": "mrkdwn",
-				"text": fmt.Sprintf("%s %s", emoji, msg),
-			},
-		},
-		{
-			"type": "section",
-			"text": map[string]interface{}{
-				"type": "mrkdwn",
-				"text": fieldsText,
-			},
-		},
-	}
-
-	return json.Marshal(map[string]interface{}{
-		"text":   fmt.Sprintf("%s SSL Alert: %s", emoji, domain),
-		"blocks": blocks,
-	})
 }
 
 // ─── Export CSV ───────────────────────────────────────────────────────────────
