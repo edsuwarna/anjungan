@@ -1033,9 +1033,8 @@
 							{@const secScore = sec?.score ?? 0}
 
 							<div
-								class="card !p-0 shadow-sm overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
-								class:ring-1={isExpanded}
-								style="{isExpanded ? 'box-shadow: 0 4px 12px rgba(0,0,0,0.2);' : ''}"
+								class="card !p-0 overflow-hidden transition-all duration-200 cursor-pointer"
+								style="{isExpanded ? 'border-color: var(--color-primary);' : ''}"
 								onclick={() => toggleExpand(c)}
 								role="button"
 								tabindex="0"

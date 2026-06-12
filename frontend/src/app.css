@@ -144,20 +144,19 @@ body {
 
 /* ─── Card ─────────────────────────────────────────────────────────── */
 .card {
-	@apply rounded-xl border p-5 transition-all;
+	@apply rounded-xl border p-5 transition-all duration-200;
 	background-color: var(--color-card);
-	border-color: var(--color-border-light);
+	border-color: var(--color-border);
 }
 .card:hover {
-	@apply shadow-sm;
 	border-color: var(--color-primary);
 }
 
 /* ─── StatCard ─────────────────────────────────────────────────────── */
 .stat-card {
-	@apply rounded-xl border p-5 transition-all hover:shadow-md animate-fade-in;
+	@apply rounded-xl border p-5 transition-all duration-200 animate-fade-in;
 	background-color: var(--color-card);
-	border-color: var(--color-border-light);
+	border-color: var(--color-border);
 	border-left: 3px solid var(--color-primary);
 }
 

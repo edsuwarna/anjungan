@@ -13,10 +13,7 @@
 			{/if}
 		</div>
 		{#if icon}
-			<div
-				class="flex h-10 w-10 items-center justify-center rounded-lg"
-				style="background-color: var(--color-primary-subtle);"
-			>
+			<div class="flex h-10 w-10 items-center justify-center">
 				<Icon icon={icon} class="h-5 w-5" style="color: var(--color-primary);" />
 			</div>
 		{/if}
