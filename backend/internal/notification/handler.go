@@ -221,7 +221,7 @@ func (h *Handler) TestDelivery(w http.ResponseWriter, r *http.Request) {
 			"days_remaining":  30,
 			"issuer":          "C=US, O=Let's Encrypt, CN=R3",
 			"subject":         "CN=example.com",
-			"expires_at":      time.Now().Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339),
+			"expires_at":      time.Now().Add(30 * 24 * time.Hour).In(loc).Format("2006-01-02 15:04:05 WIB"),
 			"cipher_grade":    "A",
 			"chain_valid":     true,
 			"ocsp_status":     "good",
