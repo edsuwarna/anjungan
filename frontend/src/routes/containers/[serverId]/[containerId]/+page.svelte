@@ -206,14 +206,28 @@
 		loading = true;
 		error = '';
 		try {
-			// Load container details + all servers for switcher
-			const [ctr, serversData] = await Promise.all([
-				api.containers.get(containerId, serverId),
-				api.containers.byServer().catch(() => ({ servers: [] })),
-			]);
-			container = ctr;
-			if (ctr.server_info) server = ctr.server_info;
+			// Use byServer() as primary data source (has all container fields)
+			const serversData = await api.containers.byServer();
 			allContainers = serversData.servers || [];
+
+			// Find current server and container from byServer data
+			const serverEntry = allContainers.find(s => s.server.id === serverId);
+			if (serverEntry) {
+				server = serverEntry.server;
+				const ctr = serverEntry.containers.find(c => c.id === containerId);
+				if (ctr) {
+					container = ctr;
+				}
+			} else {
+				// Server not in list yet — try API get as fallback
+				try {
+					const ctr = await api.containers.get(containerId, serverId);
+					if (ctr) {
+						container = ctr;
+						if (ctr.server_info) server = ctr.server_info;
+					}
+				} catch (_) {}
+			}
 
 			// Auto-load stats
 			loadStats();
@@ -457,15 +471,20 @@
 	}
 
 	function changeServer(sid) {
-		serverId = sid;
 		const sv = allContainers.find(s => s.server.id === sid);
 		if (sv?.containers?.length) {
 			navigateToContainer(sid, sv.containers[0].id);
 		}
 	}
 
+	// ── Track prev params for navigation detection ────
+	let prevServerId = $state('');
+	let prevContainerId = $state('');
+
 	// ── Lifecycle ──────────────────────────────────────
 	onMount(() => {
+		prevServerId = serverId;
+		prevContainerId = containerId;
 		loadData();
 		return () => {
 			destroyExecTerm();
@@ -476,7 +495,9 @@
 	$effect(() => {
 		const sid = $page.params.serverId;
 		const cid = $page.params.containerId;
-		if (sid && cid && (sid !== serverId || cid !== containerId)) {
+		if (sid && cid && (sid !== prevServerId || cid !== prevContainerId)) {
+			prevServerId = sid;
+			prevContainerId = cid;
 			destroyExecTerm();
 			loadData();
 		}
@@ -941,10 +962,22 @@
 						</h2>
 						<span class="text-xs" style="color: var(--color-text-muted);">Type any command — connected via WebSocket</span>
 					</div>
-					<div
-						use:execAction
-						class="exec-terminal-container"
-					></div>
+					{#if container?.state !== 'running'}
+						<div class="section-empty">
+							<Icon icon="solar:terminal-bold" class="h-8 w-8" style="color: var(--color-text-muted);" />
+							<p>Container is not running. Start the container first to use the interactive terminal.</p>
+							<button onclick={() => confirmAction('start')}
+								class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold mt-2 transition-all"
+								style="background-color: var(--color-success); color: #fff;">
+								<Icon icon="solar:play-bold" class="h-3.5 w-3.5" /> Start Container
+							</button>
+						</div>
+					{:else}
+						<div
+							use:execAction
+							class="exec-terminal-container"
+						></div>
+					{/if}
 				</div>
 			</div>
 		{/if}
