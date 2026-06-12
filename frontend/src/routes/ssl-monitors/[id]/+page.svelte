@@ -230,11 +230,11 @@
 			<!-- Left: Certificate Info -->
 			<div class="col-span-2 space-y-6">
 				<!-- Certificate Details -->
-				<div class="card">
-					<h2 class="mb-4 text-lg font-bold" style="color: var(--color-text);">
-						<Icon icon="solar:document-text-bold" class="mr-2 inline h-5 w-5" />
+				<div class="detail-section">
+					<div class="detail-section-title">
+						<Icon icon="solar:document-text-bold" class="h-4 w-4" />
 						Certificate
-					</h2>
+					</div>
 					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						{#each [
 							infoRow('Subject', monitor.subject),
@@ -253,11 +253,11 @@
 				</div>
 
 				<!-- Chain Validation -->
-				<div class="card">
-					<h2 class="mb-4 text-lg font-bold" style="color: var(--color-text);">
-						<Icon icon="solar:link-bold" class="mr-2 inline h-5 w-5" />
+				<div class="detail-section">
+					<div class="detail-section-title">
+						<Icon icon="solar:link-bold" class="h-4 w-4" />
 						Certificate Chain
-					</h2>
+					</div>
 					{#if monitor.chain_valid === true}
 						<div class="mb-3 flex items-center gap-2 rounded-lg p-3" style="background: #10b98110; border: 1px solid #10b98130;">
 							<Icon icon="solar:check-circle-bold" class="h-5 w-5" style="color: #10b981;" />
@@ -284,11 +284,11 @@
 				</div>
 
 				<!-- SAN Names -->
-				<div class="card">
-					<h2 class="mb-4 text-lg font-bold" style="color: var(--color-text);">
-						<Icon icon="solar:subtitles-bold" class="mr-2 inline h-5 w-5" />
+				<div class="detail-section">
+					<div class="detail-section-title">
+						<Icon icon="solar:subtitles-bold" class="h-4 w-4" />
 						Subject Alternative Names (SAN)
-					</h2>
+					</div>
 					{#if monitor.san_names?.length > 0}
 						{#if monitor.san_mismatch}
 							<div class="mb-3 flex items-center gap-2 rounded-lg p-3" style="background: #f59e0b10; border: 1px solid #f59e0b30;">
@@ -310,24 +310,24 @@
 
 				<!-- Error message -->
 				{#if monitor.last_error}
-					<div class="card" style="border-color: #ef444430;">
-						<h2 class="mb-2 text-lg font-bold" style="color: #ef4444;">
-							<Icon icon="solar:bug-bold" class="mr-2 inline h-5 w-5" />
+					<div class="detail-section" style="border-color: #ef444430;">
+						<div class="detail-section-title" style="color: #ef4444;">
+							<Icon icon="solar:bug-bold" class="h-4 w-4" />
 							Last Error
-						</h2>
+						</div>
 						<p class="text-sm" style="color: var(--color-text-secondary); font-family: monospace;">{monitor.last_error}</p>
 					</div>
 				{/if}
 			</div>
 
 			<!-- Right: Cipher + OCSP + Misc -->
-			<div class="space-y-6">
+			<div class="flex flex-col gap-6">
 				<!-- Cipher Grade -->
-				<div class="card">
-					<h2 class="mb-4 text-lg font-bold" style="color: var(--color-text);">
-						<Icon icon="solar:lock-bold" class="mr-2 inline h-5 w-5" />
+				<div class="detail-section">
+					<div class="detail-section-title">
+						<Icon icon="solar:lock-bold" class="h-4 w-4" />
 						Cipher
-					</h2>
+					</div>
 					<div class="flex items-center gap-3">
 						<div
 							class="flex h-16 w-16 items-center justify-center rounded-xl text-2xl font-bold"
@@ -346,11 +346,11 @@
 				</div>
 
 				<!-- OCSP -->
-				<div class="card">
-					<h2 class="mb-4 text-lg font-bold" style="color: var(--color-text);">
-						<Icon icon="solar:checklist-bold" class="mr-2 inline h-5 w-5" />
+				<div class="detail-section">
+					<div class="detail-section-title">
+						<Icon icon="solar:checklist-bold" class="h-4 w-4" />
 						OCSP Revocation
-					</h2>
+					</div>
 					{#if monitor.ocsp_status === 'good'}
 						<div class="flex items-center gap-2 rounded-lg p-3" style="background: #10b98110;">
 							<Icon icon="solar:check-circle-bold" class="h-5 w-5" style="color: #10b981;" />
@@ -380,11 +380,11 @@
 				</div>
 
 				<!-- Settings Summary -->
-				<div class="card">
-					<h2 class="mb-4 text-lg font-bold" style="color: var(--color-text);">
-						<Icon icon="solar:settings-bold" class="mr-2 inline h-5 w-5" />
+				<div class="detail-section" style="margin-top: auto;">
+					<div class="detail-section-title">
+						<Icon icon="solar:settings-bold" class="h-4 w-4" />
 						Configuration
-					</h2>
+					</div>
 					<div class="space-y-3 text-sm">
 						<div class="flex justify-between">
 							<span style="color: var(--color-text-muted);">Check Interval</span>
@@ -418,14 +418,14 @@
 
 		<!-- ─── Check History ──────────────────────────────────────────────── -->
 		<div class="mt-6">
-			<div class="card">
-				<h2 class="mb-4 text-lg font-bold" style="color: var(--color-text);">
-					<Icon icon="solar:clock-circle-bold" class="mr-2 inline h-5 w-5" />
+			<div class="detail-section">
+				<div class="detail-section-title">
+					<Icon icon="solar:clock-circle-bold" class="h-4 w-4" />
 					Check History
 					{#if historyTotal > 0}
-						<span class="ml-2 text-sm font-normal" style="color: var(--color-text-muted);">({historyTotal} checks)</span>
+						<span class="text-xs font-normal" style="color: var(--color-text-muted);">({historyTotal} checks)</span>
 					{/if}
-				</h2>
+				</div>
 
 				<!-- Trend Chart -->
 				<TrendChart monitorId={monitor.id} />
@@ -634,11 +634,26 @@
 		margin: 0 auto;
 		padding: 1.5rem;
 	}
-	.card {
+	.card,
+	.detail-section {
 		border-radius: 12px;
 		padding: 1.25rem;
 		background: var(--color-card);
 		border: 1px solid var(--color-border);
+	}
+	.detail-section-title {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--color-text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		margin-bottom: 0.875rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.detail-section-title :global(.icon) {
+		flex-shrink: 0;
 	}
 	.status-badge {
 		display: inline-flex;
@@ -721,4 +736,5 @@
 	select.input { appearance: auto; }
 	select.input option { color: #1e293b; }
 	:global(body.dark) .card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
+	:global(body.dark) .detail-section { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
 </style>
