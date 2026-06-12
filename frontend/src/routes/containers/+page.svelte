@@ -1025,7 +1025,11 @@
 							<div
 								class="card !p-0 overflow-hidden transition-all duration-200 cursor-pointer"
 								style="{isExpanded ? 'border-color: var(--color-primary);' : ''}"
-								onclick={() => toggleExpand(c)}
+								onclick={(e) => {
+								// Don't toggle card if clicking on a button, link, or interactive element
+								if (e.target.closest('button, a, input, [role="button"]')) return;
+								toggleExpand(c);
+							}}
 								role="button"
 								tabindex="0"
 								onkeydown={(e) => e.key === 'Enter' && toggleExpand(c)}
@@ -1128,7 +1132,7 @@
 										<!-- ═══════ EXPANDED SECTION ═══════ -->
 										{#if isExpanded}
 											{@const memPct = calcMemPct(ec.stats)}
-											<div class="border-t" style="border-color: var(--color-border-light);" onclick={(e) => e.stopPropagation()}>
+											<div class="border-t" style="border-color: var(--color-border-light);">
 												<!-- Info Grid -->
 												<div class="grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3" style="background-color: var(--color-surface);">
 													<div>
