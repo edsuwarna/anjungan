@@ -33,6 +33,18 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 	let onlineCount = $derived(statusCounts['online'] || 0);
 	let offlineCount = $derived(statusCounts['offline'] || 0);
 
+	// Quick Access items
+	let quickAccess = $derived([
+		{ label: 'Servers', icon: 'solar:server-square-bold', count: stats.servers, route: '/servers', color: '#8b5cf6' },
+		{ label: 'Containers', icon: 'solar:box-bold', count: stats.containers, route: '/containers', color: '#8b5cf6' },
+		{ label: 'SSL Monitors', icon: 'solar:shield-check-bold', count: sslSummary.total, route: '/ssl-monitors', color: '#10b981' },
+		{ label: 'Uptime', icon: 'solar:chart-2-bold', count: uptimeSummary.total, route: '/uptime', color: '#f59e0b' },
+		{ label: 'Registry', icon: 'solar:database-bold', count: null, route: '/registry', color: '#14b8a6' },
+		{ label: 'SSH Keys', icon: 'solar:key-bold', count: null, route: '/ssh-keys', color: '#ec4899' },
+		{ label: 'Compliance', icon: 'solar:shield-check-bold', count: null, route: '/compliance', color: '#14b8a6' },
+		{ label: 'Notifications', icon: 'solar:bell-bold', count: stats.recent_activity?.length || 0, route: '/notifications', color: '#f59e0b' },
+	]);
+
 	onMount(async () => {
 		await Promise.all([loadDashboard(), loadServers(), loadThresholds()]);
 		const interval = setInterval(() => { loadDashboard(); loadServers(); }, 30000);
@@ -68,12 +80,6 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 
 	function totalStatus() {
 		return Object.values(statusCounts).reduce((a, b) => a + b, 0) || stats.servers;
-	}
-
-	function statusPercent(status) {
-		const total = totalStatus();
-		if (total === 0) return 0;
-		return ((statusCounts[status] || 0) / total * 100).toFixed(0);
 	}
 
 	function formatDate(dateStr) {
@@ -120,6 +126,12 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 		if (healthStatus === 'warning') return 'solar:danger-triangle-bold';
 		return 'solar:danger-circle-bold';
 	}
+
+	function uptimeAvailability() {
+		const total = uptimeSummary.up + uptimeSummary.down;
+		if (total === 0) return 100;
+		return Math.round((uptimeSummary.up / total) * 100);
+	}
 </script>
 
 <div class="page-container">
@@ -150,285 +162,313 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 			</div>
 		</div>
 
-		<!-- Stat Cards -->
-		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+		<!-- Stat Cards Row -->
+		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 			<StatCard title="Servers" value={stats.servers} icon="solar:server-square-bold"
 				subtitle={onlineCount > 0 || offlineCount > 0 ? `${onlineCount} online · ${offlineCount} offline` : ''} />
-			<StatCard title="Containers" value={stats.containers} icon="solar:box-bold"
-				subtitle={stats.servers > 0 ? `across ${stats.servers} server${stats.servers !== 1 ? 's' : ''}` : ''} />
-			<StatCard title="Users" value={stats.users} icon="solar:users-group-rounded-bold" />
 			<button class="text-left" onclick={() => goto('/ssl-monitors')}>
-				<StatCard title="SSL Certs" value={sslSummary.valid ?? '—'} icon="solar:shield-check-bold"
+				<StatCard title="SSL Monitors" value={sslSummary.valid ?? '—'} icon="solar:shield-check-bold"
 					subtitle={sslExpiringCount > 0 ? `${sslExpiringCount} expiring` : sslSummary.total > 0 ? `${sslSummary.total} monitored` : 'no monitors'} />
 			</button>
 			<button class="text-left" onclick={() => goto('/uptime')}>
-				<StatCard title="Uptime" value={uptimeSummary.up ?? '—'} icon="solar:chart-2-bold"
+				<StatCard title="Uptime Monitors" value={uptimeSummary.up ?? '—'} icon="solar:chart-2-bold"
 					subtitle={uptimeSummary.down > 0 ? `${uptimeSummary.down} down` : uptimeSummary.total > 0 ? `${uptimeSummary.total} monitors` : 'no monitors'} />
 			</button>
 			<StatCard title="Compliance" value={compliance.average_score != null ? compliance.average_score + '%' : '—'} icon="solar:shield-check-bold"
 				subtitle={compliance.scanned_servers > 0 ? `${compliance.scanned_servers} scanned` : 'no scans'} />
 		</div>
 
-		<!-- Server Health -->
-		<div class="grid gap-4 mt-4">
-			<div class="card min-w-0 overflow-hidden" style="border-left: 3px solid var(--color-primary);">
+		<!-- Middle Cards: 2-column grid -->
+		<div class="grid gap-4 mt-4 lg:grid-cols-2">
+			<!-- Server Health -->
+			<div class="card" style="border-left: 3px solid var(--color-primary);">
 				<h3 class="mb-3 text-base font-semibold" style="color: var(--color-text);">
 					<Icon icon="solar:server-square-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-primary);" /> Server Health
 				</h3>
 				{#if totalStatus() === 0}
-					<div class="flex flex-col items-center py-8 text-center">
-						<Icon icon="solar:server-square-bold" class="mb-2 inline-block h-10 w-10" style="color: var(--color-text-muted);" />
+					<div class="flex flex-col items-center py-4 text-center">
+						<Icon icon="solar:server-square-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
 						<p class="text-sm" style="color: var(--color-text-muted);">No servers yet</p>
-						<button onclick={() => goto('/servers')} class="btn-secondary mt-3 text-xs">Add a Server</button>
+						<button onclick={() => goto('/servers')} class="btn-secondary mt-2 text-xs">Add a Server</button>
 					</div>
 				{:else}
-					{@const _STATUSES = ['online', 'offline', 'unknown']}
-					{@const _STATUS_COLORS = { online: 'var(--color-success)', offline: 'var(--color-danger)', unknown: 'var(--color-warning)' }}
-					{@const _total = totalStatus()}
-					{@const _circ = 2 * Math.PI * 44}
-					<div class="flex flex-col items-center">
-						<div class="relative">
-							<svg width="120" height="120" viewBox="0 0 120 120" class="-rotate-90">
-								{#each _STATUSES as status, i}
-									{@const val = statusCounts[status] || 0}
-									{@const pct = _total > 0 ? val / _total : 0}
-									{@const dashLen = pct * _circ}
-									{@const prevTotal = _STATUSES.slice(0, i).reduce((sum, s) => sum + (statusCounts[s] || 0), 0)}
-									{@const offset = _total > 0 ? (prevTotal / _total) * _circ : 0}
-									{#if val > 0}
-										<circle
-											cx="60" cy="60" r="44"
-											fill="none"
-											stroke={_STATUS_COLORS[status]}
-											stroke-width="14"
-											stroke-dasharray="{dashLen} {_circ - dashLen}"
-											stroke-dashoffset={-_circ}
-											transform="rotate({(offset / _circ) * 360} 60 60)"
-											class="transition-all duration-500"
-										/>
-									{/if}
-								{/each}
-							</svg>
-							<div class="absolute inset-0 flex flex-col items-center justify-center">
-								<span class="text-xl font-bold" style="color: var(--color-text);">{_total}</span>
-								<span class="text-xs" style="color: var(--color-text-muted);">servers</span>
+					<div class="space-y-3">
+						<!-- Online -->
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<span class="h-2.5 w-2.5 rounded-full" style="background-color: var(--color-success);"></span>
+								<span style="color: var(--color-text-secondary);">Online</span>
+							</div>
+							<div class="flex items-center gap-2">
+								<span class="font-semibold" style="color: var(--color-text);">{onlineCount}</span>
+								<span class="text-xs" style="color: var(--color-text-muted);">({statusCounts['online'] ? Math.round((statusCounts['online'] / totalStatus()) * 100) : 0}%)</span>
 							</div>
 						</div>
-						<div class="mt-3 flex flex-wrap justify-center gap-3">
-							{#each _STATUSES as status}
-								{@const count = statusCounts[status] || 0}
-								{#if count > 0}
-									<div class="flex items-center gap-1.5 text-xs">
-										<span class="h-2.5 w-2.5 rounded-full" style="background-color: {_STATUS_COLORS[status]};"></span>
-										<span style="color: var(--color-text-secondary);">{status.charAt(0).toUpperCase() + status.slice(1)}</span>
-										<span class="font-semibold" style="color: var(--color-text);">{count}</span>
-										<span style="color: var(--color-text-muted);">({statusPercent(status)}%)</span>
-									</div>
-								{/if}
-							{/each}
+						<!-- Progress bar -->
+						<div class="flex h-2 rounded-full overflow-hidden" style="background-color: var(--color-border);">
+							<div class="h-full rounded-full transition-all duration-500" style="width: {totalStatus() > 0 ? Math.round(((statusCounts['online'] || 0) / totalStatus()) * 100) : 0}%; background-color: var(--color-success);"></div>
 						</div>
+						<!-- Offline -->
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<span class="h-2.5 w-2.5 rounded-full" style="background-color: var(--color-danger);"></span>
+								<span style="color: var(--color-text-secondary);">Offline</span>
+							</div>
+							<div class="flex items-center gap-2">
+								<span class="font-semibold" style="color: var(--color-text);">{offlineCount}</span>
+								<span class="text-xs" style="color: var(--color-text-muted);">({statusCounts['offline'] ? Math.round((statusCounts['offline'] / totalStatus()) * 100) : 0}%)</span>
+							</div>
+						</div>
+						<!-- Uptime bar -->
+						<div class="mt-2 pt-2 border-t" style="border-color: var(--color-border);">
+							<div class="flex items-center justify-between text-sm">
+								<span style="color: var(--color-text-secondary);">Uptime</span>
+								<span class="font-semibold" style="color: var(--color-success);">
+									{totalStatus() > 0 ? Math.round(((statusCounts['online'] || 0) / totalStatus()) * 100) : 0}%
+								</span>
+							</div>
+							<div class="flex h-1.5 rounded-full overflow-hidden mt-1.5" style="background-color: var(--color-border);">
+								<div class="h-full rounded-full" style="width: {totalStatus() > 0 ? Math.round(((statusCounts['online'] || 0) / totalStatus()) * 100) : 0}%; background-color: var(--color-success);"></div>
+							</div>
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<!-- SSL Certificates -->
+			<div class="card" style="border-left: 3px solid var(--color-success);">
+				<h3 class="mb-3 text-base font-semibold" style="color: var(--color-text);">
+					<Icon icon="solar:shield-check-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-success);" /> SSL Certificates
+				</h3>
+				{#if sslSummary.total === 0}
+					<div class="flex flex-col items-center py-4 text-center">
+						<Icon icon="solar:shield-check-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
+						<p class="text-sm" style="color: var(--color-text-muted);">No SSL monitors yet</p>
+						<button onclick={() => goto('/ssl-monitors')} class="btn-secondary mt-2 text-xs">Add Monitor</button>
+					</div>
+				{:else}
+					<div class="space-y-3">
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<Icon icon="solar:check-circle-bold" class="h-4 w-4" style="color: var(--color-success);" />
+								<span style="color: var(--color-text-secondary);">Valid</span>
+							</div>
+							<span class="font-semibold" style="color: var(--color-text);">{sslSummary.valid || 0}</span>
+						</div>
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<Icon icon="solar:danger-triangle-bold" class="h-4 w-4" style="color: var(--color-warning);" />
+								<span style="color: var(--color-text-secondary);">Expiring Soon</span>
+							</div>
+							<span class="font-semibold" style="color: var(--color-warning);">{sslSummary.expiring_soon || 0}</span>
+						</div>
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<Icon icon="solar:close-circle-bold" class="h-4 w-4" style="color: var(--color-danger);" />
+								<span style="color: var(--color-text-secondary);">Expired</span>
+							</div>
+							<span class="font-semibold" style="color: var(--color-danger);">{sslSummary.expired || 0}</span>
+						</div>
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<Icon icon="solar:info-circle-bold" class="h-4 w-4" style="color: var(--color-text-muted);" />
+								<span style="color: var(--color-text-secondary);">Error</span>
+							</div>
+							<span class="font-semibold" style="color: var(--color-text);">{sslSummary.error || 0}</span>
+						</div>
+						<!-- Stacked status bar -->
+						{#if (sslSummary.valid + sslSummary.expiring_soon + sslSummary.expired + sslSummary.error) > 0}
+							{@const sslTotal = sslSummary.valid + sslSummary.expiring_soon + sslSummary.expired + sslSummary.error}
+							<div class="flex h-2 rounded-full overflow-hidden mt-2" style="background-color: var(--color-border);">
+								{#if sslSummary.valid > 0}
+									<div style="width: {(sslSummary.valid / sslTotal * 100).toFixed(0)}%; background-color: var(--color-success);" class="transition-all duration-500"></div>
+								{/if}
+								{#if sslSummary.expiring_soon > 0}
+									<div style="width: {(sslSummary.expiring_soon / sslTotal * 100).toFixed(0)}%; background-color: var(--color-warning);" class="transition-all duration-500"></div>
+								{/if}
+								{#if sslSummary.expired > 0}
+									<div style="width: {(sslSummary.expired / sslTotal * 100).toFixed(0)}%; background-color: var(--color-danger);" class="transition-all duration-500"></div>
+								{/if}
+								{#if sslSummary.error > 0}
+									<div style="width: {(sslSummary.error / sslTotal * 100).toFixed(0)}%; background-color: var(--color-text-muted);" class="transition-all duration-500"></div>
+								{/if}
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</div>
 		</div>
 
-		<!-- Compliance Summary -->
-		<div class="card mt-4" style="border-left: 3px solid var(--color-primary);">
-			<div class="flex items-center justify-between mb-3">
-				<h3 class="text-base font-semibold" style="color: var(--color-text);">
-					<Icon icon="solar:shield-check-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-primary);" /> Compliance
-				</h3>
-				<button onclick={() => goto('/compliance')} class="text-xs font-medium hover:underline" style="color: var(--color-primary);">View All</button>
-			</div>
-			{#if compliance.scanned_servers === 0}
-				<div class="flex flex-col items-center py-4 text-center">
-					<Icon icon="solar:shield-check-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
-					<p class="text-sm" style="color: var(--color-text-muted);">No scans yet</p>
-					<button onclick={() => goto('/compliance')} class="btn-secondary mt-2 text-xs">Run a Scan</button>
-				</div>
-			{:else}
-				{@const total = compliance.total_servers || 1}
-				<div class="flex items-center gap-4 mb-3">
-					<div class="text-center">
-						<span class="text-3xl font-bold" style="color: {scoreColor(compliance.average_score ?? null)};">
-							{compliance.average_score}%
-						</span>
-						<p class="text-xs" style="color: var(--color-text-muted);">avg score</p>
-					</div>
-					<div class="flex-1">
-						<div class="flex h-2 rounded-full overflow-hidden" style="background-color: var(--color-border);">
-							{#if compliance.by_status.good}
-								<div style="width: {(compliance.by_status.good / total * 100).toFixed(0)}%; background-color: var(--color-success);" class="transition-all duration-500"></div>
-							{/if}
-							{#if compliance.by_status.warning}
-								<div style="width: {(compliance.by_status.warning / total * 100).toFixed(0)}%; background-color: var(--color-warning);" class="transition-all duration-500"></div>
-							{/if}
-							{#if compliance.by_status.critical}
-								<div style="width: {(compliance.by_status.critical / total * 100).toFixed(0)}%; background-color: var(--color-danger);" class="transition-all duration-500"></div>
-							{/if}
-							{#if compliance.by_status.unscanned}
-								<div style="width: {(compliance.by_status.unscanned / total * 100).toFixed(0)}%; background-color: var(--color-border);" class="transition-all duration-500"></div>
-							{/if}
-						</div>
-						<div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-2 text-xs">
-							{#if compliance.by_status.good}
-								<span style="color: var(--color-success);">● {compliance.by_status.good} good</span>
-							{/if}
-							{#if compliance.by_status.warning}
-								<span style="color: var(--color-warning);">● {compliance.by_status.warning} warn</span>
-							{/if}
-							{#if compliance.by_status.critical}
-								<span style="color: var(--color-danger);">● {compliance.by_status.critical} crit</span>
-							{/if}
-							{#if compliance.by_status.unscanned}
-								<span style="color: var(--color-text-muted);">○ {compliance.by_status.unscanned} unscanned</span>
-							{/if}
-						</div>
-					</div>
-				</div>
-			{/if}
-		</div>
-
-		<!-- Quick Actions + Recent Activity -->
-		<div class="grid gap-4 lg:grid-cols-2 min-w-0 mt-4">
-			<!-- Quick Actions -->
-			<div class="card" style="border-left: 3px solid var(--color-accent);">
+		<!-- Second row: Uptime + Compliance -->
+		<div class="grid gap-4 mt-4 lg:grid-cols-2">
+			<!-- Uptime -->
+			<div class="card" style="border-left: 3px solid var(--color-warning);">
 				<h3 class="mb-3 text-base font-semibold" style="color: var(--color-text);">
-					<Icon icon="solar:flash-drive-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-accent);" /> Quick Actions
+					<Icon icon="solar:chart-2-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-warning);" /> Uptime
 				</h3>
-				<div class="flex flex-wrap gap-2">
-					<button onclick={() => goto('/servers')} class="btn-primary flex items-center gap-2">
-						<Icon icon="solar:add-circle-bold" class="h-4 w-4" /> Add Server
-					</button>
-					<button onclick={() => goto('/containers')} class="btn-secondary flex items-center gap-2">
-						<Icon icon="solar:box-bold" class="h-4 w-4" /> View Containers
-					</button>
-				</div>
+				{#if uptimeSummary.total === 0}
+					<div class="flex flex-col items-center py-4 text-center">
+						<Icon icon="solar:chart-2-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
+						<p class="text-sm" style="color: var(--color-text-muted);">No uptime monitors yet</p>
+						<button onclick={() => goto('/uptime')} class="btn-secondary mt-2 text-xs">Add Monitor</button>
+					</div>
+				{:else}
+					<div class="space-y-3">
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<span class="h-2.5 w-2.5 rounded-full" style="background-color: var(--color-success);"></span>
+								<span style="color: var(--color-text-secondary);">Up</span>
+							</div>
+							<span class="font-semibold" style="color: var(--color-text);">{uptimeSummary.up || 0}</span>
+						</div>
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<span class="h-2.5 w-2.5 rounded-full" style="background-color: var(--color-danger);"></span>
+								<span style="color: var(--color-text-secondary);">Down</span>
+							</div>
+							<span class="font-semibold" style="color: var(--color-danger);">{uptimeSummary.down || 0}</span>
+						</div>
+						<div class="flex items-center justify-between text-sm">
+							<div class="flex items-center gap-2">
+								<span class="h-2.5 w-2.5 rounded-sm" style="background-color: var(--color-text-muted);"></span>
+								<span style="color: var(--color-text-secondary);">Paused</span>
+							</div>
+							<span class="font-semibold" style="color: var(--color-text);">{uptimeSummary.paused || 0}</span>
+						</div>
+						<div class="mt-2 pt-2 border-t" style="border-color: var(--color-border);">
+							<div class="flex items-center justify-between text-sm">
+								<span style="color: var(--color-text-secondary);">Availability</span>
+								<span class="font-semibold" style="color: var(--color-success);">{uptimeAvailability()}%</span>
+							</div>
+							<div class="flex h-1.5 rounded-full overflow-hidden mt-1.5" style="background-color: var(--color-border);">
+								<div class="h-full rounded-full" style="width: {uptimeAvailability()}%; background-color: var(--color-success);"></div>
+							</div>
+						</div>
+					</div>
+				{/if}
 			</div>
 
-			<!-- Recent Activity -->
-			<div class="card min-w-0 overflow-hidden" style="border-left: 3px solid var(--color-warning);">
+			<!-- Compliance Overview -->
+			<div class="card" style="border-left: 3px solid var(--color-primary);">
 				<div class="flex items-center justify-between mb-3">
 					<h3 class="text-base font-semibold" style="color: var(--color-text);">
-						<Icon icon="solar:clock-circle-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-warning);" /> Recent Activity
+						<Icon icon="solar:shield-check-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-primary);" /> Compliance Overview
 					</h3>
-					<button onclick={() => showActivity = !showActivity} class="text-xs font-medium hover:underline" style="color: var(--color-primary);">
-						{showActivity ? 'Collapse' : 'Expand'}
-					</button>
+					<button onclick={() => goto('/compliance')} class="text-xs font-medium hover:underline" style="color: var(--color-primary);">View All</button>
 				</div>
-				{#if !showActivity}
-					{#if stats.recent_activity.length > 0}
-						<p class="text-xs py-2" style="color: var(--color-text-muted);">{stats.recent_activity.length} recent event{stats.recent_activity.length !== 1 ? 's' : ''}</p>
-					{:else}
-						<p class="text-xs py-2" style="color: var(--color-text-muted);">No recent activity</p>
-					{/if}
+				{#if compliance.scanned_servers === 0}
+					<div class="flex flex-col items-center py-4 text-center">
+						<Icon icon="solar:shield-check-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
+						<p class="text-sm" style="color: var(--color-text-muted);">No scans yet</p>
+						<button onclick={() => goto('/compliance')} class="btn-secondary mt-2 text-xs">Run a Scan</button>
+					</div>
 				{:else}
-					{#if stats.recent_activity.length === 0}
-						<div class="flex flex-col items-center py-4 text-center">
-							<Icon icon="solar:clock-circle-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
-							<p class="text-sm" style="color: var(--color-text-muted);">No recent activity yet</p>
+					<div class="space-y-3">
+						<div class="text-center">
+							<span class="text-3xl font-bold" style="color: {scoreColor(compliance.average_score ?? null)};">
+								{compliance.average_score}%
+							</span>
+							<p class="text-xs" style="color: var(--color-text-muted);">Average Score</p>
 						</div>
-					{:else}
-						<div class="space-y-1 max-h-[200px] overflow-y-auto">
-							{#each stats.recent_activity as activity}
-								<div class="flex items-start gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-opacity-50" style="background-color: var(--color-surface);">
-									<Icon icon={activityIcon(activity.type)} class="mt-0.5 h-4 w-4 shrink-0" style="color: var(--color-primary);" />
-									<div class="flex-1 min-w-0">
-										<p class="text-sm truncate" style="color: var(--color-text);">{activity.message}</p>
-									</div>
-									<span class="shrink-0 text-xs whitespace-nowrap" style="color: var(--color-text-muted);">{formatDate(activity.timestamp)}</span>
+						<div class="space-y-2">
+							<div class="flex items-center justify-between text-sm">
+								<div class="flex items-center gap-2">
+									<Icon icon="solar:check-circle-bold" class="h-4 w-4" style="color: var(--color-success);" />
+									<span style="color: var(--color-text-secondary);">Good</span>
 								</div>
-							{/each}
+								<span class="font-semibold" style="color: var(--color-success);">{compliance.by_status.good || 0}</span>
+							</div>
+							<div class="flex items-center justify-between text-sm">
+								<div class="flex items-center gap-2">
+									<Icon icon="solar:danger-triangle-bold" class="h-4 w-4" style="color: var(--color-warning);" />
+									<span style="color: var(--color-text-secondary);">Warning</span>
+								</div>
+								<span class="font-semibold" style="color: var(--color-warning);">{compliance.by_status.warning || 0}</span>
+							</div>
+							<div class="flex items-center justify-between text-sm">
+								<div class="flex items-center gap-2">
+									<Icon icon="solar:close-circle-bold" class="h-4 w-4" style="color: var(--color-danger);" />
+									<span style="color: var(--color-text-secondary);">Critical</span>
+								</div>
+								<span class="font-semibold" style="color: var(--color-danger);">{compliance.by_status.critical || 0}</span>
+							</div>
+							<div class="flex items-center justify-between text-sm">
+								<div class="flex items-center gap-2">
+									<Icon icon="solar:minus-circle-bold" class="h-4 w-4" style="color: var(--color-text-muted);" />
+									<span style="color: var(--color-text-secondary);">Unscanned</span>
+								</div>
+								<span class="font-semibold" style="color: var(--color-text-muted);">{compliance.by_status.unscanned || 0}</span>
+							</div>
 						</div>
-					{/if}
+						<p class="text-xs text-center" style="color: var(--color-text-muted);">{compliance.scanned_servers} of {compliance.total_servers} servers scanned</p>
+					</div>
 				{/if}
 			</div>
 		</div>
 
-		<!-- Servers Grid -->
-		<div class="card min-w-0 overflow-hidden mt-4" style="border-left: 3px solid var(--color-success);">
+		<!-- Recent Activity -->
+		<div class="card mt-4" style="border-left: 3px solid var(--color-warning);">
 			<div class="flex items-center justify-between mb-3">
 				<h3 class="text-base font-semibold" style="color: var(--color-text);">
-					<Icon icon="solar:server-square-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-success);" /> Servers
+					<Icon icon="solar:clock-circle-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-warning);" /> Recent Activity
 				</h3>
-				<button onclick={() => goto('/servers')} class="text-xs font-medium hover:underline" style="color: var(--color-primary);">View All</button>
+				<button onclick={() => showActivity = !showActivity} class="text-xs font-medium hover:underline" style="color: var(--color-primary);">
+					{showActivity ? 'Collapse' : 'Expand'}
+				</button>
 			</div>
-			{#if serversLoading}
-				<div class="flex items-center justify-center py-6">
-					<Icon icon="solar:spinner-bold" class="h-5 w-5 animate-spin" style="color: var(--color-text-muted);" />
-				</div>
-			{:else if serverList.length === 0}
-				<div class="flex flex-col items-center py-8 text-center">
-					<Icon icon="solar:server-square-bold" class="mb-2 inline-block h-10 w-10" style="color: var(--color-text-muted);" />
-					<p class="text-sm" style="color: var(--color-text-muted);">No servers yet</p>
-					<button onclick={() => goto('/servers')} class="btn-secondary mt-3 text-xs">Add a Server</button>
-				</div>
+			{#if !showActivity}
+				{#if stats.recent_activity.length > 0}
+					<p class="text-xs py-2" style="color: var(--color-text-muted);">{stats.recent_activity.length} recent event{stats.recent_activity.length !== 1 ? 's' : ''}</p>
+				{:else}
+					<p class="text-xs py-2" style="color: var(--color-text-muted);">No recent activity</p>
+				{/if}
 			{:else}
-				<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-					{#each serverList.slice(0, 8) as server}
-						{@const badge = scoreBadge(server.id)}
-						<div
-							class="relative rounded-lg border p-3 transition-colors group"
-							style="border-color: var(--color-border-light); background-color: var(--color-surface);"
-							role="button"
-							tabindex="0"
-							onmouseenter={() => hoveredServer = server.id}
-							onmouseleave={() => hoveredServer = null}
-						>
-							<button
-								onclick={() => goto(`/servers/${server.id}`)}
-								class="flex items-start gap-3 text-left w-full"
-							>
-								<span class="status-dot {statusClass(server.status)} mt-1.5 shrink-0"></span>
-								<div class="min-w-0 flex-1">
-									<div class="flex items-center gap-2">
-										<p class="text-sm font-medium truncate" style="color: var(--color-text);">{server.name}</p>
-										{#if badge}
-											<span class="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style="color: {scoreColor(badge.score)}; background-color: {scoreColor(badge.score)}15;">
-												{badge.score != null ? badge.score + '%' : '—'}
-											</span>
-										{/if}
-									</div>
-									<p class="text-xs truncate mt-0.5" style="color: var(--color-text-muted);">{server.host}</p>
-									<div class="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 text-xs" style="color: var(--color-text-muted);">
-										{#if server.container_count != null && server.container_count > 0}
-											<span class="inline-flex items-center gap-1"><Icon icon="solar:box-bold" class="h-3 w-3" />{server.container_count}</span>
-										{/if}
-										{#if server.os_info}
-											<span class="inline-flex items-center gap-1"><Icon icon="solar:monitor-bold" class="h-3 w-3" />{server.os_info.split('(')[0].trim()}</span>
-										{/if}
-									</div>
+				{#if stats.recent_activity.length === 0}
+					<div class="flex flex-col items-center py-4 text-center">
+						<Icon icon="solar:clock-circle-bold" class="mb-2 inline-block h-8 w-8" style="color: var(--color-text-muted);" />
+						<p class="text-sm" style="color: var(--color-text-muted);">No recent activity yet</p>
+					</div>
+				{:else}
+					<div class="space-y-1 max-h-[200px] overflow-y-auto">
+						{#each stats.recent_activity as activity}
+							<div class="flex items-start gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-opacity-50" style="background-color: var(--color-surface);">
+								<Icon icon={activityIcon(activity.type)} class="mt-0.5 h-4 w-4 shrink-0" style="color: var(--color-primary);" />
+								<div class="flex-1 min-w-0">
+									<p class="text-sm truncate" style="color: var(--color-text);">{activity.message}</p>
 								</div>
-								<span class="status-badge {statusClass(server.status)} text-xs shrink-0">{server.status || 'unknown'}</span>
-							</button>
-							<!-- Quick action buttons on hover -->
-							{#if hoveredServer === server.id}
-								<div class="absolute top-2 right-2 flex gap-1">
-									<button
-										onclick={(e) => { e.stopPropagation(); goto(`/servers/${server.id}/terminal`); }}
-										class="flex items-center justify-center h-7 w-7 rounded-md transition-colors hover:bg-opacity-80"
-										style="background-color: var(--color-surface-hover); color: var(--color-text-secondary);"
-										title="Terminal"
-									>
-										<Icon icon="solar:terminal-bold" class="h-3.5 w-3.5" />
-									</button>
-									<button
-										onclick={(e) => { e.stopPropagation(); goto(`/compliance`); }}
-										class="flex items-center justify-center h-7 w-7 rounded-md transition-colors hover:bg-opacity-80"
-										style="background-color: var(--color-surface-hover); color: var(--color-text-secondary);"
-										title="Scan"
-									>
-										<Icon icon="solar:shield-check-bold" class="h-3.5 w-3.5" />
-									</button>
-								</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
-				{#if serverList.length > 8}
-					<p class="mt-2 text-center text-xs" style="color: var(--color-text-muted);">Showing 8 of {serverList.length} servers</p>
+								<span class="shrink-0 text-xs whitespace-nowrap" style="color: var(--color-text-muted);">{formatDate(activity.timestamp)}</span>
+							</div>
+						{/each}
+					</div>
 				{/if}
 			{/if}
+		</div>
+
+		<!-- Quick Access Grid -->
+		<div class="card mt-4">
+			<h3 class="mb-3 text-base font-semibold" style="color: var(--color-text);">
+				<Icon icon="solar:flash-drive-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-accent);" /> Quick Access
+			</h3>
+			<div class="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
+				{#each quickAccess as item}
+					<button onclick={() => goto(item.route)}
+						class="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-opacity-50"
+						style="border-color: var(--color-border-light); background-color: var(--color-surface);"
+					>
+						<div class="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
+							style="background-color: {item.color}15;"
+						>
+							<Icon icon={item.icon} class="h-4 w-4" style="color: {item.color};" />
+						</div>
+						<div class="flex-1 min-w-0">
+							<p class="text-sm font-medium truncate" style="color: var(--color-text);">{item.label}</p>
+							<p class="text-xs" style="color: var(--color-text-muted);">
+								{item.count != null ? `${item.count} items` : '— items'}
+							</p>
+						</div>
+					</button>
+				{/each}
+			</div>
 		</div>
 	{/if}
 </div>

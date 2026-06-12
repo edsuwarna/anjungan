@@ -3723,13 +3723,14 @@ func (r *Repository) DeleteNotificationTarget(ctx context.Context, id string) er
 
 // UptimeStats contains computed uptime statistics for a monitor.
 type UptimeStats struct {
-	Uptime24h  *float64 `json:"uptime_24h"`
-	Uptime3d   *float64 `json:"uptime_3d"`
-	Uptime7d   *float64 `json:"uptime_7d"`
-	Uptime30d  *float64 `json:"uptime_30d"`
-	TotalChecks int     `json:"total_checks"`
-	UpChecks    int     `json:"up_checks"`
-	DownChecks  int     `json:"down_checks"`
+	UptimeOverall *float64 `json:"uptime_overall"`
+	Uptime24h     *float64 `json:"uptime_24h"`
+	Uptime3d      *float64 `json:"uptime_3d"`
+	Uptime7d      *float64 `json:"uptime_7d"`
+	Uptime30d     *float64 `json:"uptime_30d"`
+	TotalChecks  int      `json:"total_checks"`
+	UpChecks     int      `json:"up_checks"`
+	DownChecks   int      `json:"down_checks"`
 }
 
 // ResponseTimeStats holds computed response time statistics for a period.
@@ -3816,6 +3817,29 @@ func (r *Repository) GetUptimeStats(ctx context.Context, monitorID string) (*Upt
 		pct := float64(up30) / float64(total30) * 100
 		pct = float64(int(pct*10)) / 10
 		stats.Uptime30d = &pct
+	}
+
+	// Overall — all time from daily_summary
+	var totalAll, upAll, downAll int
+	err = r.db.Pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(total_checks), 0),
+		        COALESCE(SUM(up_count), 0),
+		        COALESCE(SUM(down_count), 0)
+		 FROM uptime_daily_summary
+		 WHERE monitor_id = $1`, monitorID).Scan(&totalAll, &upAll, &downAll)
+	// Fallback to raw check_history if daily_summary has no data
+	if err != nil || totalAll == 0 {
+		err = r.db.Pool.QueryRow(ctx,
+			`SELECT COUNT(*),
+			        COALESCE(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END), 0),
+			        COALESCE(SUM(CASE WHEN status = 'down' THEN 1 ELSE 0 END), 0)
+			 FROM uptime_check_history
+			 WHERE monitor_id = $1`, monitorID).Scan(&totalAll, &upAll, &downAll)
+	}
+	if err == nil && totalAll > 0 {
+		pct := float64(upAll) / float64(totalAll) * 100
+		pct = float64(int(pct*10)) / 10
+		stats.UptimeOverall = &pct
 	}
 
 	return stats, nil

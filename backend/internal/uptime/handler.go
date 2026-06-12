@@ -333,6 +333,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		"updated_at":              monitor.UpdatedAt,
 	}
 	if stats != nil {
+		result["uptime_overall"] = stats.UptimeOverall
 		result["uptime_24h"] = stats.Uptime24h
 		result["uptime_3d"] = stats.Uptime3d
 		result["uptime_7d"] = stats.Uptime7d
