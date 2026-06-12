@@ -954,16 +954,21 @@ func (h *Handler) TestNotificationTargetDelivery(w http.ResponseWriter, r *http.
 	}
 
 	// Build a test payload mimicking an uptime alert
+	loc, _ := time.LoadLocation("Asia/Jakarta")
 	testPayload := map[string]interface{}{
-		"event_type":   "uptime.test",
-		"monitor_name": "Test Monitor",
-		"monitor_url":  "https://example.com",
-		"check_type":   "http",
-		"status":       "up",
-		"status_code":  200,
+		"event_type":      "uptime.test",
+		"monitor_id":      "test",
+		"monitor_name":    "Test Monitor",
+		"monitor_url":     "https://example.com",
+		"check_type":      "http",
+		"status":          "up",
+		"previous_status": "down",
+		"status_code":     200,
 		"response_time_ms": 42,
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-		"message":      "🔍 Uptime Monitor Test — This is a test notification from your uptime monitoring system.",
+		"error":           "",
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
+		"timestamp_wib":   time.Now().In(loc).Format("2006-01-02 15:04:05"),
+		"message":         "✅ Your service Test Monitor is back up! ✅",
 	}
 
 	statusCode, respBody, err := sendToTarget(target, testPayload)
@@ -1220,13 +1225,14 @@ func sendToTarget(target *model.NotificationTarget, payload map[string]interface
 	return resp.StatusCode, string(respBody), nil
 }
 
-// formatDiscordUptimeNotification formats payload as a Discord embed.
+// formatDiscordUptimeNotification formats payload as a Discord embed (Uptime Kuma style).
 func formatDiscordUptimeNotification(payload map[string]interface{}) ([]byte, error) {
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
-	checkType, _ := payload["check_type"].(string)
 	status, _ := payload["status"].(string)
 	msg, _ := payload["message"].(string)
+	errorVal, _ := payload["error"].(string)
+	timestampWIB, _ := payload["timestamp_wib"].(string)
 
 	var color int
 	switch status {
@@ -1238,20 +1244,31 @@ func formatDiscordUptimeNotification(payload map[string]interface{}) ([]byte, er
 		color = 0x94A3B8
 	}
 
-	if msg == "" {
-		msg = fmt.Sprintf("⚠️ Uptime Alert — %s", monitorName)
+	// Build fields — Service Name and URL are always shown
+	fields := []map[string]interface{}{
+		{"name": "Service Name", "value": monitorName, "inline": true},
+		{"name": "Service URL", "value": monitorURL, "inline": false},
+		{"name": "Time (Asia/Jakarta)", "value": timestampWIB, "inline": false},
+	}
+
+	// Add status-specific field
+	if status == "down" && errorVal != "" {
+		fields = append(fields, map[string]interface{}{
+			"name": "Error", "value": errorVal, "inline": false,
+		})
+	} else if status == "up" {
+		if ping, ok := payload["response_time_ms"].(float64); ok {
+			fields = append(fields, map[string]interface{}{
+				"name": "Ping", "value": fmt.Sprintf("%.0f ms", ping), "inline": false,
+			})
+		}
 	}
 
 	embed := map[string]interface{}{
 		"title":       msg,
 		"color":       color,
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
-		"fields": []map[string]interface{}{
-			{"name": "Monitor", "value": monitorName, "inline": true},
-			{"name": "URL", "value": monitorURL, "inline": true},
-			{"name": "Type", "value": strings.ToUpper(checkType), "inline": true},
-			{"name": "Status", "value": strings.ToUpper(status), "inline": true},
-		},
+		"fields":      fields,
 	}
 
 	return json.Marshal(map[string]interface{}{
@@ -1259,36 +1276,28 @@ func formatDiscordUptimeNotification(payload map[string]interface{}) ([]byte, er
 	})
 }
 
-// formatTelegramUptimeNotification formats payload as a Telegram message.
+// formatTelegramUptimeNotification formats payload as a Telegram message (Uptime Kuma style).
 func formatTelegramUptimeNotification(payload map[string]interface{}) ([]byte, error) {
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
-	checkType, _ := payload["check_type"].(string)
 	status, _ := payload["status"].(string)
 	msg, _ := payload["message"].(string)
+	errorVal, _ := payload["error"].(string)
+	timestampWIB, _ := payload["timestamp_wib"].(string)
 
-	var emoji string
-	switch status {
-	case "down":
-		emoji = "🔴"
-	case "up":
-		emoji = "🟢"
-	default:
-		emoji = "⚪"
+	// Build text
+	text := msg + "\n\n"
+	text += fmt.Sprintf("Service Name: %s\n", monitorName)
+	text += fmt.Sprintf("Service URL: %s\n", monitorURL)
+	text += fmt.Sprintf("Time (Asia/Jakarta): %s\n", timestampWIB)
+
+	if status == "down" && errorVal != "" {
+		text += fmt.Sprintf("Error: %s\n", errorVal)
+	} else if status == "up" {
+		if ping, ok := payload["response_time_ms"].(float64); ok {
+			text += fmt.Sprintf("Ping: %.0f ms\n", ping)
+		}
 	}
-
-	if msg == "" {
-		msg = fmt.Sprintf("⚠️ Uptime Alert — %s", monitorName)
-	}
-
-	text := fmt.Sprintf(`%s *Uptime Monitor Alert*
-
-%s
-
-*Monitor:* %s
-*URL:* %s
-*Type:* %s
-*Status:* %s`, emoji, msg, monitorName, monitorURL, strings.ToUpper(checkType), strings.ToUpper(status))
 
 	return json.Marshal(map[string]interface{}{
 		"text":             text,
@@ -1297,13 +1306,14 @@ func formatTelegramUptimeNotification(payload map[string]interface{}) ([]byte, e
 	})
 }
 
-// formatSlackUptimeNotification formats payload as a Slack message.
+// formatSlackUptimeNotification formats payload as a Slack message (Uptime Kuma style).
 func formatSlackUptimeNotification(payload map[string]interface{}) ([]byte, error) {
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
-	checkType, _ := payload["check_type"].(string)
 	status, _ := payload["status"].(string)
 	msg, _ := payload["message"].(string)
+	errorVal, _ := payload["error"].(string)
+	timestampWIB, _ := payload["timestamp_wib"].(string)
 
 	var emoji string
 	switch status {
@@ -1315,8 +1325,15 @@ func formatSlackUptimeNotification(payload map[string]interface{}) ([]byte, erro
 		emoji = ":white_circle:"
 	}
 
-	if msg == "" {
-		msg = fmt.Sprintf("Uptime Alert — %s", monitorName)
+	// Build fields text
+	fieldsText := fmt.Sprintf("*Service Name:* %s\n*Service URL:* %s\n*Time (Asia/Jakarta):* %s",
+		monitorName, monitorURL, timestampWIB)
+	if status == "down" && errorVal != "" {
+		fieldsText += fmt.Sprintf("\n*Error:* %s", errorVal)
+	} else if status == "up" {
+		if ping, ok := payload["response_time_ms"].(float64); ok {
+			fieldsText += fmt.Sprintf("\n*Ping:* %.0f ms", ping)
+		}
 	}
 
 	blocks := []map[string]interface{}{
@@ -1324,8 +1341,14 @@ func formatSlackUptimeNotification(payload map[string]interface{}) ([]byte, erro
 			"type": "section",
 			"text": map[string]interface{}{
 				"type": "mrkdwn",
-				"text": fmt.Sprintf("%s *%s*\n*Monitor:* %s\n*URL:* %s\n*Type:* %s\n*Status:* %s",
-					emoji, msg, monitorName, monitorURL, strings.ToUpper(checkType), strings.ToUpper(status)),
+				"text": fmt.Sprintf("%s %s", emoji, msg),
+			},
+		},
+		{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": fieldsText,
 			},
 		},
 	}
