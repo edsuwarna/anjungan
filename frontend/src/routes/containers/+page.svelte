@@ -246,21 +246,11 @@
 
 	function parseCreated(created) {
 		if (!created) return 0;
-		let normalized = created
-			.replace(' +0700 WIB', '+07:00')
-			.replace(' +0700', '+07:00')
-			.replace(' +08', '+08:00')
-			.replace(' +09', '+09:00')
-			.replace(' UTC', 'Z')
-			.replace(' ', 'T');
-		if (normalized.endsWith('+07:00') || normalized.endsWith('+08:00') || normalized.endsWith('+09:00') || normalized.endsWith('Z')) {
-		} else if (normalized.includes('+')) {
-		} else if (normalized.endsWith('+07') || normalized.endsWith('+08') || normalized.endsWith('+09')) {
-			normalized = normalized.slice(0, -3) + ':' + normalized.slice(-2);
-		} else {
-			normalized += 'Z';
-		}
-		const d = new Date(normalized);
+		// Docker output: "2026-06-12 10:30:00 +0700 WIB" or "2026-06-12 10:30:00 +0000 UTC"
+		// Strip trailing timezone abbreviation (WIB, UTC, WITA, WIT, etc.) —
+		// new Date() handles the offset (+0700, +0000, etc.) correctly but chokes on names.
+		const cleaned = created.replace(/ [A-Za-z]+$/, '');
+		const d = new Date(cleaned);
 		return d.getTime() || 0;
 	}
 
