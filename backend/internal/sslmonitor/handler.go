@@ -46,15 +46,6 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/{id}/check", h.CheckNow)
 	r.Get("/{id}/history", h.History)
 	r.Get("/{id}/trend", h.Trend)
-	// Notification Targets management
-	r.Route("/notification-targets", func(r chi.Router) {
-		r.Get("/", h.ListNotificationTargets)
-		r.Post("/", h.CreateNotificationTarget)
-		r.Get("/{id}", h.GetNotificationTarget)
-		r.Put("/{id}", h.UpdateNotificationTarget)
-		r.Delete("/{id}", h.DeleteNotificationTarget)
-		r.Post("/{id}/test", h.TestNotificationTarget)
-	})
 	return r
 }
 
@@ -443,58 +434,114 @@ func (h *Handler) runCheck(ctx context.Context, m *model.SSLMonitor) {
 // ─── Notification Dispatch ──────────────────────────────────────────────────
 
 func (h *Handler) dispatchNotification(ctx context.Context, m *model.SSLMonitor, r *CheckResult, prevStatus string) {
-	// Fetch the notification targets assigned to this monitor
-	targets, err := h.repo.ListSSLNotificationTargetsByIDs(ctx, m.WebhookIDs)
-	if err != nil || len(targets) == 0 {
+	if len(m.WebhookIDs) == 0 {
 		return
 	}
 
+	// Load all enabled notification targets with scope "ssl"
+	allTargets, err := h.repo.ListNotificationTargets(ctx, "ssl")
+	if err != nil {
+		log.Printf("[sslmonitor] failed to load notification targets for %s: %v", m.ID, err)
+		return
+	}
+
+	// Build target lookup map
+	targetMap := make(map[string]model.NotificationTarget, len(allTargets))
+	for _, t := range allTargets {
+		targetMap[t.ID] = t
+	}
+
+	// Build payload once
+	payload := buildSSLNotificationPayload(m, r, prevStatus)
+
+	for _, targetID := range m.WebhookIDs {
+		target, ok := targetMap[targetID]
+		if !ok || !target.Enabled {
+			continue
+		}
+
+		statusCode, respBody, err := sendToTarget(&target, payload)
+		if err != nil {
+			log.Printf("[sslmonitor] failed to send notification to %s (%s): %v", target.Name, target.URL, err)
+		} else {
+			log.Printf("[sslmonitor] notification sent to %s — status %d", target.Name, statusCode)
+			_ = respBody
+		}
+	}
+}
+
+// buildSSLNotificationPayload creates a unified payload with full SSL certificate info.
+func buildSSLNotificationPayload(m *model.SSLMonitor, r *CheckResult, prevStatus string) map[string]interface{} {
 	displayName := m.Domain
 	if m.DisplayName != "" {
 		displayName = m.DisplayName
 	}
 
-	// Build notification payload
-	payload := map[string]interface{}{
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	wib := time.Now().In(loc)
+
+	expiresAt := ""
+	if r.CertExpiresAt != nil {
+		expiresAt = r.CertExpiresAt.Format(time.RFC3339)
+	}
+
+	// Build human-readable message
+	var message string
+	var emoji string
+	switch r.Status {
+	case "expired":
+		emoji = "🔴"
+		message = fmt.Sprintf("🔴 SSL Certificate %s has EXPIRED! 🔴", displayName)
+	case "expiring_soon":
+		emoji = "🟡"
+		message = fmt.Sprintf("🟡 SSL Certificate %s is expiring soon! (%d days remaining)", displayName, r.DaysRemaining)
+	case "valid":
+		emoji = "🟢"
+		message = fmt.Sprintf("🟢 SSL Certificate %s is valid (%d days remaining)", displayName, r.DaysRemaining)
+	default:
+		emoji = "⚪"
+		message = fmt.Sprintf("SSL Certificate %s status: %s", displayName, r.Status)
+	}
+
+	return map[string]interface{}{
 		"event_type":      "ssl.expiry",
+		"monitor_id":      m.ID,
 		"domain":          m.Domain,
 		"port":            m.Port,
 		"display_name":    displayName,
 		"status":          r.Status,
+		"previous_status": prevStatus,
 		"days_remaining":  r.DaysRemaining,
+		"emoji":           emoji,
+		"message":         message,
 		"issuer":          r.Issuer,
 		"subject":         r.Subject,
-		"expires_at":      r.CertExpiresAt.Format(time.RFC3339),
+		"expires_at":      expiresAt,
 		"cipher_grade":    r.CipherGrade,
-		"previous_status": prevStatus,
+		"cipher_error":    r.CipherError,
+		"chain_valid":     r.ChainValid,
+		"chain_error":     r.ChainError,
+		"ocsp_status":     r.OCSPStatus,
+		"ocsp_error":      r.OCSPError,
+		"san_mismatch":    r.SANMismatch,
+		"error":           r.Error,
 		"timestamp":       time.Now().UTC().Format(time.RFC3339),
-		"message":         fmt.Sprintf("🔒 SSL Certificate %s — %s (%d days remaining)", displayName, r.Status, r.DaysRemaining),
-	}
-
-	for _, target := range targets {
-		statusCode, respBody, err := dispatchToTarget(target, payload)
-		if err != nil {
-			log.Printf("[sslmonitor] notification target %s failed: %v", target.Name, err)
-			continue
-		}
-		log.Printf("[sslmonitor] notification target %s delivered: %d", target.Name, statusCode)
-		_ = statusCode
-		_ = respBody
+		"timestamp_wib":   wib.Format("2006-01-02 15:04:05"),
 	}
 }
 
-// dispatchToTarget sends the payload to the notification target URL.
-func dispatchToTarget(target *model.SSLNotificationTarget, payload map[string]interface{}) (int, string, error) {
+// sendToTarget sends a platform-formatted notification to the target URL.
+func sendToTarget(target *model.NotificationTarget, payload map[string]interface{}) (int, string, error) {
 	var bodyBytes []byte
 	var err error
 
 	switch target.Platform {
-	case "telegram":
-		bodyBytes, err = formatTelegramNotification(payload)
 	case "discord":
-		bodyBytes, err = formatDiscordNotification(payload)
+		bodyBytes, err = formatDiscordSSLNotification(payload)
+	case "telegram":
+		bodyBytes, err = formatTelegramSSLNotification(payload)
 	case "slack":
-		bodyBytes, err = formatSlackNotification(payload)
+		bodyBytes, err = formatSlackSSLNotification(payload)
 	default:
 		bodyBytes, err = json.Marshal(payload)
 	}
@@ -510,6 +557,10 @@ func dispatchToTarget(target *model.SSLNotificationTarget, payload map[string]in
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "anjungan-sslmonitor-webhook/1.0")
 
+	if target.WebhookSecret != "" {
+		req.Header.Set("X-Webhook-Secret", target.WebhookSecret)
+	}
+
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -521,67 +572,56 @@ func dispatchToTarget(target *model.SSLNotificationTarget, payload map[string]in
 	return resp.StatusCode, string(respBody), nil
 }
 
-// ─── Notification Formatters ─────────────────────────────────────────────────
+// ─── Notification Formatters (Uptime Kuma style) ─────────────────────────────
 
-func formatTelegramNotification(payload map[string]interface{}) ([]byte, error) {
+// formatDiscordSSLNotification formats payload as a Discord embed (Uptime Kuma style).
+func formatDiscordSSLNotification(payload map[string]interface{}) ([]byte, error) {
 	domain, _ := payload["domain"].(string)
+	port, _ := payload["port"].(int)
 	status, _ := payload["status"].(string)
+	msg, _ := payload["message"].(string)
 	days, _ := payload["days_remaining"].(int)
 	issuer, _ := payload["issuer"].(string)
-	msg, _ := payload["message"].(string)
-
-	var emoji string
-	switch status {
-	case "expiring_soon":
-		emoji = "🟡"
-	case "expired":
-		emoji = "🔴"
-	default:
-		emoji = "🟢"
-	}
-
-	text := fmt.Sprintf(`%s *SSL Certificate Alert*
-
-%s
-
-*Domain:* %s
-*Status:* %s
-*Days Remaining:* %d
-*Issuer:* %s`,
-		emoji, msg, domain, status, days, issuer)
-
-	return json.Marshal(map[string]string{
-		"text":                text,
-		"parse_mode":          "Markdown",
-		"disable_notification": "false",
-	})
-}
-
-func formatDiscordNotification(payload map[string]interface{}) ([]byte, error) {
-	domain, _ := payload["domain"].(string)
-	status, _ := payload["status"].(string)
-	days, _ := payload["days_remaining"].(int)
+	expiresAt, _ := payload["expires_at"].(string)
+	cipherGrade, _ := payload["cipher_grade"].(string)
+	timestampWIB, _ := payload["timestamp_wib"].(string)
 
 	var color int
 	switch status {
-	case "expiring_soon":
-		color = 0xF59E0B
 	case "expired":
 		color = 0xEF4444
-	default:
+	case "expiring_soon":
+		color = 0xF59E0B
+	case "valid":
 		color = 0x10B981
+	default:
+		color = 0x94A3B8
+	}
+
+	// Build fields
+	fields := []map[string]interface{}{
+		{"name": "Domain", "value": fmt.Sprintf("%s:%d", domain, port), "inline": true},
+		{"name": "Days Remaining", "value": fmt.Sprintf("%d days", days), "inline": true},
+		{"name": "Issuer", "value": issuer, "inline": false},
+		{"name": "Cipher Grade", "value": cipherGrade, "inline": true},
+		{"name": "Expires At", "value": expiresAt, "inline": false},
+		{"name": "Time (Asia/Jakarta)", "value": timestampWIB, "inline": false},
+	}
+
+	// Add status-specific info
+	if status == "expired" {
+		if err, ok := payload["error"].(string); ok && err != "" {
+			fields = append(fields, map[string]interface{}{
+				"name": "Error", "value": err, "inline": false,
+			})
+		}
 	}
 
 	embed := map[string]interface{}{
-		"title":       "🔒 SSL Certificate Alert",
-		"description": fmt.Sprintf("**%s** — %s", domain, status),
-		"color":       color,
-		"fields": []map[string]interface{}{
-			{"name": "Domain", "value": domain, "inline": false},
-			{"name": "Status", "value": status, "inline": false},
-			{"name": "Days Remaining", "value": fmt.Sprintf("%d", days), "inline": false},
-		},
+		"title":     msg,
+		"color":     color,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"fields":    fields,
 	}
 
 	return json.Marshal(map[string]interface{}{
@@ -589,19 +629,69 @@ func formatDiscordNotification(payload map[string]interface{}) ([]byte, error) {
 	})
 }
 
-func formatSlackNotification(payload map[string]interface{}) ([]byte, error) {
+// formatTelegramSSLNotification formats payload as a Telegram message (Uptime Kuma style).
+func formatTelegramSSLNotification(payload map[string]interface{}) ([]byte, error) {
 	domain, _ := payload["domain"].(string)
+	port, _ := payload["port"].(int)
 	status, _ := payload["status"].(string)
+	msg, _ := payload["message"].(string)
 	days, _ := payload["days_remaining"].(int)
+	issuer, _ := payload["issuer"].(string)
+	cipherGrade, _ := payload["cipher_grade"].(string)
+	timestampWIB, _ := payload["timestamp_wib"].(string)
+
+	// Build text
+	text := msg + "\n\n"
+	text += fmt.Sprintf("Domain: %s:%d\n", domain, port)
+	text += fmt.Sprintf("Days Remaining: %d\n", days)
+	text += fmt.Sprintf("Issuer: %s\n", issuer)
+	text += fmt.Sprintf("Cipher Grade: %s\n", cipherGrade)
+	text += fmt.Sprintf("Time (Asia/Jakarta): %s\n", timestampWIB)
+
+	if status == "expired" || status == "error" {
+		if errVal, ok := payload["error"].(string); ok && errVal != "" {
+			text += fmt.Sprintf("Error: %s\n", errVal)
+		}
+	}
+
+	return json.Marshal(map[string]interface{}{
+		"text":                  text,
+		"parse_mode":            "Markdown",
+		"disable_web_page_preview": true,
+	})
+}
+
+// formatSlackSSLNotification formats payload as a Slack message (Uptime Kuma style).
+func formatSlackSSLNotification(payload map[string]interface{}) ([]byte, error) {
+	domain, _ := payload["domain"].(string)
+	port, _ := payload["port"].(int)
+	status, _ := payload["status"].(string)
+	msg, _ := payload["message"].(string)
+	days, _ := payload["days_remaining"].(int)
+	issuer, _ := payload["issuer"].(string)
+	cipherGrade, _ := payload["cipher_grade"].(string)
+	timestampWIB, _ := payload["timestamp_wib"].(string)
 
 	var emoji string
 	switch status {
-	case "expiring_soon":
-		emoji = ":warning:"
 	case "expired":
 		emoji = ":red_circle:"
-	default:
+	case "expiring_soon":
+		emoji = ":warning:"
+	case "valid":
 		emoji = ":white_check_mark:"
+	default:
+		emoji = ":white_circle:"
+	}
+
+	// Build fields text
+	fieldsText := fmt.Sprintf("*Domain:* %s:%d\n*Days Remaining:* %d\n*Issuer:* %s\n*Cipher Grade:* %s\n*Time (Asia/Jakarta):* %s",
+		domain, port, days, issuer, cipherGrade, timestampWIB)
+
+	if status == "expired" || status == "error" {
+		if errVal, ok := payload["error"].(string); ok && errVal != "" {
+			fieldsText += fmt.Sprintf("\n*Error:* %s", errVal)
+		}
 	}
 
 	blocks := []map[string]interface{}{
@@ -609,8 +699,14 @@ func formatSlackNotification(payload map[string]interface{}) ([]byte, error) {
 			"type": "section",
 			"text": map[string]interface{}{
 				"type": "mrkdwn",
-				"text": fmt.Sprintf("%s *SSL Certificate Alert*\n*Domain:* %s\n*Status:* %s\n*Days Remaining:* %d",
-					emoji, domain, strings.ToUpper(status), days),
+				"text": fmt.Sprintf("%s %s", emoji, msg),
+			},
+		},
+		{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": fieldsText,
 			},
 		},
 	}
@@ -835,192 +931,6 @@ func (h *Handler) BatchImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.JSON(w, http.StatusCreated, result)
-}
-
-// ─── Notification Targets CRUD ────────────────────────────────────────────────
-
-func (h *Handler) ListNotificationTargets(w http.ResponseWriter, r *http.Request) {
-	targets, err := h.repo.ListSSLNotificationTargets(r.Context())
-	if err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to list notification targets")
-		return
-	}
-	if targets == nil {
-		targets = []*model.SSLNotificationTarget{}
-	}
-	common.JSON(w, http.StatusOK, targets)
-}
-
-func (h *Handler) GetNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	target, err := h.repo.GetSSLNotificationTarget(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "notification target not found")
-		return
-	}
-	common.JSON(w, http.StatusOK, target)
-}
-
-func (h *Handler) CreateNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	var req model.SSLNotificationTargetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.Error(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	if msg := req.Validate(); msg != "" {
-		common.Error(w, http.StatusBadRequest, msg)
-		return
-	}
-
-	enabled := true
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-
-	claims := auth.GetClaims(r.Context())
-	createdBy := ""
-	if claims != nil {
-		createdBy = claims.UserID
-	}
-
-	now := time.Now()
-	target := &model.SSLNotificationTarget{
-		ID:            uuid.New().String(),
-		Name:          req.Name,
-		URL:           req.URL,
-		Platform:      req.Platform,
-		WebhookSecret: req.WebhookSecret,
-		Enabled:       enabled,
-		CreatedBy:     createdBy,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-
-	if err := h.repo.CreateSSLNotificationTarget(r.Context(), target); err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to create notification target")
-		return
-	}
-
-	audit.Log(h.repo, claims.UserID, "", r.RemoteAddr,
-		"sslmonitor.notification-target.create", "ssl_notification_target", target.ID,
-		fmt.Sprintf("Created notification target %s (%s)", target.Name, target.Platform))
-
-	common.JSON(w, http.StatusCreated, target)
-}
-
-func (h *Handler) UpdateNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	existing, err := h.repo.GetSSLNotificationTarget(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "notification target not found")
-		return
-	}
-
-	var req model.SSLNotificationTargetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.Error(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	if msg := req.Validate(); msg != "" {
-		common.Error(w, http.StatusBadRequest, msg)
-		return
-	}
-
-	enabled := existing.Enabled
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-
-	existing.Name = req.Name
-	existing.URL = req.URL
-	existing.Platform = req.Platform
-	existing.WebhookSecret = req.WebhookSecret
-	existing.Enabled = enabled
-	existing.UpdatedAt = time.Now()
-
-	if err := h.repo.UpdateSSLNotificationTarget(r.Context(), existing); err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to update notification target")
-		return
-	}
-
-	claims := auth.GetClaims(r.Context())
-	audit.Log(h.repo, claims.UserID, "", r.RemoteAddr,
-		"sslmonitor.notification-target.update", "ssl_notification_target", id,
-		fmt.Sprintf("Updated notification target %s", existing.Name))
-
-	common.JSON(w, http.StatusOK, existing)
-}
-
-func (h *Handler) DeleteNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	// Verify it exists
-	_, err := h.repo.GetSSLNotificationTarget(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "notification target not found")
-		return
-	}
-
-	if err := h.repo.DeleteSSLNotificationTarget(r.Context(), id); err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to delete notification target")
-		return
-	}
-
-	claims := auth.GetClaims(r.Context())
-	audit.Log(h.repo, claims.UserID, "", r.RemoteAddr,
-		"sslmonitor.notification-target.delete", "ssl_notification_target", id,
-		"Deleted notification target")
-
-	common.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}
-
-func (h *Handler) TestNotificationTarget(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-
-	target, err := h.repo.GetSSLNotificationTarget(r.Context(), id)
-	if err != nil {
-		common.Error(w, http.StatusNotFound, "notification target not found")
-		return
-	}
-
-	// Build a test payload mimicking an SSL expiry alert
-	testPayload := map[string]interface{}{
-		"event_type":      "ssl.expiry.test",
-		"domain":          "example.com",
-		"port":            443,
-		"display_name":    "Test Notification",
-		"status":          "expiring_soon",
-		"days_remaining":  14,
-		"issuer":          "R3 (Let's Encrypt)",
-		"subject":         "CN=example.com",
-		"expires_at":      time.Now().AddDate(0, 0, 14).Format(time.RFC3339),
-		"cipher_grade":    "A",
-		"message":         "🔔 This is a test notification from SSL Monitor",
-		"previous_status": "valid",
-		"timestamp":       time.Now().UTC().Format(time.RFC3339),
-		"test":            true,
-	}
-
-	statusCode, respBody, err := dispatchToTarget(target, testPayload)
-	if err != nil {
-		log.Printf("[sslmonitor] test notification target %s failed: %v", target.Name, err)
-		common.JSON(w, http.StatusOK, map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-			"status_code": 0,
-		})
-		return
-	}
-
-	log.Printf("[sslmonitor] test notification target %s delivered: %d", target.Name, statusCode)
-	common.JSON(w, http.StatusOK, map[string]interface{}{
-		"success":     statusCode >= 200 && statusCode < 300,
-		"status_code": statusCode,
-		"response":    respBody,
-	})
 }
 
 // ─── Discovery ─────────────────────────────────────────────────────────────────
