@@ -10,7 +10,7 @@
 	// Modal
 	let showModal = $state(false);
 	let editTarget = $state(null);
-	let formData = $state({ name: '', url: '', bot_token: '', chat_id: '', platform: 'generic', enabled: true, scopes: [] });
+	let formData = $state({ name: '', url: '', bot_token: '', chat_id: '', platform: 'generic', enabled: true });
 	let saving = $state(false);
 	let formError = $state('');
 	let deleteConfirm = $state(null);
@@ -39,7 +39,7 @@
 	}
 
 	function resetForm() {
-		formData = { name: '', url: '', bot_token: '', chat_id: '', platform: 'generic', enabled: true, scopes: [] };
+		formData = { name: '', url: '', bot_token: '', chat_id: '', platform: 'generic', enabled: true };
 		editTarget = null;
 		formError = '';
 		deleteConfirm = null;
@@ -58,20 +58,11 @@
 			chat_id: t.chat_id || '',
 			platform: t.platform || 'generic',
 			enabled: t.enabled !== false,
-			scopes: t.scopes || [],
 		};
 		editTarget = t;
 		formError = '';
 		deleteConfirm = null;
 		showModal = true;
-	}
-
-	function toggleScope(scope) {
-		if (formData.scopes.includes(scope)) {
-			formData.scopes = formData.scopes.filter(s => s !== scope);
-		} else {
-			formData.scopes = [...formData.scopes, scope];
-		}
 	}
 
 	async function handleSave(e) {
@@ -135,8 +126,6 @@
 
 	// ── Derived Stats ──
 	let totalTargets = $derived(targets.length);
-	let sslCount = $derived(targets.filter(t => t.scopes?.includes('ssl')).length);
-	let uptimeCount = $derived(targets.filter(t => t.scopes?.includes('uptime')).length);
 </script>
 
 <div class="page-container">
@@ -227,21 +216,6 @@
 								<p class="truncate text-xs font-mono" style="color: var(--color-text-muted);" title={t.url}>{t.url}</p>
 							{/if}
 							<div class="mt-1 flex flex-wrap gap-1.5">
-								<!-- Scope chips -->
-								<span
-									class="scope-chip"
-									class:active={t.scopes?.includes('ssl')}
-								>
-									<Icon icon="solar:shield-check-bold" class="h-3 w-3" />
-									SSL
-								</span>
-								<span
-									class="scope-chip"
-									class:active={t.scopes?.includes('uptime')}
-								>
-									<Icon icon="solar:chart-2-bold" class="h-3 w-3" />
-									Uptime
-								</span>
 								<!-- Enabled badge -->
 								<span
 									class="scope-chip"
@@ -367,20 +341,6 @@
 						<input type="url" bind:value={formData.url} placeholder="https://hooks.example.com/..." class="input w-full" required />
 					</div>
 				{/if}
-				<div class="mb-4">
-					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Scopes</label>
-					<p class="mb-2 text-xs" style="color: var(--color-text-muted);">Select which features use this notification target</p>
-					<div class="flex flex-wrap gap-2">
-						<button type="button" class="scope-toggle" class:active={formData.scopes.includes('ssl')} onclick={() => toggleScope('ssl')}>
-							<Icon icon="solar:shield-check-bold" class="h-4 w-4" />
-							SSL Monitoring
-						</button>
-						<button type="button" class="scope-toggle" class:active={formData.scopes.includes('uptime')} onclick={() => toggleScope('uptime')}>
-							<Icon icon="solar:chart-2-bold" class="h-4 w-4" />
-							Uptime Monitoring
-						</button>
-					</div>
-				</div>
 
 				{#if formError}
 					<p class="mb-4 text-sm" style="color: #ef4444;">{formError}</p>
@@ -560,26 +520,6 @@
 		background: var(--color-primary-subtle);
 		color: var(--color-primary);
 	}
-	.scope-toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.375rem;
-		padding: 0.5rem 0.875rem;
-		border-radius: 8px;
-		font-size: 0.8125rem;
-		font-weight: 500;
-		border: 1px solid var(--color-border);
-		background: var(--color-card);
-		color: var(--color-text-secondary);
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.scope-toggle.active {
-		background: var(--color-primary-subtle);
-		color: var(--color-primary);
-		border-color: var(--color-primary);
-	}
-	.scope-toggle:hover:not(.active) { background: var(--color-hover); }
 	.test-result {
 		margin-top: -0.5rem;
 		margin-bottom: 0.5rem;
@@ -622,5 +562,4 @@
 	:global(body.dark) .card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
 	:global(body.dark) .modal-panel { background: #1a1d23; }
 	:global(body.dark) .scope-chip.active { background: rgba(16,185,129,0.15); }
-	:global(body.dark) .scope-toggle.active { background: rgba(16,185,129,0.15); }
 </style>
