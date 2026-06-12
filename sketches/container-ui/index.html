@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Container UI — Option A vs Option B</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: #f1f5f9;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  :root {
+    --color-primary: #14b8a6;
+    --color-primary-hover: #2dd4bf;
+    --color-surface: #0f172a;
+    --color-card: #1e293b;
+    --color-border: #334155;
+    --color-border-light: #1e293b;
+    --color-text: #f1f5f9;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-success: #34d399;
+    --color-danger: #f87171;
+    --color-warning: #fbbf24;
+    --sidebar-w: 256px;
+  }
+
+  /* Layout */
+  .app-layout { display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-w); height: 100vh; position: fixed;
+    top: 0; left: 0; z-index: 40;
+    background: #0f172a;
+    border-right: 1px solid #1e293b;
+    display: flex; flex-direction: column;
+    padding: 16px;
+  }
+  .sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 8px 12px 20px; }
+  .sidebar-logo svg { width: 28px; height: 28px; }
+  .sidebar-logo span { font-size: 18px; font-weight: 800; color: #f1f5f9; }
+  .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .nav-section { padding: 8px 12px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 8px;
+    font-size: 13px; font-weight: 500; color: #94a3b8;
+    transition: all 0.15s; cursor: pointer; text-decoration: none;
+  }
+  .nav-item:hover { background: #1e293b; color: #e2e8f0; }
+  .nav-item.active { background: #0d9488; color: #fff; }
+  .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .sidebar-theme { margin-top: auto; padding-top: 12px; border-top: 1px solid #1e293b; }
+
+  /* Main content */
+  .main-area { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; }
+  .topbar {
+    height: 64px; border-bottom: 1px solid #1e293b;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; background: #1e293b;
+    position: sticky; top: 0; z-index: 30;
+  }
+  .topbar-title { font-size: 16px; font-weight: 700; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .topbar-btn {
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    border: 1px solid #334155; cursor: pointer; color: #94a3b8; background: transparent;
+    transition: all 0.15s;
+  }
+  .topbar-btn:hover { border-color: #14b8a6; color: #14b8a6; }
+  .topbar-btn.active { border-color: #14b8a6; color: #14b8a6; background: rgba(20,184,166,0.1); }
+  .content-area {
+    flex: 1; overflow-y: auto;
+    padding: 24px 20px;
+    max-width: 1100px;
+  }
+
+  /* Server section */
+  .server-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; cursor: pointer; border-radius: 12px 12px 0 0;
+    transition: background 0.15s;
+  }
+  .server-header:hover { background: rgba(20,184,166,0.05); }
+  .server-name { font-size: 14px; font-weight: 700; }
+  .server-host { font-size: 11px; color: #64748b; }
+  .server-meta { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+  /* Container Card */
+  .container-grid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    padding: 12px;
+  }
+  .container-card {
+    border-radius: 12px; overflow: hidden; transition: all 0.2s;
+    border: 1px solid #1e293b; background: #1e293b;
+    cursor: pointer;
+  }
+  .container-card:hover { border-color: #14b8a6; }
+  .container-card.expanded { border-color: #14b8a6; }
+  .card-accent { width: 4px; flex-shrink: 0; border-radius: 4px 0 0 4px; }
+  .card-accent.running { background: #34d399; }
+  .card-accent.stopped { background: #f87171; }
+
+  .card-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 8px; padding: 12px 14px 8px;
+  }
+  .card-name { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-id { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #64748b; white-space: nowrap; }
+  .card-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .card-tag {
+    font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px;
+    display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;
+  }
+  .tag-server { background: rgba(99,102,241,0.18); color: #818cf8; }
+  .tag-status { background: rgba(52,211,153,0.12); color: #34d399; display: flex; align-items: center; gap: 4px; }
+  .tag-status .dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; box-shadow: 0 0 4px #34d399; }
+  .tag-status.stopped { background: rgba(248,113,113,0.12); color: #f87171; }
+  .tag-status.stopped .dot { background: #f87171; box-shadow: 0 0 4px #f87171; }
+  .tag-score { padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: 700; background: rgba(52,211,153,0.15); color: #34d399; }
+
+  .card-body { padding: 0 14px 6px; display: flex; flex-direction: column; gap: 3px; }
+  .card-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: #94a3b8;
+  }
+  .card-row svg { width: 12px; height: 12px; flex-shrink: 0; color: #64748b; }
+  .card-row .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-row .label em { font-style: normal; color: #e2e8f0; }
+
+  /* Option A - expanded sections */
+  .expanded-section { border-top: 1px solid #1e293b; }
+  .expanded-info {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;
+    padding: 12px 14px; background: #0f172a;
+  }
+  .expanded-info .field {}
+  .expanded-info .field-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 1px; }
+  .expanded-info .field-value { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Resource usage */
+  .resource-section { padding: 12px 14px; border-top: 1px solid #1e293b; }
+  .resource-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .resource-header h3 { font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+  .resource-header h3 svg { width: 14px; height: 14px; color: #14b8a6; }
+  .resource-bar { margin-bottom: 6px; }
+  .resource-bar-label { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  .resource-bar-label span { font-size: 10px; font-weight: 500; color: #94a3b8; }
+  .resource-bar-label .val { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e2e8f0; }
+  .bar-track { height: 5px; border-radius: 3px; background: #1e293b; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+  .bar-fill.green { background: #34d399; }
+  .bar-fill.yellow { background: #fbbf24; }
+  .bar-fill.red { background: #f87171; }
+
+  .net-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+  .net-card {
+    border-radius: 6px; padding: 6px 8px;
+    border: 1px solid #1e293b; background: #0f172a;
+  }
+  .net-card .label { font-size: 10px; font-weight: 500; color: #64748b; display: flex; align-items: center; gap: 3px; }
+  .net-card .val { font-size: 11px; font-weight: 600; font-family: 'JetBrains Mono', monospace; margin-top: 1px; }
+
+  /* Action Buttons */
+  .action-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-top: 1px solid #1e293b; background: #0f172a;
+  }
+  .action-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 10px; border-radius: 6px; border: none;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .action-btn svg { width: 12px; height: 12px; }
+  .action-btn.start { background: #34d399; color: #fff; }
+  .action-btn.start:hover { background: #10b981; }
+  .action-btn.stop { background: #f87171; color: #fff; }
+  .action-btn.stop:hover { background: #ef4444; }
+  .action-btn.restart { background: #fbbf24; color: #1e293b; }
+  .action-btn.restart:hover { background: #f59e0b; }
+  .action-btn.icon-btn {
+    width: 28px; height: 28px; padding: 0; justify-content: center;
+    border: 1px solid rgba(148,163,184,0.45); color: rgba(148,163,184,0.85);
+    background: rgba(148,163,184,0.08);
+  }
+  .action-btn.icon-btn:hover, .action-btn.icon-btn.active {
+    border-color: #14b8a6; color: #14b8a6; background: rgba(20,184,166,0.08);
+  }
+
+  /* Option B - Detail Page */
+  .breadcrumb {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; margin-bottom: 16px; color: #64748b;
+  }
+  .breadcrumb a { color: #64748b; text-decoration: none; }
+  .breadcrumb a:hover { color: #14b8a6; text-decoration: underline; }
+  .detail-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .detail-header-left { display: flex; align-items: center; gap: 12px; }
+  .detail-header-left .status-badge {
+    font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .detail-header-left .status-badge.running {
+    background: rgba(52,211,153,0.12); color: #34d399;
+  }
+  .detail-header-left .status-badge .pulse {
+    width: 8px; height: 8px; border-radius: 50%; background: #34d399;
+    box-shadow: 0 0 6px #34d399;
+  }
+
+  .detail-actions { display: flex; gap: 8px; }
+  .detail-actions .action-btn { padding: 8px 14px; font-size: 13px; }
+  .detail-actions .action-btn svg { width: 14px; height: 14px; }
+
+  /* Tabs */
+  .detail-tabs {
+    display: flex; gap: 4px; border-bottom: 1px solid #1e293b;
+    margin-bottom: 20px;
+  }
+  .detail-tab {
+    padding: 10px 16px; font-size: 13px; font-weight: 500; color: #64748b;
+    border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .detail-tab:hover { color: #94a3b8; }
+  .detail-tab.active { color: #14b8a6; border-bottom-color: #14b8a6; }
+  .detail-tab svg { width: 16px; height: 16px; }
+
+  /* Tab content */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .stats-card {
+    border-radius: 12px; border: 1px solid #1e293b;
+    padding: 16px; background: #1e293b;
+  }
+  .stats-card.full { grid-column: 1 / -1; }
+  .stats-card-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 6px; color: #94a3b8;
+  }
+  .stats-card-title svg { width: 14px; height: 14px; }
+
+  .info-table { width: 100%; }
+  .info-table td { padding: 8px 0; font-size: 13px; border-bottom: 1px solid rgba(51,65,85,0.4); }
+  .info-table td:first-child { color: #64748b; width: 120px; }
+  .info-table td:last-child { color: #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+  .log-viewer {
+    background: #0f172a; border-radius: 8px; padding: 16px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    max-height: 400px; overflow-y: auto;
+  }
+  .log-line { display: flex; gap: 12px; padding: 1px 0; line-height: 1.6; }
+  .log-time { color: #64748b; white-space: nowrap; }
+  .log-text { color: #cbd5e1; }
+
+  /* Container card inside detail — Option B card summary */
+  .detail-container-card {
+    border-radius: 12px; border: 1px solid #1e293b; background: #1e293b; overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .detail-card-summary {
+    display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+  }
+  .summary-meta { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .summary-meta .srv-tag { font-size: 11px; color: #818cf8; display: flex; align-items: center; gap: 4px; }
+  .summary-meta .srv-tag svg { width: 12px; height: 12px; }
+  .summary-stats { display: flex; gap: 20px; color: #64748b; font-size: 11px; }
+  .summary-stats span { display: flex; align-items: center; gap: 4px; }
+  .summary-stats svg { width: 12px; height: 12px; }
+  .summary-score { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; background: rgba(52,211,153,0.15); color: #34d399; }
+
+  /* Comparison toggle */
+  .mode-indicator {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 10px 4px 14px;
+    border-radius: 8px; font-size: 12px; font-weight: 600;
+    border: 1px solid #334155; background: #1e293b;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .mode-indicator:hover { border-color: #14b8a6; }
+  .mode-indicator .badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700;
+    background: rgba(20,184,166,0.12); color: #14b8a6;
+  }
+  .mode-switch { display: flex; gap: 4px; }
+  .mode-btn {
+    padding: 8px 16px; border-radius: 8px; border: 1px solid #334155;
+    font-size: 13px; font-weight: 600; cursor: pointer; background: transparent;
+    color: #64748b; transition: all 0.15s;
+  }
+  .mode-btn:hover { border-color: #64748b; color: #94a3b8; }
+  .mode-btn.active { border-color: #14b8a6; color: #14b8a6; background: rgba(20,184,166,0.08); }
+  .mode-btn svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: middle; }
+
+  /* Utilities */
+  .hidden { display: none !important; }
+  .gap-1 { gap: 4px; }
+  .footer-note {
+    margin-top: 24px; padding-top: 16px; border-top: 1px solid #1e293b;
+    font-size: 12px; color: #64748b;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* Responsive for smaller screens */
+  @media (max-width: 768px) {
+    .container-grid { grid-template-columns: 1fr; }
+    .expanded-info { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .detail-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .content-area { padding: 16px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-layout">
+  <!-- Sidebar (decorative) -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <svg viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="8" fill="#14b8a6"/>
+        <text x="14" y="19" text-anchor="middle" fill="#fff" font-size="16" font-weight="800" font-family="Inter">A</text>
+      </svg>
+      <span>Anjungan</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Infrastructure</div>
+      <a class="nav-item" href="#"><svg icon="solar:server-square-bold" data-icon="server-square-bold"></svg>Servers</a>
+      <a class="nav-item active" href="#"><svg icon="solar:box-bold" data-icon="box-bold"></svg>Containers</a>
+    </nav>
+    <div class="sidebar-theme">
+      <div class="nav-item">
+        <svg icon="solar:moon-bold" data-icon="moon-bold"></svg>
+        <span>Dark mode</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-area">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-title">Containers</div>
+      <div class="topbar-right">
+        <!-- Mode switcher -->
+        <div class="mode-switch" id="modeSwitch">
+          <button class="mode-btn active" onclick="switchMode('A')" id="modeBtnA">
+            <svg icon="solar:alt-arrow-down-bold" data-icon="alt-arrow-down-bold" style="width:14px;height:14px;vertical-align:middle"></svg>
+            Option A: Expand in Card
+          </button>
+          <button class="mode-btn" onclick="switchMode('B')" id="modeBtnB">
+            <svg icon="solar:export-bold" data-icon="export-bold" style="width:14px;height:14px;vertical-align:middle"></svg>
+            Option B: Detail Page
+          </button>
+        </div>
+        <button class="topbar-btn">
+          <svg icon="solar:refresh-bold" data-icon="refresh-bold" style="width:14px;height:14px;vertical-align:middle"></svg>
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- Content: Option A -->
+    <div class="content-area" id="optionA">
+      <!-- Server section header -->
+      <div class="server-header" style="background:#1e293b;border:1px solid #1e293b;border-radius:12px;margin-bottom:0;">
+        <svg icon="solar:server-square-bold" data-icon="server-square-bold" style="width:20px;height:20px;color:#14b8a6;flex-shrink:0"></svg>
+        <div>
+          <div class="server-name">docker-01</div>
+          <div class="server-host">192.168.1.100:2376</div>
+        </div>
+        <div class="server-meta">
+          <span style="font-size:12px;color:#64748b;font-weight:500;">3 containers</span>
+          <span style="padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(52,211,153,0.12);color:#34d399;display:flex;align-items:center;gap:4px;">
+            <svg icon="solar:shield-bold" data-icon="shield-bold" style="width:10px;height:10px"></svg>
+            85
+          </span>
+          <svg icon="solar:alt-arrow-down-bold" data-icon="alt-arrow-down-bold" style="width:16px;height:16px;color:#64748b"></svg>
+        </div>
+      </div>
+
+      <!-- Container grid -->
+      <div class="container-grid" style="background:#1e293b;border:1px solid #1e293b;border-radius:0 0 12px 12px;border-top:none;">
+
+        <!-- Card 1: Running, expanded -->
+        <div class="container-card expanded">
+          <div class="flex" style="min-height:0;">
+            <div class="card-accent running"></div>
+            <div style="flex:1;min-width:0;">
+              <!-- Header -->
+              <div class="card-header">
+                <div style="min-width:0;flex:1;">
+                  <div class="card-name" title="anjungan-frontend-1">anjungan-frontend-1</div>
+                  <div class="card-tags">
+                    <span class="card-tag tag-server">
+                      <svg icon="solar:server-square-bold" data-icon="server-square-bold" style="width:10px;height:10px"></svg>
+                      docker-01
+                    </span>
+                    <span class="card-tag tag-status">
+                      <span class="dot"></span>
+                      Running
+                    </span>
+                    <span class="card-tag tag-score">85</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+                  <span class="card-id">#a1b2c3</span>
+                  <svg icon="solar:alt-arrow-up-bold" data-icon="alt-arrow-up-bold" style="width:14px;height:14px;color:#64748b"></svg>
+                </div>
+              </div>
+              <!-- Body (collapsed shown partially) -->
+              <div class="card-body">
+                <div class="card-row">
+                  <svg icon="solar:box-bold" data-icon="box-bold"></svg>
+                  <span class="label"><em>anjungan-frontend:latest</em></span>
+                </div>
+                <div class="card-row">
+                  <svg icon="solar:plug-circle-bold" data-icon="plug-circle-bold"></svg>
+                  <span class="label">0.0.0.0:3000→3000/tcp</span>
+                </div>
+                <div class="card-row">
+                  <svg icon="solar:clock-circle-bold" data-icon="clock-circle-bold"></svg>
+                  <span class="label">2h 15m · created 12 Jun 18:30</span>
+                </div>
+              </div>
+
+              <!-- Expanded section -->
+              <div class="expanded-section">
+                <!-- Info grid -->
+                <div class="expanded-info">
+                  <div class="field"><div class="field-label">Image</div><div class="field-value">anjungan-frontend:latest</div></div>
+                  <div class="field"><div class="field-label">Ports</div><div class="field-value">0.0.0.0:3000→3000/tcp</div></div>
+                  <div class="field"><div class="field-label">Created</div><div class="field-value">12 Jun 2026, 18:30:15 WIB</div></div>
+                  <div class="field"><div class="field-label">Restarts</div><div class="field-value">2 restarts</div></div>
+                  <div class="field" style="grid-column:1/-1;"><div class="field-label">Network</div><div class="field-value">anjungan_default · 172.22.0.5</div></div>
+                </div>
+
+                <!-- Resource usage -->
+                <div class="resource-section" style="background:#1e293b;">
+                  <div class="resource-header">
+                    <h3><svg icon="solar:chart-2-bold" data-icon="chart-2-bold"></svg>RESOURCE USAGE</h3>
+                    <button style="font-size:10px;font-weight:500;color:#64748b;display:flex;align-items:center;gap:3px;background:none;border:none;cursor:pointer;">
+                      <svg icon="solar:refresh-bold" data-icon="refresh-bold" style="width:12px;height:12px"></svg> Refresh
+                    </button>
+                  </div>
+                  <div class="resource-bar">
+                    <div class="resource-bar-label"><span>CPU</span><span class="val">23.4%</span></div>
+                    <div class="bar-track"><div class="bar-fill green" style="width:23.4%"></div></div>
+                  </div>
+                  <div class="resource-bar">
+                    <div class="resource-bar-label"><span>Memory</span><span class="val">128 MB / 512 MB</span></div>
+                    <div class="bar-track"><div class="bar-fill yellow" style="width:25%"></div></div>
+                  </div>
+                  <div class="net-grid">
+                    <div class="net-card"><div class="label"><svg icon="solar:download-square-bold" data-icon="download-square-bold" style="width:10px;height:10px"></svg> RX</div><div class="val">1.2 GB</div></div>
+                    <div class="net-card"><div class="label"><svg icon="solar:upload-square-bold" data-icon="upload-square-bold" style="width:10px;height:10px"></svg> TX</div><div class="val">340 MB</div></div>
+                  </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="action-bar">
+                  <button class="action-btn start"><svg icon="solar:play-bold" data-icon="play-bold"></svg> Start</button>
+                  <button class="action-btn stop"><svg icon="solar:pause-bold" data-icon="pause-bold"></svg> Stop</button>
+                  <button class="action-btn restart"><svg icon="solar:refresh-bold" data-icon="refresh-bold"></svg> Restart</button>
+                  <span style="flex:1;min-width:0;"></span>
+                  <button class="action-btn icon-btn" title="Security"><svg icon="solar:shield-bold" data-icon="shield-bold"></svg></button>
+                  <button class="action-btn icon-btn" title="Logs"><svg icon="solar:document-text-bold" data-icon="document-text-bold"></svg></button>
+                  <button class="action-btn icon-btn" title="Exec"><svg stroke="currentColor" fill="none" viewBox="0 0 24 24" width="12" height="12"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
+                  <button class="action-btn icon-btn" title="Inspect"><svg icon="solar:code-bold" data-icon="code-bold"></svg></button>
+                </div>
+
+                <!-- Security panel placeholder -->
+                <div style="border-top:1px solid #1e293b;padding:10px 14px;background:#1e293b;">
+                  <div style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px;margin-bottom:6px;">
+                    <svg icon="solar:shield-bold" data-icon="shield-bold" style="width:14px;height:14px"></svg>
+                    SECURITY FINDINGS
+                  </div>
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <button style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:600;border:1px solid #14b8a6;color:#14b8a6;background:transparent;cursor:pointer;">
+                      <svg icon="solar:export-bold" data-icon="export-bold" style="width:10px;height:10px"></svg> Report
+                    </button>
+                    <span style="font-size:10px;color:#64748b;">Scanned: 2026-06-12</span>
+                    <button style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:600;border:none;color:#fff;background:#14b8a6;cursor:pointer;margin-left:auto;">
+                      <svg icon="solar:shield-bold" data-icon="shield-bold" style="width:10px;height:10px"></svg> Scan
+                    </button>
+                  </div>
+                  <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px;">
+                    <div style="padding:6px 8px;border-radius:6px;font-size:11px;background:rgba(248,113,113,0.08);">
+                      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                        <span style="padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:rgba(248,113,113,0.2);color:#f87171;">HIGH</span>
+                        <span style="font-weight:600;">Container runs as root</span>
+                        <span style="font-size:10px;color:#64748b;font-family:'JetBrains Mono'">CIS-5.1</span>
+                      </div>
+                      <p style="color:#94a3b8;">Container is running with root privileges. Use USER directive in Dockerfile.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: collapsed, running -->
+        <div class="container-card">
+          <div class="flex" style="min-height:0;">
+            <div class="card-accent running"></div>
+            <div style="flex:1;min-width:0;">
+              <div class="card-header">
+                <div style="min-width:0;flex:1;">
+                  <div class="card-name" title="anjungan-backend-1">anjungan-backend-1</div>
+                  <div class="card-tags">
+                    <span class="card-tag tag-server"><svg icon="solar:server-square-bold" data-icon="server-square-bold" style="width:10px;height:10px"></svg> docker-01</span>
+                    <span class="card-tag tag-status"><span class="dot"></span>Running</span>
+                    <span class="card-tag tag-score">92</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+                  <span class="card-id">#d4e5f6</span>
+                  <svg icon="solar:alt-arrow-down-bold" data-icon="alt-arrow-down-bold" style="width:14px;height:14px;color:#64748b"></svg>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="card-row"><svg icon="solar:box-bold" data-icon="box-bold"></svg><span class="label"><em>anjungan-backend:latest</em></span></div>
+                <div class="card-row"><svg icon="solar:plug-circle-bold" data-icon="plug-circle-bold"></svg><span class="label">0.0.0.0:8080→8080/tcp</span></div>
+                <div class="card-row"><svg icon="solar:clock-circle-bold" data-icon="clock-circle-bold"></svg><span class="label">2h 15m · created 12 Jun 18:30</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: stopped -->
+        <div class="container-card">
+          <div class="flex" style="min-height:0;">
+            <div class="card-accent stopped"></div>
+            <div style="flex:1;min-width:0;">
+              <div class="card-header">
+                <div style="min-width:0;flex:1;">
+                  <div class="card-name" title="redis-old">redis-old</div>
+                  <div class="card-tags">
+                    <span class="card-tag tag-server"><svg icon="solar:server-square-bold" data-icon="server-square-bold" style="width:10px;height:10px"></svg> docker-01</span>
+                    <span class="card-tag tag-status stopped"><span class="dot"></span>Stopped</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+                  <span class="card-id">#g7h8i9</span>
+                  <svg icon="solar:alt-arrow-down-bold" data-icon="alt-arrow-down-bold" style="width:14px;height:14px;color:#64748b"></svg>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="card-row"><svg icon="solar:box-bold" data-icon="box-bold"></svg><span class="label"><em>redis:7-alpine</em></span></div>
+                <div class="card-row"><svg icon="solar:clock-circle-bold" data-icon="clock-circle-bold"></svg><span class="label">Stopped 3h ago · created 12 Jun 15:00</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-note">
+        <span>⚠️ Option A: Event conflicts between card click (expand) and action buttons inside. Fixed with e.target.closest guard + e.currentTarget check.</span>
+      </div>
+    </div>
+
+    <!-- Content: Option B -->
+    <div class="content-area hidden" id="optionB">
+      <!-- Breadcrumb -->
+      <div class="breadcrumb">
+        <a href="#">Containers</a>
+        <svg icon="solar:alt-arrow-right-bold" data-icon="alt-arrow-right-bold" style="width:12px;height:12px"></svg>
+        <span style="color:#94a3b8;">docker-01</span>
+        <svg icon="solar:alt-arrow-right-bold" data-icon="alt-arrow-right-bold" style="width:12px;height:12px"></svg>
+        <span style="color:#e2e8f0;">anjungan-frontend-1</span>
+      </div>
+
+      <!-- Container info card (summary) -->
+      <div class="detail-container-card">
+        <div class="detail-card-summary">
+          <svg icon="solar:box-bold" data-icon="box-bold" style="width:24px;height:24px;color:#14b8a6;flex-shrink:0"></svg>
+          <div class="summary-meta">
+            <div style="font-size:14px;font-weight:700;">anjungan-frontend-1</div>
+            <div class="srv-tag">
+              <svg icon="solar:server-square-bold" data-icon="server-square-bold"></svg>
+              docker-01 · 192.168.1.100:2376
+            </div>
+          </div>
+          <div class="summary-stats">
+            <span><svg icon="solar:clock-circle-bold" data-icon="clock-circle-bold"></svg> Created 12 Jun 18:30</span>
+            <span><svg icon="solar:play-bold" data-icon="play-bold"></svg> Up 2h 15m</span>
+            <span><svg icon="solar:box-bold" data-icon="box-bold"></svg> #a1b2c3</span>
+          </div>
+          <div class="summary-score">85</div>
+          <div style="display:flex;gap:6px;">
+            <button class="action-btn start"><svg icon="solar:play-bold" data-icon="play-bold"></svg> Start</button>
+            <button class="action-btn stop"><svg icon="solar:pause-bold" data-icon="pause-bold"></svg> Stop</button>
+            <button class="action-btn restart"><svg icon="solar:refresh-bold" data-icon="refresh-bold"></svg> Restart</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="detail-tabs">
+        <span class="detail-tab active" onclick="switchTab('stats')" id="tabStats">
+          <svg icon="solar:chart-2-bold" data-icon="chart-2-bold"></svg> Stats
+        </span>
+        <span class="detail-tab" onclick="switchTab('logs')" id="tabLogs">
+          <svg icon="solar:document-text-bold" data-icon="document-text-bold"></svg> Logs
+        </span>
+        <span class="detail-tab" onclick="switchTab('security')" id="tabSecurity">
+          <svg icon="solar:shield-bold" data-icon="shield-bold"></svg> Security
+        </span>
+        <span class="detail-tab" onclick="switchTab('exec')" id="tabExec">
+          <svg stroke="currentColor" fill="none" viewBox="0 0 24 24" width="16" height="16"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Exec
+        </span>
+        <span class="detail-tab" onclick="switchTab('inspect')" id="tabInspect">
+          <svg icon="solar:code-bold" data-icon="code-bold"></svg> Inspect
+        </span>
+      </div>
+
+      <!-- Tab: Stats -->
+      <div class="tab-content active" id="contentStats">
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div class="stats-card-title"><svg icon="solar:cpu-bold" data-icon="cpu-bold"></svg> CPU</div>
+            <div class="resource-bar" style="margin-bottom:0;">
+              <div class="resource-bar-label"><span>Usage</span><span class="val">23.4%</span></div>
+              <div class="bar-track"><div class="bar-fill green" style="width:23.4%"></div></div>
+            </div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-title"><svg icon="solar:database-bold" data-icon="database-bold"></svg> Memory</div>
+            <div class="resource-bar" style="margin-bottom:0;">
+              <div class="resource-bar-label"><span>128 MB / 512 MB</span><span class="val">25%</span></div>
+              <div class="bar-track"><div class="bar-fill yellow" style="width:25%"></div></div>
+            </div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-title"><svg icon="solar:download-square-bold" data-icon="download-square-bold"></svg> Network RX</div>
+            <div style="font-size:18px;font-weight:700;font-family:'JetBrains Mono'">1.2 GB</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-title"><svg icon="solar:upload-square-bold" data-icon="upload-square-bold"></svg> Network TX</div>
+            <div style="font-size:18px;font-weight:700;font-family:'JetBrains Mono'">340 MB</div>
+          </div>
+          <div class="stats-card full">
+            <div class="stats-card-title"><svg icon="solar:info-circle-bold" data-icon="info-circle-bold"></svg> Container Info</div>
+            <table class="info-table">
+              <tr><td>Image</td><td>anjungan-frontend:latest</td></tr>
+              <tr><td>Created</td><td>12 Jun 2026, 18:30:15 WIB</td></tr>
+              <tr><td>Ports</td><td>0.0.0.0:3000→3000/tcp</td></tr>
+              <tr><td>Restarts</td><td>2</td></tr>
+              <tr><td>Network Mode</td><td>anjungan_default</td></tr>
+              <tr><td>IP Address</td><td>172.22.0.5</td></tr>
+              <tr><td>Mounts</td><td>/data/app → /app</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Logs -->
+      <div class="tab-content" id="contentLogs">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">
+            <svg icon="solar:document-text-bold" data-icon="document-text-bold" style="width:16px;height:16px;color:#14b8a6"></svg>
+            Recent Logs
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="topbar-btn" style="font-size:11px;">
+              <svg icon="solar:refresh-bold" data-icon="refresh-bold" style="width:12px;height:12px;vertical-align:middle"></svg>
+              Refresh
+            </button>
+            <button class="topbar-btn" style="font-size:11px;">
+              <svg icon="solar:export-bold" data-icon="export-bold" style="width:12px;height:12px;vertical-align:middle"></svg>
+              Stream
+            </button>
+          </div>
+        </div>
+        <div class="log-viewer">
+          <div class="log-line"><span class="log-time">18:30:15</span><span class="log-text">[INFO] Server started on port 3000</span></div>
+          <div class="log-line"><span class="log-time">18:30:16</span><span class="log-text">[INFO] Connected to database at postgres://db:5432</span></div>
+          <div class="log-line"><span class="log-time">18:30:18</span><span class="log-text">[INFO] Redis connection established</span></div>
+          <div class="log-line"><span class="log-time">19:45:22</span><span class="log-text">[WARN] Slow query detected: SELECT * FROM containers (320ms)</span></div>
+          <div class="log-line"><span class="log-time">20:12:00</span><span class="log-text">[INFO] Health check OK</span></div>
+          <div class="log-line"><span class="log-time">20:30:00</span><span class="log-text">[INFO] Scheduled task: container scan started</span></div>
+        </div>
+      </div>
+
+      <!-- Tab: Security -->
+      <div class="tab-content" id="contentSecurity">
+        <div class="detail-container-card" style="margin-bottom:12px;">
+          <div class="detail-card-summary" style="padding:12px 16px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span style="font-size:24px;font-weight:800;font-family:'JetBrains Mono';color:#34d399;">85</span>
+              <div>
+                <div style="font-size:12px;font-weight:600;">Security Score</div>
+                <div style="font-size:11px;color:#64748b;">3 findings · Last scanned: 12 Jun 2026</div>
+              </div>
+            </div>
+            <div style="margin-left:auto;display:flex;gap:6px;">
+              <button class="action-btn" style="border:1px solid #14b8a6;color:#14b8a6;background:transparent;">
+                <svg icon="solar:export-bold" data-icon="export-bold"></svg> Report
+              </button>
+              <button class="action-btn" style="background:#14b8a6;color:#fff;border:none;">
+                <svg icon="solar:shield-bold" data-icon="shield-bold"></svg> Scan
+              </button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="padding:10px 12px;border-radius:8px;background:rgba(248,113,113,0.08);">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(248,113,113,0.2);color:#f87171;">HIGH</span>
+              <span style="font-size:12px;font-weight:600;">Container runs as root</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono';color:#64748b;">CIS-5.1</span>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;">Container is running with root privileges. Use USER directive in Dockerfile.</p>
+            <p style="font-size:10px;color:#14b8a6;margin-top:4px;"><span style="font-weight:600;">Fix:</span> Add USER appuser directive and create non-root user</p>
+          </div>
+          <div style="padding:10px 12px;border-radius:8px;background:rgba(251,191,36,0.08);">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(251,191,36,0.2);color:#fbbf24;">MEDIUM</span>
+              <span style="font-size:12px;font-weight:600;">Healthcheck not configured</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono';color:#64748b;">CIS-4.6</span>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;">Container does not define a HEALTHCHECK instruction. Add health checks for auto-recovery.</p>
+          </div>
+          <div style="padding:10px 12px;border-radius:8px;background:rgba(96,165,250,0.08);">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(96,165,250,0.2);color:#60a5fa;">LOW</span>
+              <span style="font-size:12px;font-weight:600;">No resource limits set</span>
+              <span style="font-size:10px;font-family:'JetBrains Mono';color:#64748b;">CIS-5.10</span>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;">Container runs without memory or CPU limits. Set --memory and --cpus constraints.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Exec -->
+      <div class="tab-content" id="contentExec">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">
+            <svg stroke="currentColor" fill="none" viewBox="0 0 24 24" width="16" height="16" style="color:#14b8a6"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Interactive Terminal
+          </div>
+          <span style="font-size:11px;color:#64748b;">Type any command — runs in container</span>
+        </div>
+        <div style="border-radius:8px;background:#0f172a;overflow:hidden;border:1px solid #1e293b;">
+          <div style="padding:12px 14px;font-family:'JetBrains Mono';font-size:13px;min-height:200px;color:#a5b4fc;">
+            <div style="display:flex;gap:8px;margin-bottom:4px;">
+              <span style="color:#34d399;">root@a1b2c3:/app$</span>
+              <span>ls -la</span>
+            </div>
+            <div style="color:#cbd5e1;margin-bottom:8px;line-height:1.5;">
+              total 48<br>
+              drwxr-xr-x 1 root root  4096 Jun 12 18:30 .<br>
+              drwxr-xr-x 1 root root  4096 Jun 12 18:30 ..<br>
+              -rw-r--r-- 1 root root   347 Jun 12 18:30 Dockerfile<br>
+              -rw-r--r-- 1 root root   310 Jun 12 18:30 package.json<br>
+              drwxr-xr-x 1 root root  4096 Jun 12 18:30 src
+            </div>
+            <div style="display:flex;gap:8px;">
+              <span style="color:#34d399;">root@a1b2c3:/app$</span>
+              <span style="color:#64748b;" class="cursor-blink">|</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Inspect -->
+      <div class="tab-content" id="contentInspect">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">
+            <svg icon="solar:code-bold" data-icon="code-bold" style="width:16px;height:16px;color:#14b8a6"></svg>
+            Container Inspect
+          </div>
+          <button class="topbar-btn" style="font-size:11px;">
+            <svg icon="solar:copy-bold" data-icon="copy-bold" style="width:12px;height:12px;vertical-align:middle"></svg>
+            Copy JSON
+          </button>
+        </div>
+        <div style="border-radius:8px;background:#0f172a;overflow:hidden;border:1px solid #1e293b;">
+          <pre style="padding:14px;font-family:'JetBrains Mono';font-size:11px;line-height:1.6;overflow-x:auto;color:#a5b4fc;max-height:400px;overflow-y:auto;">{
+  "Id": "a1b2c3d4e5f6...",
+  "Name": "/anjungan-frontend-1",
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "StartedAt": "2026-06-12T18:30:15.123456789Z"
+  },
+  "Config": {
+    "Image": "anjungan-frontend:latest",
+    "ExposedPorts": { "3000/tcp": {} }
+  },
+  "NetworkSettings": {
+    "Networks": {
+      "anjungan_default": {
+        "IPAddress": "172.22.0.5",
+        "Gateway": "172.22.0.1"
+      }
+    }
+  },
+  "Mounts": [
+    { "Type": "bind", "Source": "/data/app", "Destination": "/app" }
+  ]
+}</pre>
+        </div>
+      </div>
+
+      <div class="footer-note">
+        <span>✅ Option B: Dedicated page — no event conflicts, full space for each feature, shareable URL.</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  iconify(); // Kick off iconify
+
+  function switchMode(mode) {
+    document.getElementById('optionA').classList.toggle('hidden', mode !== 'A');
+    document.getElementById('optionB').classList.toggle('hidden', mode !== 'B');
+    document.getElementById('modeBtnA').classList.toggle('active', mode === 'A');
+    document.getElementById('modeBtnB').classList.toggle('active', mode === 'B');
+    // Refresh icons after switching
+    setTimeout(iconify, 50);
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.detail-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('content' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  }
+
+  function iconify() {
+    if (typeof Iconify !== 'undefined') Iconify.scan();
+  }
+</script>
+</body>
+</html>

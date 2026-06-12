@@ -678,14 +678,13 @@
 								</div>
 							</div>
 							<div class="stat-bar-item">
-								{@const memPct = calcMemPct(stats)}
 								<div class="stat-bar-label">
 									<Icon icon="solar:sd-card-bold" class="stat-bar-icon" /> Memory
 									<span class="stat-bar-value">{stats.memory_usage != null ? formatBytes(stats.memory_usage) : '—'} / {stats.memory_limit ? formatBytes(stats.memory_limit) : '—'}</span>
 								</div>
 								<div class="stat-bar-track">
 									<div class="stat-bar-fill"
-										style="width: {Math.min(memPct ?? 0, 100)}%; background: {(memPct ?? 0) > 80 ? 'var(--color-danger)' : (memPct ?? 0) > 60 ? '#eab308' : '#f59e0b'};">
+										style="width: {Math.min(calcMemPct(stats) ?? 0, 100)}%; background: {(calcMemPct(stats) ?? 0) > 80 ? 'var(--color-danger)' : (calcMemPct(stats) ?? 0) > 60 ? '#eab308' : '#f59e0b'};">
 									</div>
 								</div>
 							</div>
@@ -779,25 +778,27 @@
 							<Icon icon="solar:alt-arrow-right-bold" class="chevron-icon" />
 						</div>
 						<div class="security-summary">
-							{@const score = container.security?.score}
-							{@const findings = container.security?.findings || []}
-							{#if score != null}
-								<div class="score-badge-large" style="background-color: {securityColor(score)}22; color: {securityColor(score)};">
-									{score}/100
+							{#if container.security?.score != null}
+								{@const cscore = container.security.score}
+								<div class="score-badge-large" style="background-color: {securityColor(cscore)}22; color: {securityColor(cscore)};">
+									{cscore}/100
 								</div>
 							{/if}
 							<div class="findings-summary">
-								{@const critical = findings.filter(f => f.severity?.toLowerCase() === 'critical').length}
-								{@const high = findings.filter(f => f.severity?.toLowerCase() === 'high').length}
-								{@const medium = findings.filter(f => f.severity?.toLowerCase() === 'medium').length}
-								<div class="finding-dots">
-									{#if critical > 0}<span class="sev-dot" style="background: #ef4444;" title="{critical} critical">{critical}</span>{/if}
-									{#if high > 0}<span class="sev-dot" style="background: #f97316;" title="{high} high">{high}</span>{/if}
-									{#if medium > 0}<span class="sev-dot" style="background: #eab308;" title="{medium} medium">{medium}</span>{/if}
-									{#if critical === 0 && high === 0 && medium === 0}
-										<span class="text-xs" style="color: var(--color-text-muted);">No critical findings</span>
-									{/if}
-								</div>
+								{#if true}
+									{@const findings = container.security?.findings || []}
+									{@const critical = findings.filter(f => f.severity?.toLowerCase() === 'critical').length}
+									{@const high = findings.filter(f => f.severity?.toLowerCase() === 'high').length}
+									{@const medium = findings.filter(f => f.severity?.toLowerCase() === 'medium').length}
+									<div class="finding-dots">
+										{#if critical > 0}<span class="sev-dot" style="background: #ef4444;" title="{critical} critical">{critical}</span>{/if}
+										{#if high > 0}<span class="sev-dot" style="background: #f97316;" title="{high} high">{high}</span>{/if}
+										{#if medium > 0}<span class="sev-dot" style="background: #eab308;" title="{medium} medium">{medium}</span>{/if}
+										{#if critical === 0 && high === 0 && medium === 0}
+											<span class="text-xs" style="color: var(--color-text-muted);">No critical findings</span>
+										{/if}
+									</div>
+								{/if}
 							</div>
 						</div>
 					</div>
