@@ -875,44 +875,7 @@ type SSLCheckHistoryListResponse struct {
 	Limit      int               `json:"limit"`
 }
 
-// ─── SSL Notification Targets ──────────────────────────────────────────────────
 
-type SSLNotificationTarget struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	URL           string    `json:"url"`
-	Platform      string    `json:"platform"`
-	WebhookSecret string    `json:"webhook_secret"`
-	Enabled       bool      `json:"enabled"`
-	CreatedBy     string    `json:"created_by"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-}
-
-type SSLNotificationTargetRequest struct {
-	Name          string   `json:"name"`
-	URL           string   `json:"url"`
-	Platform      string   `json:"platform"`
-	WebhookSecret string   `json:"webhook_secret"`
-	Enabled       *bool    `json:"enabled,omitempty"`
-}
-
-func (r *SSLNotificationTargetRequest) Validate() string {
-	if r.Name == "" {
-		return "name is required"
-	}
-	if r.URL == "" {
-		return "URL is required"
-	}
-	if r.Platform == "" {
-		r.Platform = "generic"
-	}
-	validPlatforms := map[string]bool{"telegram": true, "discord": true, "slack": true, "generic": true}
-	if !validPlatforms[r.Platform] {
-		return "platform must be telegram, discord, slack, or generic"
-	}
-	return ""
-}
 
 // ─── Uptime Monitoring ─────────────────────────────────────────────────────
 

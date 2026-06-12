@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS ssl_notification_targets (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    url TEXT NOT NULL,
+    platform VARCHAR(100) NOT NULL DEFAULT 'generic',
+    webhook_secret TEXT DEFAULT '',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by VARCHAR(255) DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
