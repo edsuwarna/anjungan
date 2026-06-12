@@ -3840,6 +3840,9 @@ func (r *Repository) GetUptimeStats(ctx context.Context, monitorID string) (*Upt
 		pct := float64(upAll) / float64(totalAll) * 100
 		pct = float64(int(pct*10)) / 10
 		stats.UptimeOverall = &pct
+		stats.TotalChecks = totalAll
+		stats.UpChecks = upAll
+		stats.DownChecks = downAll
 	}
 
 	return stats, nil
