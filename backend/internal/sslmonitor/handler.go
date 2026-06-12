@@ -535,11 +535,45 @@ func sendToTarget(target *model.NotificationTarget, payload map[string]interface
 	var bodyBytes []byte
 	var err error
 
+	// For telegram, we format the message text and send via Bot API
+	if target.Platform == "telegram" {
+		text, err := formatTelegramSSLNotification(payload)
+		if err != nil {
+			return 0, "", fmt.Errorf("format message: %w", err)
+		}
+
+		apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", target.BotToken)
+		botPayload := map[string]interface{}{
+			"chat_id":    target.ChatID,
+			"text":       string(text),
+			"parse_mode": "HTML",
+		}
+		bodyBytes, err = json.Marshal(botPayload)
+		if err != nil {
+			return 0, "", fmt.Errorf("marshal bot payload: %w", err)
+		}
+
+		req, err := http.NewRequest("POST", apiURL, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return 0, "", fmt.Errorf("create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "anjungan-sslmonitor-webhook/1.0")
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			return 0, "", fmt.Errorf("send: %w", err)
+		}
+		defer resp.Body.Close()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(respBody), nil
+	}
+
 	switch target.Platform {
 	case "discord":
 		bodyBytes, err = formatDiscordSSLNotification(payload)
-	case "telegram":
-		bodyBytes, err = formatTelegramSSLNotification(payload)
 	case "slack":
 		bodyBytes, err = formatSlackSSLNotification(payload)
 	default:

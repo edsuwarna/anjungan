@@ -10,7 +10,7 @@
 	// Modal
 	let showModal = $state(false);
 	let editTarget = $state(null);
-	let formData = $state({ name: '', url: '', platform: 'generic', enabled: true, scopes: [] });
+	let formData = $state({ name: '', url: '', bot_token: '', chat_id: '', platform: 'generic', enabled: true, scopes: [] });
 	let saving = $state(false);
 	let formError = $state('');
 	let deleteConfirm = $state(null);
@@ -39,7 +39,7 @@
 	}
 
 	function resetForm() {
-		formData = { name: '', url: '', platform: 'generic', enabled: true, scopes: [] };
+		formData = { name: '', url: '', bot_token: '', chat_id: '', platform: 'generic', enabled: true, scopes: [] };
 		editTarget = null;
 		formError = '';
 		deleteConfirm = null;
@@ -54,6 +54,8 @@
 		formData = {
 			name: t.name || '',
 			url: t.url || '',
+			bot_token: t.bot_token || '',
+			chat_id: t.chat_id || '',
 			platform: t.platform || 'generic',
 			enabled: t.enabled !== false,
 			scopes: t.scopes || [],
@@ -76,7 +78,12 @@
 		e.preventDefault();
 		formError = '';
 		if (!formData.name.trim()) { formError = 'Name is required.'; return; }
-		if (!formData.url.trim()) { formError = 'URL is required.'; return; }
+		if (formData.platform === 'telegram') {
+			if (!formData.bot_token.trim()) { formError = 'Bot Token is required.'; return; }
+			if (!formData.chat_id.trim()) { formError = 'Chat ID is required.'; return; }
+		} else if (!formData.url.trim()) {
+			formError = 'Webhook URL is required.'; return;
+		}
 		saving = true;
 		try {
 			if (editTarget) {
@@ -212,7 +219,13 @@
 									<span class="inline-flex h-2 w-2 rounded-full" style="background: var(--color-text-muted);"></span>
 								{/if}
 							</div>
-							<p class="truncate text-xs font-mono" style="color: var(--color-text-muted);" title={t.url}>{t.url}</p>
+							{#if t.platform === 'telegram'}
+								<p class="truncate text-xs font-mono" style="color: var(--color-text-muted);" title={`Bot: ${t.bot_token} | Chat: ${t.chat_id}`}>
+									Bot: {t.bot_token?.slice(0, 20)}... | Chat: {t.chat_id}
+								</p>
+							{:else}
+								<p class="truncate text-xs font-mono" style="color: var(--color-text-muted);" title={t.url}>{t.url}</p>
+							{/if}
 							<div class="mt-1 flex flex-wrap gap-1.5">
 								<!-- Scope chips -->
 								<span
@@ -337,10 +350,23 @@
 						</div>
 					</div>
 				</div>
-				<div class="mb-4">
-					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Webhook URL *</label>
-					<input type="url" bind:value={formData.url} placeholder="https://hooks.example.com/..." class="input w-full" required />
-				</div>
+				{#if formData.platform === 'telegram'}
+					<div class="mb-4">
+						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Bot Token *</label>
+						<input type="text" bind:value={formData.bot_token} placeholder="1234567890:ABCdefGHIjklmNOPqrSTUvWXZ" class="input w-full" required />
+						<p class="mt-1 text-xs" style="color: var(--color-text-muted);">From @BotFather — token format: 123456:ABC-def</p>
+					</div>
+					<div class="mb-4">
+						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Chat / Group / Channel ID *</label>
+						<input type="text" bind:value={formData.chat_id} placeholder="-1001234567890" class="input w-full" required />
+						<p class="mt-1 text-xs" style="color: var(--color-text-muted);">Positive for user, negative starting with -100 for group/channel</p>
+					</div>
+				{:else}
+					<div class="mb-4">
+						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Webhook URL *</label>
+						<input type="url" bind:value={formData.url} placeholder="https://hooks.example.com/..." class="input w-full" required />
+					</div>
+				{/if}
 				<div class="mb-4">
 					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Scopes</label>
 					<p class="mb-2 text-xs" style="color: var(--color-text-muted);">Select which features use this notification target</p>
