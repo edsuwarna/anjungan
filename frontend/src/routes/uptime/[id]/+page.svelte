@@ -662,10 +662,35 @@
 						<span>📊 Metrics</span>
 					</div>
 
-					<div class="metrics-row">
-						<!-- 24h -->
-						<div class="metrics-card">
-							<div class="metrics-period" style="color: var(--color-primary);">24h</div>
+<div class="metrics-row">
+							<!-- Overall -->
+							<div class="metrics-card">
+								<div class="metrics-period" style="color: var(--color-primary);">Overall</div>
+								<div class="metrics-body">
+									<div class="metrics-uptime-value" class:good={monitor.uptime_overall >= 99} class:ok={monitor.uptime_overall >= 95 && monitor.uptime_overall < 99} class:bad={monitor.uptime_overall < 95}>
+										{monitor.uptime_overall != null ? `${monitor.uptime_overall.toFixed(1)}%` : '—'}
+									</div>
+									<div class="metrics-uptime-label">uptime</div>
+									{#if monitor.total_checks != null}
+										<div class="metrics-divider"></div>
+										<div class="rt-stats-row">
+											<span class="rt-stats-label">Checks</span>
+											<span class="rt-stats-value">{monitor.total_checks}</span>
+										</div>
+										<div class="rt-stats-row">
+											<span class="rt-stats-label">Up</span>
+											<span class="rt-stats-value" style="color: #22c55e;">{monitor.up_checks}</span>
+										</div>
+										<div class="rt-stats-row">
+											<span class="rt-stats-label">Down</span>
+											<span class="rt-stats-value" style="color: #ef4444;">{monitor.down_checks}</span>
+										</div>
+									{/if}
+								</div>
+							</div>
+							<!-- 24h -->
+							<div class="metrics-card">
+								<div class="metrics-period" style="color: var(--color-primary);">24h</div>
 							<div class="metrics-body">
 								<div class="metrics-uptime-value" class:good={monitor.uptime_24h >= 99} class:ok={monitor.uptime_24h >= 95 && monitor.uptime_24h < 99} class:bad={monitor.uptime_24h < 95}>
 									{monitor.uptime_24h != null ? `${monitor.uptime_24h.toFixed(1)}%` : '—'}
@@ -763,14 +788,9 @@
 								{:else}
 									<div class="metrics-empty-inline">No data for this period</div>
 								{/if}
-							</div>
 						</div>
 					</div>
-					{#if monitor.total_checks != null}
-						<div class="text-xs mt-2" style="color: var(--color-text-muted);">
-							Total checks: {monitor.total_checks || '—'} · Up: {monitor.up_checks || '—'} · Down: {monitor.down_checks || '—'}
-						</div>
-					{/if}
+				</div>
 				</div>
 
 				<!-- Check History -->
@@ -1244,7 +1264,7 @@
 	.history-ms { font-size: 0.75rem; font-weight: 500; width: 48px; text-align: right; flex-shrink: 0; }
 	.metrics-row {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(4, 1fr);
 		gap: 0.75rem;
 		margin-bottom: 0.75rem;
 	}
