@@ -3000,95 +3000,6 @@ func (r *Repository) ListDueSSLMonitors(ctx context.Context) ([]*model.SSLMonito
 	return monitors, nil
 }
 
-// ─── SSL Notification Targets ──────────────────────────────────────────────────
-
-func (r *Repository) ListSSLNotificationTargets(ctx context.Context) ([]*model.SSLNotificationTarget, error) {
-	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, name, url, platform, webhook_secret, enabled, created_by, created_at, updated_at
-		 FROM ssl_notification_targets ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var targets []*model.SSLNotificationTarget
-	for rows.Next() {
-		t := &model.SSLNotificationTarget{}
-		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
-			return nil, err
-		}
-		targets = append(targets, t)
-	}
-	return targets, nil
-}
-
-func (r *Repository) GetSSLNotificationTarget(ctx context.Context, id string) (*model.SSLNotificationTarget, error) {
-	t := &model.SSLNotificationTarget{}
-	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, name, url, platform, webhook_secret, enabled, created_by, created_at, updated_at
-		 FROM ssl_notification_targets WHERE id = $1`, id).
-		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return t, nil
-}
-
-func (r *Repository) CreateSSLNotificationTarget(ctx context.Context, t *model.SSLNotificationTarget) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO ssl_notification_targets (id, name, url, platform, webhook_secret, enabled, created_by, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
-	return err
-}
-
-func (r *Repository) UpdateSSLNotificationTarget(ctx context.Context, t *model.SSLNotificationTarget) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`UPDATE ssl_notification_targets
-		 SET name = $1, url = $2, platform = $3, webhook_secret = $4, enabled = $5, updated_at = $6
-		 WHERE id = $7`,
-		t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.UpdatedAt, t.ID)
-	return err
-}
-
-func (r *Repository) DeleteSSLNotificationTarget(ctx context.Context, id string) error {
-	_, err := r.db.Pool.Exec(ctx,
-		`DELETE FROM ssl_notification_targets WHERE id = $1`, id)
-	return err
-}
-
-func (r *Repository) ListSSLNotificationTargetsByIDs(ctx context.Context, ids []string) ([]*model.SSLNotificationTarget, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-
-	placeholders := make([]string, len(ids))
-	args := make([]interface{}, len(ids))
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
-	}
-
-	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, name, url, platform, webhook_secret, enabled, created_by, created_at, updated_at
-		 FROM ssl_notification_targets WHERE id IN (`+strings.Join(placeholders, ",")+`) AND enabled = TRUE`,
-		args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var targets []*model.SSLNotificationTarget
-	for rows.Next() {
-		t := &model.SSLNotificationTarget{}
-		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
-			return nil, err
-		}
-		targets = append(targets, t)
-	}
-	return targets, nil
-}
-
 // ─── Uptime Monitors CRUD ───────────────────────────────────────────────────
 
 // ListUptimeMonitors returns paginated uptime monitors with optional filters.
@@ -3649,7 +3560,7 @@ func (r *Repository) ListActiveMaintenanceWindows(ctx context.Context, monitorID
 // ListNotificationTargets returns enabled notification targets, optionally filtered by scope.
 func (r *Repository) ListNotificationTargets(ctx context.Context, scope string) ([]model.NotificationTarget, error) {
 	var args []interface{}
-	query := `SELECT id, name, url, platform, COALESCE(webhook_secret, ''), enabled,
+	query := `SELECT id, name, url, platform, COALESCE(webhook_secret, ''), COALESCE(bot_token, ''), COALESCE(chat_id, ''), enabled,
 		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at
 		 FROM notification_targets WHERE enabled=true`
 	if scope != "" {
@@ -3666,7 +3577,7 @@ func (r *Repository) ListNotificationTargets(ctx context.Context, scope string) 
 	var items []model.NotificationTarget
 	for rows.Next() {
 		var t model.NotificationTarget
-		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.BotToken, &t.ChatID, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, t)
@@ -3681,10 +3592,10 @@ func (r *Repository) ListNotificationTargets(ctx context.Context, scope string) 
 func (r *Repository) GetNotificationTarget(ctx context.Context, id string) (*model.NotificationTarget, error) {
 	t := &model.NotificationTarget{}
 	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, name, url, platform, COALESCE(webhook_secret, ''), enabled,
+		`SELECT id, name, url, platform, COALESCE(webhook_secret, ''), COALESCE(bot_token, ''), COALESCE(chat_id, ''), enabled,
 		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at
 		 FROM notification_targets WHERE id = $1`, id).
-		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
+		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.BotToken, &t.ChatID, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -3700,9 +3611,9 @@ func (r *Repository) CreateNotificationTarget(ctx context.Context, t *model.Noti
 		t.ID = uuid.New().String()
 	}
 	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO notification_targets (id, name, url, platform, webhook_secret, enabled, scopes, created_by, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.Scopes, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
+		`INSERT INTO notification_targets (id, name, url, platform, webhook_secret, bot_token, chat_id, enabled, scopes, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.BotToken, t.ChatID, t.Enabled, t.Scopes, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
 	return err
 }
 
@@ -3710,8 +3621,8 @@ func (r *Repository) CreateNotificationTarget(ctx context.Context, t *model.Noti
 func (r *Repository) UpdateNotificationTarget(ctx context.Context, t *model.NotificationTarget) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`UPDATE notification_targets SET name=$1, url=$2, platform=$3, webhook_secret=$4,
-		 enabled=$5, scopes=$6, updated_at=NOW() WHERE id=$7`,
-		t.Name, t.URL, t.Platform, t.WebhookSecret, t.Enabled, t.Scopes, t.ID)
+		 bot_token=$5, chat_id=$6, enabled=$7, scopes=$8, updated_at=NOW() WHERE id=$9`,
+		t.Name, t.URL, t.Platform, t.WebhookSecret, t.BotToken, t.ChatID, t.Enabled, t.Scopes, t.ID)
 	return err
 }
 

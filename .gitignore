@@ -11,6 +11,7 @@ frontend/.svelte-kit/
 *.out
 *.test
 backend/build/
+backend/server
 
 # ─── Environment ──────────────────────────────────────────────────────────
 .env

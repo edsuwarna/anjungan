@@ -875,45 +875,6 @@ type SSLCheckHistoryListResponse struct {
 	Limit      int               `json:"limit"`
 }
 
-// ─── SSL Notification Targets ──────────────────────────────────────────────────
-
-type SSLNotificationTarget struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	URL           string    `json:"url"`
-	Platform      string    `json:"platform"`
-	WebhookSecret string    `json:"webhook_secret"`
-	Enabled       bool      `json:"enabled"`
-	CreatedBy     string    `json:"created_by"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-}
-
-type SSLNotificationTargetRequest struct {
-	Name          string   `json:"name"`
-	URL           string   `json:"url"`
-	Platform      string   `json:"platform"`
-	WebhookSecret string   `json:"webhook_secret"`
-	Enabled       *bool    `json:"enabled,omitempty"`
-}
-
-func (r *SSLNotificationTargetRequest) Validate() string {
-	if r.Name == "" {
-		return "name is required"
-	}
-	if r.URL == "" {
-		return "URL is required"
-	}
-	if r.Platform == "" {
-		r.Platform = "generic"
-	}
-	validPlatforms := map[string]bool{"telegram": true, "discord": true, "slack": true, "generic": true}
-	if !validPlatforms[r.Platform] {
-		return "platform must be telegram, discord, slack, or generic"
-	}
-	return ""
-}
-
 // ─── Uptime Monitoring ─────────────────────────────────────────────────────
 
 type UptimeMonitor struct {
@@ -993,6 +954,8 @@ type NotificationTarget struct {
 	URL           string    `json:"url"`
 	Platform      string    `json:"platform"`
 	WebhookSecret string    `json:"webhook_secret,omitempty"`
+	BotToken      string    `json:"bot_token,omitempty"`
+	ChatID        string    `json:"chat_id,omitempty"`
 	Enabled       bool      `json:"enabled"`
 	Scopes        []string  `json:"scopes"`
 	CreatedBy     string    `json:"created_by"`
@@ -1005,6 +968,8 @@ type NotificationTargetRequest struct {
 	URL           string   `json:"url"`
 	Platform      string   `json:"platform"`
 	WebhookSecret string   `json:"webhook_secret"`
+	BotToken      string   `json:"bot_token,omitempty"`
+	ChatID        string   `json:"chat_id,omitempty"`
 	Enabled       *bool    `json:"enabled,omitempty"`
 	Scopes        []string `json:"scopes"`
 }
@@ -1013,15 +978,22 @@ func (r *NotificationTargetRequest) Validate() string {
 	if r.Name == "" {
 		return "name is required"
 	}
-	if r.URL == "" {
-		return "URL is required"
-	}
 	if r.Platform == "" {
 		r.Platform = "generic"
 	}
 	validPlatforms := map[string]bool{"telegram": true, "discord": true, "slack": true, "generic": true}
 	if !validPlatforms[r.Platform] {
 		return "platform must be telegram, discord, slack, or generic"
+	}
+	if r.Platform == "telegram" {
+		if r.BotToken == "" {
+			return "bot_token is required for telegram"
+		}
+		if r.ChatID == "" {
+			return "chat_id is required for telegram"
+		}
+	} else if r.URL == "" {
+		return "URL is required for this platform"
 	}
 	for _, s := range r.Scopes {
 		validScopes := map[string]bool{"ssl": true, "uptime": true}

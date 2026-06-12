@@ -20,6 +20,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/container"
 	"github.com/edsuwarna/anjungan/internal/dashboard"
 	"github.com/edsuwarna/anjungan/internal/infra"
+	"github.com/edsuwarna/anjungan/internal/notification"
 	"github.com/edsuwarna/anjungan/internal/ratelimit"
 	"github.com/edsuwarna/anjungan/internal/registry"
 	"github.com/edsuwarna/anjungan/internal/self"
@@ -124,7 +125,10 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 
 			// Uptime Monitoring
 			r.Mount("/uptime-monitors", uptimeH.Routes())
-			r.Mount("/notification-targets", uptimeH.NotificationTargetRoutes())
+
+			// Notification Targets
+			notifH := notification.NewHandler(repo)
+			r.Mount("/notification-targets", notifH.Routes())
 
 			// Start uptime scheduler
 			uptimeSched := uptime.NewScheduler(repo, uptimeH)

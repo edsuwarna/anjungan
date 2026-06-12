@@ -10,7 +10,7 @@
 	// Modal
 	let showModal = $state(false);
 	let editTarget = $state(null);
-	let formData = $state({ name: '', url: '', platform: 'generic', enabled: true, scopes: [] });
+	let formData = $state({ name: '', url: '', bot_token: '', chat_id: '', platform: 'generic', enabled: true });
 	let saving = $state(false);
 	let formError = $state('');
 	let deleteConfirm = $state(null);
@@ -39,7 +39,7 @@
 	}
 
 	function resetForm() {
-		formData = { name: '', url: '', platform: 'generic', enabled: true, scopes: [] };
+		formData = { name: '', url: '', bot_token: '', chat_id: '', platform: 'generic', enabled: true };
 		editTarget = null;
 		formError = '';
 		deleteConfirm = null;
@@ -54,9 +54,10 @@
 		formData = {
 			name: t.name || '',
 			url: t.url || '',
+			bot_token: t.bot_token || '',
+			chat_id: t.chat_id || '',
 			platform: t.platform || 'generic',
 			enabled: t.enabled !== false,
-			scopes: t.scopes || [],
 		};
 		editTarget = t;
 		formError = '';
@@ -64,19 +65,16 @@
 		showModal = true;
 	}
 
-	function toggleScope(scope) {
-		if (formData.scopes.includes(scope)) {
-			formData.scopes = formData.scopes.filter(s => s !== scope);
-		} else {
-			formData.scopes = [...formData.scopes, scope];
-		}
-	}
-
 	async function handleSave(e) {
 		e.preventDefault();
 		formError = '';
 		if (!formData.name.trim()) { formError = 'Name is required.'; return; }
-		if (!formData.url.trim()) { formError = 'URL is required.'; return; }
+		if (formData.platform === 'telegram') {
+			if (!formData.bot_token.trim()) { formError = 'Bot Token is required.'; return; }
+			if (!formData.chat_id.trim()) { formError = 'Chat ID is required.'; return; }
+		} else if (!formData.url.trim()) {
+			formError = 'Webhook URL is required.'; return;
+		}
 		saving = true;
 		try {
 			if (editTarget) {
@@ -128,8 +126,6 @@
 
 	// ── Derived Stats ──
 	let totalTargets = $derived(targets.length);
-	let sslCount = $derived(targets.filter(t => t.scopes?.includes('ssl')).length);
-	let uptimeCount = $derived(targets.filter(t => t.scopes?.includes('uptime')).length);
 </script>
 
 <div class="page-container">
@@ -149,25 +145,13 @@
 		</div>
 	</div>
 
-	<!-- Stat Summary Bar -->
+	<!-- Total Targets Count -->
 	{#if targets.length > 0}
 	<div class="flex flex-wrap items-center gap-3 mb-5 p-3 rounded-xl" style="background-color: var(--color-surface); border: 1px solid var(--color-border);">
 		<div class="flex items-center gap-1.5">
 			<Icon icon="solar:bell-bold" class="h-4 w-4" style="color: var(--color-primary);" />
 			<span class="text-sm font-bold" style="color: var(--color-text);">{totalTargets}</span>
 			<span class="text-xs" style="color: var(--color-text-muted);">targets</span>
-		</div>
-		<span class="h-4 w-px" style="background-color: var(--color-border);"></span>
-		<div class="flex items-center gap-1.5">
-			<Icon icon="solar:shield-check-bold" class="h-4 w-4" style="color: var(--color-success);" />
-			<span class="text-sm font-bold" style="color: var(--color-text);">{sslCount}</span>
-			<span class="text-xs" style="color: var(--color-text-muted);">SSL</span>
-		</div>
-		<span class="h-4 w-px" style="background-color: var(--color-border);"></span>
-		<div class="flex items-center gap-1.5">
-			<Icon icon="solar:chart-2-bold" class="h-4 w-4" style="color: var(--color-accent);" />
-			<span class="text-sm font-bold" style="color: var(--color-text);">{uptimeCount}</span>
-			<span class="text-xs" style="color: var(--color-text-muted);">Uptime</span>
 		</div>
 	</div>
 	{/if}
@@ -212,23 +196,14 @@
 									<span class="inline-flex h-2 w-2 rounded-full" style="background: var(--color-text-muted);"></span>
 								{/if}
 							</div>
-							<p class="truncate text-xs font-mono" style="color: var(--color-text-muted);" title={t.url}>{t.url}</p>
+							{#if t.platform === 'telegram'}
+								<p class="truncate text-xs font-mono" style="color: var(--color-text-muted);" title={`Bot: ${t.bot_token} | Chat: ${t.chat_id}`}>
+									Bot: {t.bot_token?.slice(0, 20)}... | Chat: {t.chat_id}
+								</p>
+							{:else}
+								<p class="truncate text-xs font-mono" style="color: var(--color-text-muted);" title={t.url}>{t.url}</p>
+							{/if}
 							<div class="mt-1 flex flex-wrap gap-1.5">
-								<!-- Scope chips -->
-								<span
-									class="scope-chip"
-									class:active={t.scopes?.includes('ssl')}
-								>
-									<Icon icon="solar:shield-check-bold" class="h-3 w-3" />
-									SSL
-								</span>
-								<span
-									class="scope-chip"
-									class:active={t.scopes?.includes('uptime')}
-								>
-									<Icon icon="solar:chart-2-bold" class="h-3 w-3" />
-									Uptime
-								</span>
 								<!-- Enabled badge -->
 								<span
 									class="scope-chip"
@@ -337,24 +312,23 @@
 						</div>
 					</div>
 				</div>
-				<div class="mb-4">
-					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Webhook URL *</label>
-					<input type="url" bind:value={formData.url} placeholder="https://hooks.example.com/..." class="input w-full" required />
-				</div>
-				<div class="mb-4">
-					<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Scopes</label>
-					<p class="mb-2 text-xs" style="color: var(--color-text-muted);">Select which features use this notification target</p>
-					<div class="flex flex-wrap gap-2">
-						<button type="button" class="scope-toggle" class:active={formData.scopes.includes('ssl')} onclick={() => toggleScope('ssl')}>
-							<Icon icon="solar:shield-check-bold" class="h-4 w-4" />
-							SSL Monitoring
-						</button>
-						<button type="button" class="scope-toggle" class:active={formData.scopes.includes('uptime')} onclick={() => toggleScope('uptime')}>
-							<Icon icon="solar:chart-2-bold" class="h-4 w-4" />
-							Uptime Monitoring
-						</button>
+				{#if formData.platform === 'telegram'}
+					<div class="mb-4">
+						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Bot Token *</label>
+						<input type="text" bind:value={formData.bot_token} placeholder="1234567890:ABCdefGHIjklmNOPqrSTUvWXZ" class="input w-full" required />
+						<p class="mt-1 text-xs" style="color: var(--color-text-muted);">From @BotFather — token format: 123456:ABC-def</p>
 					</div>
-				</div>
+					<div class="mb-4">
+						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Chat / Group / Channel ID *</label>
+						<input type="text" bind:value={formData.chat_id} placeholder="-1001234567890" class="input w-full" required />
+						<p class="mt-1 text-xs" style="color: var(--color-text-muted);">Positive for user, negative starting with -100 for group/channel</p>
+					</div>
+				{:else}
+					<div class="mb-4">
+						<label class="mb-1 block text-sm font-medium" style="color: var(--color-text);">Webhook URL *</label>
+						<input type="url" bind:value={formData.url} placeholder="https://hooks.example.com/..." class="input w-full" required />
+					</div>
+				{/if}
 
 				{#if formError}
 					<p class="mb-4 text-sm" style="color: #ef4444;">{formError}</p>
@@ -534,26 +508,6 @@
 		background: var(--color-primary-subtle);
 		color: var(--color-primary);
 	}
-	.scope-toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.375rem;
-		padding: 0.5rem 0.875rem;
-		border-radius: 8px;
-		font-size: 0.8125rem;
-		font-weight: 500;
-		border: 1px solid var(--color-border);
-		background: var(--color-card);
-		color: var(--color-text-secondary);
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.scope-toggle.active {
-		background: var(--color-primary-subtle);
-		color: var(--color-primary);
-		border-color: var(--color-primary);
-	}
-	.scope-toggle:hover:not(.active) { background: var(--color-hover); }
 	.test-result {
 		margin-top: -0.5rem;
 		margin-bottom: 0.5rem;
@@ -596,5 +550,4 @@
 	:global(body.dark) .card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
 	:global(body.dark) .modal-panel { background: #1a1d23; }
 	:global(body.dark) .scope-chip.active { background: rgba(16,185,129,0.15); }
-	:global(body.dark) .scope-toggle.active { background: rgba(16,185,129,0.15); }
 </style>

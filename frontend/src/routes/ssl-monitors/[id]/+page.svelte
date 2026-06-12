@@ -44,7 +44,7 @@
 		testingTarget = id;
 		testTargetResult = null;
 		try {
-			const result = await api.notificationTargets.test(id);
+			const result = await api.notificationTargets.test(id, 'ssl');
 			testTargetResult = { id, ...result };
 		} catch (e) {
 			testTargetResult = { id, success: false, error: e.message || 'Test request failed' };
