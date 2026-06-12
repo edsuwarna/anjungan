@@ -1220,38 +1220,62 @@ func sendToTarget(target *model.NotificationTarget, payload map[string]interface
 	return resp.StatusCode, string(respBody), nil
 }
 
-// formatDiscordUptimeNotification formats payload as a Discord embed.
+// formatDiscordUptimeNotification formats payload as a Discord rich embed.
 func formatDiscordUptimeNotification(payload map[string]interface{}) ([]byte, error) {
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
-	checkType, _ := payload["check_type"].(string)
 	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
+	errorMsg, _ := payload["error"].(string)
+
+	var statusCodeStr string
+	if sc, ok := payload["status_code"].(float64); ok && sc > 0 {
+		statusCodeStr = fmt.Sprintf("%.0f", sc)
+	}
+	var responseTimeStr string
+	if rt, ok := payload["response_time_ms"].(float64); ok && rt > 0 {
+		responseTimeStr = fmt.Sprintf("%.0fms", rt)
+	}
 
 	var color int
+	var title, desc string
 	switch status {
 	case "down":
 		color = 0xEF4444
+		title = fmt.Sprintf("❌ %s went down", monitorName)
+		desc = errorMsg
 	case "up":
 		color = 0x10B981
+		title = fmt.Sprintf("✅ %s is back online", monitorName)
 	default:
 		color = 0x94A3B8
+		title = fmt.Sprintf("⚪ %s status changed", monitorName)
 	}
 
-	if msg == "" {
-		msg = fmt.Sprintf("⚠️ Uptime Alert — %s", monitorName)
+	fields := []map[string]interface{}{}
+	fields = append(fields, map[string]interface{}{"name": "URL", "value": monitorURL, "inline": false})
+	if statusCodeStr != "" {
+		fields = append(fields, map[string]interface{}{"name": "Status", "value": statusCodeStr, "inline": true})
+	}
+	if responseTimeStr != "" {
+		rtLabel := "Ping"
+		if status == "down" {
+			rtLabel = "Response"
+		}
+		fields = append(fields, map[string]interface{}{"name": rtLabel, "value": responseTimeStr, "inline": true})
+	}
+	if status == "down" && errorMsg != "" {
+		fields = append(fields, map[string]interface{}{"name": "Error", "value": errorMsg, "inline": false})
 	}
 
 	embed := map[string]interface{}{
-		"title":       msg,
+		"title":       title,
 		"color":       color,
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
-		"fields": []map[string]interface{}{
-			{"name": "Monitor", "value": monitorName, "inline": true},
-			{"name": "URL", "value": monitorURL, "inline": true},
-			{"name": "Type", "value": strings.ToUpper(checkType), "inline": true},
-			{"name": "Status", "value": strings.ToUpper(status), "inline": true},
-		},
+		"fields":      fields,
+		"footer":      map[string]interface{}{"text": "Anjungan Uptime Monitor"},
+	}
+	if desc != "" {
+		embed["description"] = desc
 	}
 
 	return json.Marshal(map[string]interface{}{
@@ -1263,32 +1287,56 @@ func formatDiscordUptimeNotification(payload map[string]interface{}) ([]byte, er
 func formatTelegramUptimeNotification(payload map[string]interface{}) ([]byte, error) {
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
-	checkType, _ := payload["check_type"].(string)
 	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
+	previousStatus, _ := payload["previous_status"].(string)
+	errorMsg, _ := payload["error"].(string)
 
-	var emoji string
-	switch status {
-	case "down":
-		emoji = "🔴"
-	case "up":
-		emoji = "🟢"
-	default:
-		emoji = "⚪"
+	var statusCodeStr string
+	if sc, ok := payload["status_code"].(float64); ok && sc > 0 {
+		statusCodeStr = fmt.Sprintf("%.0f", sc)
+	}
+	var responseTimeStr string
+	if rt, ok := payload["response_time_ms"].(float64); ok && rt > 0 {
+		responseTimeStr = fmt.Sprintf("%.0fms", rt)
 	}
 
-	if msg == "" {
-		msg = fmt.Sprintf("⚠️ Uptime Alert — %s", monitorName)
+	// Timezone Asia/Jakarta (WIB)
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	nowWIB := time.Now().In(loc).Format("2006-01-02 15:04:05")
+
+	var text string
+
+	if status == "down" || status == "error" {
+		text = fmt.Sprintf("❌ *%s is DOWN*\n", monitorName)
+		text += fmt.Sprintf("URL: `%s`\n", monitorURL)
+		text += fmt.Sprintf("Time: `%s WIB`\n", nowWIB)
+		if errorMsg != "" {
+			text += fmt.Sprintf("Error: `%s`\n", errorMsg)
+		}
+		if statusCodeStr != "" {
+			text += fmt.Sprintf("Status: `%s`\n", statusCodeStr)
+		}
+		if responseTimeStr != "" {
+			text += fmt.Sprintf("Response: `%s`", responseTimeStr)
+		}
+	} else if status == "up" {
+		text = fmt.Sprintf("✅ *%s is UP again*\n", monitorName)
+		text += fmt.Sprintf("URL: `%s`\n", monitorURL)
+		text += fmt.Sprintf("Time: `%s WIB`\n", nowWIB)
+		if responseTimeStr != "" {
+			text += fmt.Sprintf("Ping: `%s`\n", responseTimeStr)
+		}
+		if statusCodeStr != "" {
+			text += fmt.Sprintf("Status: `%s`\n", statusCodeStr)
+		}
+		if previousStatus == "down" || previousStatus == "error" {
+			text += "\n✅ Service recovered"
+		}
+	} else {
+		text = fmt.Sprintf("⚪ *%s* status changed to *%s*\n", monitorName, status)
+		text += fmt.Sprintf("URL: `%s`\n", monitorURL)
+		text += fmt.Sprintf("Time: `%s WIB`", nowWIB)
 	}
-
-	text := fmt.Sprintf(`%s *Uptime Monitor Alert*
-
-%s
-
-*Monitor:* %s
-*URL:* %s
-*Type:* %s
-*Status:* %s`, emoji, msg, monitorName, monitorURL, strings.ToUpper(checkType), strings.ToUpper(status))
 
 	return json.Marshal(map[string]interface{}{
 		"text":             text,
@@ -1301,9 +1349,8 @@ func formatTelegramUptimeNotification(payload map[string]interface{}) ([]byte, e
 func formatSlackUptimeNotification(payload map[string]interface{}) ([]byte, error) {
 	monitorName, _ := payload["monitor_name"].(string)
 	monitorURL, _ := payload["monitor_url"].(string)
-	checkType, _ := payload["check_type"].(string)
 	status, _ := payload["status"].(string)
-	msg, _ := payload["message"].(string)
+	errorMsg, _ := payload["error"].(string)
 
 	var emoji string
 	switch status {
@@ -1315,19 +1362,41 @@ func formatSlackUptimeNotification(payload map[string]interface{}) ([]byte, erro
 		emoji = ":white_circle:"
 	}
 
-	if msg == "" {
-		msg = fmt.Sprintf("Uptime Alert — %s", monitorName)
+	var statusLine string
+	if sc, ok := payload["status_code"].(float64); ok && sc > 0 {
+		statusLine = fmt.Sprintf("%.0f", sc)
+	}
+	var rtLine string
+	if rt, ok := payload["response_time_ms"].(float64); ok && rt > 0 {
+		rtLine = fmt.Sprintf("%.0fms", rt)
+	}
+
+	text := fmt.Sprintf("%s *%s* — %s", emoji, monitorName, strings.ToUpper(status))
+	if statusLine != "" {
+		text += fmt.Sprintf(" (status %s)", statusLine)
+	}
+	if rtLine != "" {
+		text += fmt.Sprintf(" · %s", rtLine)
 	}
 
 	blocks := []map[string]interface{}{
 		{
 			"type": "section",
-			"text": map[string]interface{}{
-				"type": "mrkdwn",
-				"text": fmt.Sprintf("%s *%s*\n*Monitor:* %s\n*URL:* %s\n*Type:* %s\n*Status:* %s",
-					emoji, msg, monitorName, monitorURL, strings.ToUpper(checkType), strings.ToUpper(status)),
+			"text": map[string]interface{}{"type": "mrkdwn", "text": text},
+		},
+		{
+			"type": "section",
+			"fields": []map[string]interface{}{
+				{"type": "mrkdwn", "text": fmt.Sprintf("*URL*\n%s", monitorURL)},
+				{"type": "mrkdwn", "text": fmt.Sprintf("*Status*\n%s", strings.ToUpper(status))},
 			},
 		},
+	}
+	if errorMsg != "" {
+		blocks = append(blocks, map[string]interface{}{
+			"type": "section",
+			"text": map[string]interface{}{"type": "mrkdwn", "text": fmt.Sprintf("*Error*\n%s", errorMsg)},
+		})
 	}
 
 	return json.Marshal(map[string]interface{}{

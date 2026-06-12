@@ -216,95 +216,18 @@ func (s *Scheduler) dispatchNotification(ctx context.Context, m *model.UptimeMon
 	}
 }
 
-// buildNotificationPayload creates the appropriate payload format for each platform.
-func buildNotificationPayload(m *model.UptimeMonitor, prevStatus string, result *CheckResult, platform string) map[string]interface{} {
-	statusEmoji := "🟢"
-	if result.Status == "down" || result.Status == "error" {
-		statusEmoji = "🔴"
-	}
-
-	statusText := result.Status
-	if result.Status == "up" {
-		statusText = "UP"
-	} else if result.Status == "down" {
-		statusText = "DOWN"
-	}
-
-	switch platform {
-	case "telegram":
-		code := ""
-		if result.StatusCode != nil {
-			code = fmt.Sprintf(" · %d", *result.StatusCode)
-		}
-		ms := ""
-		if result.ResponseTimeMs != nil {
-			ms = fmt.Sprintf(" · %dms", *result.ResponseTimeMs)
-		}
-		errMsg := ""
-		if result.ErrorMessage != "" {
-			errMsg = fmt.Sprintf("\nError: %s", result.ErrorMessage)
-		}
-		text := fmt.Sprintf(
-			"<b>%s %s → %s</b>\n%s\n<code>%s</code>%s%s%s",
-			statusEmoji, prevStatus, statusText, m.Name, m.URL, code, ms, errMsg,
-		)
-		return map[string]interface{}{
-			"text":             text,
-			"parse_mode":       "HTML",
-			"disable_web_page_preview": "true",
-		}
-
-	case "discord":
-		return map[string]interface{}{
-			"monitor_name":    m.Name,
-			"monitor_url":     m.URL,
-			"check_type":      m.CheckType,
-			"status":          result.Status,
-			"previous_status": prevStatus,
-			"status_code":     result.StatusCode,
-			"response_time_ms": result.ResponseTimeMs,
-			"error":           result.ErrorMessage,
-			"timestamp":       time.Now().UTC().Format(time.RFC3339),
-		}
-
-	case "slack":
-		color := "good"
-		if result.Status == "down" || result.Status == "error" {
-			color = "danger"
-		}
-		attachment := map[string]interface{}{
-			"color": color,
-			"title": fmt.Sprintf("%s → %s", prevStatus, statusText),
-			"text":  fmt.Sprintf("*%s*\n%s", m.Name, m.URL),
-			"fields": []map[string]interface{}{
-				{"title": "Status", "value": result.Status, "short": true},
-			},
-			"ts": time.Now().Unix(),
-		}
-		if result.ResponseTimeMs != nil {
-			attachment["fields"] = append(attachment["fields"].([]map[string]interface{}),
-				map[string]interface{}{"title": "Response", "value": fmt.Sprintf("%dms", *result.ResponseTimeMs), "short": true})
-		}
-		if result.ErrorMessage != "" {
-			attachment["fields"] = append(attachment["fields"].([]map[string]interface{}),
-				map[string]interface{}{"title": "Error", "value": result.ErrorMessage, "short": false})
-		}
-		return map[string]interface{}{
-			"attachments": []interface{}{attachment},
-		}
-
-	default: // generic
-		return map[string]interface{}{
-			"event_type":      "uptime.status_change",
-			"monitor_name":    m.Name,
-			"monitor_url":     m.URL,
-			"check_type":      m.CheckType,
-			"previous_status": prevStatus,
-			"current_status":  result.Status,
-			"status_code":     result.StatusCode,
-			"response_time_ms": result.ResponseTimeMs,
-			"error":           result.ErrorMessage,
-			"timestamp":       time.Now().UTC().Format(time.RFC3339),
-		}
+// buildNotificationPayload creates a uniform payload for all platforms.
+// Platform-specific formatting happens in the formatters (handler.go).
+func buildNotificationPayload(m *model.UptimeMonitor, prevStatus string, result *CheckResult, _ string) map[string]interface{} {
+	return map[string]interface{}{
+		"monitor_name":    m.Name,
+		"monitor_url":     m.URL,
+		"check_type":      m.CheckType,
+		"status":          result.Status,
+		"previous_status": prevStatus,
+		"status_code":     result.StatusCode,
+		"response_time_ms": result.ResponseTimeMs,
+		"error":           result.ErrorMessage,
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
 	}
 }
