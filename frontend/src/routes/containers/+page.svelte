@@ -3,9 +3,6 @@
 	import { api } from '$lib/api.svelte.js';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { Terminal } from 'xterm';
-	import { FitAddon } from 'xterm-addon-fit';
-	import 'xterm/css/xterm.css';
 
 	let data = $state(null); // ByServerResponse
 	let loading = $state(true);
@@ -24,33 +21,25 @@
 	// Action loading states
 	let actionLoading = $state({});
 	let scanningAll = $state(false);
-	let scanningContainer = $state(null); // container ID being scanned
-	let scanningServerId = $state(null); // server ID being scanned (for per-server button)
+	let scanningContainer = $state(null);
+	let scanningServerId = $state(null);
 	let scanningServerIndex = $state(0);
 	let scanningServerName = $state('');
 
-	// ── Expand State ────────────────────────────────────
-	let expandedServers = $state({});   // { [serverId]: true/false }
-	let expanded = $state({});          // { [containerId]: { ... } }
-
-	// ── Container Exec Terminal Instances ───────────────
-	let execTerms = {};
+	// ── Server Expand State ──────────────────────────────
+	let expandedServers = $state({});
 
 	// ── Confirmation Modal ──────────────────────────────
 	let confirmModal = $state({ show: false, title: '', message: '', action: null, danger: false });
 
 	function registryLink(image) {
 		if (!image) return null;
-		// Only link images that have a registry host prefix (e.g. "localhost:5000/" or "registry.anjungan.io/")
-		// Docker Hub images like "nginx:latest" won't have a prefix — skip linking
 		if (!/^[^\/]+\//.test(image)) return null;
-		// Strip registry host prefix
 		const clean = image.replace(/^[^\/]+\//, '');
 		const parts = clean.split(':');
 		if (parts.length >= 2 && parts[0]) {
 			return `/registry/${encodeURIComponent(parts[0])}/${encodeURIComponent(parts[1])}`;
 		}
-		// No tag? link to repo page
 		return `/registry/${encodeURIComponent(clean)}`;
 	}
 
@@ -80,10 +69,7 @@
 		try {
 			const res = await api.containers.byServer();
 			data = res;
-			// Server cards default collapsed — containers visible on expand
-			if (res?.servers) {
-				expandedServers = {};
-			}
+			expandedServers = {};
 		} catch (e) {
 			error = e.message;
 		} finally {
@@ -122,7 +108,6 @@
 				list.push({ ...c, serverName: sv.server.name, serverId: sv.server.id });
 			}
 		}
-		// Apply filters
 		if (scanStatusFilter === 'scanned') list = list.filter(c => c.security?.score != null);
 		else if (scanStatusFilter === 'unscanned') list = list.filter(c => c.security?.score == null);
 		if (serverFilter !== 'all') list = list.filter(c => c.server_id === serverFilter);
@@ -130,7 +115,6 @@
 			const q = searchQuery.toLowerCase();
 			list = list.filter(c => c.name.toLowerCase().includes(q) || (c.image || '').toLowerCase().includes(q));
 		}
-		// Sort: unscanned last, then by score ascending (worst first)
 		list.sort((a, b) => {
 			const aScore = a.security?.score ?? -1;
 			const bScore = b.security?.score ?? -1;
@@ -167,7 +151,7 @@
 			if (!byServer[c.serverId]) byServer[c.serverId] = [];
 			byServer[c.serverId].push(c);
 		}
-		for (const [serverId, containers] of Object.entries(byServer)) {
+		for (const [serverId] of Object.entries(byServer)) {
 			try {
 				await api.compliance.scanContainers(serverId);
 			} catch (_) {}
@@ -184,17 +168,13 @@
 		let servers = data.servers.map(sv => {
 			let containers = [...sv.containers];
 
-			// Server filter
 			if (serverFilter !== 'all') {
 				containers = containers.filter(c => c.server_id === serverFilter);
 			}
-
-			// State filter
 			if (stateFilter === 'running') containers = containers.filter(c => c.state === 'running');
 			else if (stateFilter === 'stopped') containers = containers.filter(c => c.state === 'exited' || c.state === 'stopped');
 			else if (stateFilter === 'paused') containers = containers.filter(c => c.state === 'paused');
 
-			// Search
 			if (searchQuery) {
 				const q = searchQuery.toLowerCase();
 				containers = containers.filter(c =>
@@ -203,13 +183,12 @@
 				);
 			}
 
-			// Sort
 			containers.sort((a, b) => {
 				switch (sortBy) {
 					case 'score': {
 						const sa = a.security?.score ?? -1;
 						const sb = b.security?.score ?? -1;
-						return sa - sb; // worst first
+						return sa - sb;
 					}
 					case 'state': {
 						const order = { running: 0, paused: 1, exited: 2, stopped: 2 };
@@ -224,7 +203,7 @@
 						if (aRunning !== bRunning) return aRunning - bRunning;
 						return parseCreated(b.created) - parseCreated(a.created);
 					}
-					default: { // name
+					default: {
 						return (a.name || '').localeCompare(b.name || '');
 					}
 				}
@@ -233,7 +212,6 @@
 			return { ...sv, containers };
 		}).filter(sv => sv.containers.length > 0 || sv.error);
 
-		// Sort servers by name
 		servers.sort((a, b) => (a.server?.name || '').localeCompare(b.server?.name || ''));
 
 		return servers;
@@ -246,21 +224,8 @@
 
 	function parseCreated(created) {
 		if (!created) return 0;
-		let normalized = created
-			.replace(' +0700 WIB', '+07:00')
-			.replace(' +0700', '+07:00')
-			.replace(' +08', '+08:00')
-			.replace(' +09', '+09:00')
-			.replace(' UTC', 'Z')
-			.replace(' ', 'T');
-		if (normalized.endsWith('+07:00') || normalized.endsWith('+08:00') || normalized.endsWith('+09:00') || normalized.endsWith('Z')) {
-		} else if (normalized.includes('+')) {
-		} else if (normalized.endsWith('+07') || normalized.endsWith('+08') || normalized.endsWith('+09')) {
-			normalized = normalized.slice(0, -3) + ':' + normalized.slice(-2);
-		} else {
-			normalized += 'Z';
-		}
-		const d = new Date(normalized);
+		const cleaned = created.replace(/ [A-Za-z]+$/, '');
+		const d = new Date(cleaned);
 		return d.getTime() || 0;
 	}
 
@@ -287,11 +252,6 @@
 			action: async () => {
 				await containerAction(containerId, serverId, action);
 				confirmModal = { show: false, title: '', message: '', action: null, danger: false };
-				if (expanded[containerId]) {
-					const allCtrs = data?.servers?.flatMap(s => s.containers) || [];
-					const c = allCtrs.find(ct => ct.id === containerId);
-					if (c) loadExpandedData(c);
-				}
 			},
 		};
 	}
@@ -305,309 +265,9 @@
 		expandedServers = { ...expandedServers, [sv.server.id]: !expandedServers[sv.server.id] };
 	}
 
-	// ── Multi-Expand Helpers ────────────────────────────
-	function calcMemPct(stats) {
-		if (!stats || !(stats.memory_limit ?? 0) > 0) return 0;
-		return ((stats.memory_usage ?? 0) / (stats.memory_limit ?? 1) * 100);
-	}
-
-	function getEinfo(c) {
-		return expanded[c.id];
-	}
-
-	function toggleExpand(c) {
-		if (expanded[c.id]) {
-			destroyContainerExecTerm(c.id);
-			const next = { ...expanded };
-			delete next[c.id];
-			expanded = next;
-			return;
-		}
-		expanded = {
-			...expanded,
-			[c.id]: { stats: null, inspect: null, logs: '', statsLoading: true, inspectLoading: true, logsLoading: false, showLogs: false, showExec: false, showInspect: false, inspectRaw: '', showSecurity: false }
-		};
-		loadExpandedData(c);
-	}
-
-	async function loadExpandedData(c) {
-		expanded = {
-			...expanded,
-			[c.id]: { ...expanded[c.id], statsLoading: true, inspectLoading: true }
-		};
-		try {
-			const [stats, inspect] = await Promise.all([
-				api.containers.stats(c.id, c.server_id).catch(() => null),
-				api.containers.get(c.id, c.server_id).catch(() => null),
-			]);
-			let parsedInspect = null;
-			if (inspect && Array.isArray(inspect) && inspect.length > 0) {
-				const data = inspect[0];
-				parsedInspect = {
-					restart_count: data.State?.RestartCount ?? 0,
-					network_mode: data.HostConfig?.NetworkMode ?? 'bridge',
-					ip_address: data.NetworkSettings?.Networks ? Object.values(data.NetworkSettings.Networks).find(n => n.IPAddress)?.IPAddress : '—',
-				};
-			} else if (inspect && !Array.isArray(inspect)) {
-				parsedInspect = {
-					restart_count: inspect.restart_count ?? inspect.RestartCount ?? 0,
-					network_mode: inspect.network_mode ?? inspect.NetworkMode ?? 'bridge',
-					ip_address: inspect.ip_address ?? inspect.IPAddress ?? '—',
-				};
-			}
-			expanded = {
-				...expanded,
-				[c.id]: { ...expanded[c.id], stats, inspect: parsedInspect, statsLoading: false, inspectLoading: false }
-			};
-		} catch {
-			expanded = {
-				...expanded,
-				[c.id]: { ...expanded[c.id], statsLoading: false, inspectLoading: false }
-			};
-		}
-	}
-
-	async function ensureExpanded(c) {
-		if (!expanded[c.id]) {
-			expanded = {
-				...expanded,
-				[c.id]: { stats: null, inspect: null, logs: '', statsLoading: true, inspectLoading: true, logsLoading: false, showLogs: false, showExec: false, showInspect: false, inspectRaw: '', showSecurity: false }
-			};
-			loadExpandedData(c);
-		}
-	}
-
-	// ── Expanded views ─────────────────────────────────
-	async function viewLogs(c) {
-		await ensureExpanded(c);
-		destroyContainerExecTerm(c.id);
-		expanded = {
-			...expanded,
-			[c.id]: { ...expanded[c.id], showLogs: true, showExec: false, showInspect: false, showSecurity: false }
-		};
-		doFetchLogs(c.id);
-	}
-
-	function doFetchLogs(containerId) {
-		if (!expanded[containerId]) return;
-		expanded = { ...expanded, [containerId]: { ...expanded[containerId], logsLoading: true } };
-		const allCtrs = data?.servers?.flatMap(s => s.containers) || [];
-		const c = allCtrs.find(ct => ct.id === containerId);
-		if (!c) return;
-		api.servers.containerLogs(c.server_id, containerId).then(logs => {
-			if (!expanded[containerId]) return;
-			expanded = { ...expanded, [containerId]: { ...expanded[containerId], logs: logs?.logs || logs || 'No logs available', logsLoading: false } };
-		}).catch(() => {
-			if (!expanded[containerId]) return;
-			expanded = { ...expanded, [containerId]: { ...expanded[containerId], logsLoading: false, logs: 'Failed to load logs' } };
-		});
-	}
-
-	async function viewExec(c) {
-		await ensureExpanded(c);
-		destroyContainerExecTerm(c.id);
-		expanded = {
-			...expanded,
-			[c.id]: { ...expanded[c.id], showLogs: false, showExec: true, showInspect: false, showSecurity: false }
-		};
-	}
-
-	async function viewInspect(c) {
-		await ensureExpanded(c);
-		destroyContainerExecTerm(c.id);
-		expanded = {
-			...expanded,
-			[c.id]: { ...expanded[c.id], showLogs: false, showExec: false, showInspect: true, showSecurity: false }
-		};
-		try {
-			const data = await api.containers.get(c.id, c.server_id);
-			expanded = { ...expanded, [c.id]: { ...expanded[c.id], inspectRaw: JSON.stringify(data, null, 2) } };
-		} catch {
-			expanded = { ...expanded, [c.id]: { ...expanded[c.id], inspectRaw: 'Failed to load inspect data' } };
-		}
-	}
-
-	function viewSecurity(c) {
-		ensureExpanded(c);
-		destroyContainerExecTerm(c.id);
-		expanded = {
-			...expanded,
-			[c.id]: { ...expanded[c.id], showLogs: false, showExec: false, showInspect: false, showSecurity: true }
-		};
-	}
-
-	async function refreshStats(containerId) {
-		if (!expanded[containerId]) return;
-		const allCtrs = data?.servers?.flatMap(s => s.containers) || [];
-		const c = allCtrs.find(ct => ct.id === containerId);
-		if (!c) return;
-		expanded = { ...expanded, [containerId]: { ...expanded[containerId], statsLoading: true } };
-		try {
-			const stats = await api.containers.stats(c.id, c.server_id);
-			expanded = { ...expanded, [containerId]: { ...expanded[containerId], stats, statsLoading: false } };
-		} catch {
-			expanded = { ...expanded, [containerId]: { ...expanded[containerId], statsLoading: false } };
-		}
-	}
-
-	// ── Scan All Servers ───────────────────────────────
-	async function scanAllContainers() {
-		scanningAll = true;
-		scanningServerIndex = 0;
-		const serverList = data?.servers || [];
-		for (let idx = 0; idx < serverList.length; idx++) {
-			const sv = serverList[idx];
-			scanningServerIndex = idx + 1;
-			scanningServerName = sv.server.name;
-			try {
-				await api.compliance.scanContainers(sv.server.id);
-			} catch (_) {}
-		}
-		scanningServerName = '';
-		await new Promise(r => setTimeout(r, 5000));
-		await loadData();
-		scanningAll = false;
-		scanningServerIndex = 0;
-	}
-
-	// ── Scan Server Containers ─────────────────────────
-	async function scanServerContainers(serverId) {
-		scanningServerId = serverId;
-		try {
-			await api.compliance.scanContainers(serverId);
-			await new Promise(r => setTimeout(r, 5000));
-			await loadData();
-		} catch (_) {}
-		scanningServerId = null;
-	}
-
-	// ── Scan Single Container ──────────────────────────
-	async function scanSingleContainer(c) {
-		scanningContainer = c.id;
-		try {
-			await api.compliance.scanContainer(c.server_id, c.id);
-			// Poll for completion
-			for (let i = 0; i < 60; i++) {
-				await new Promise(r => setTimeout(r, 2000));
-				try {
-					const latest = await api.compliance.latest(c.server_id, { scan_type: 'Container Security' });
-					if (latest && latest.status === 'completed') {
-						break;
-					}
-					if (latest && latest.status === 'failed') break;
-				} catch (_) {}
-			}
-			await loadData();
-			// Re-expand security panel
-			if (expanded[c.id]) {
-				expanded = { ...expanded, [c.id]: { ...expanded[c.id], showSecurity: true, showLogs: false, showExec: false, showInspect: false } };
-			}
-		} catch (_) {}
-		scanningContainer = null;
-	}
-
-	// ── Container Exec Terminal ────────────────────────
-	function initContainerExecTerm(containerId, div) {
-		destroyContainerExecTerm(containerId);
-
-		const allCtrs = data?.servers?.flatMap(s => s.containers) || [];
-		const c = allCtrs.find(ct => ct.id === containerId);
-		if (!c) return;
-
-		const term = new Terminal({
-			cursorBlink: true,
-			cursorStyle: 'block',
-			fontSize: 13,
-			fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace",
-			theme: {
-				background: '#0f172a',
-				foreground: '#d4d4d4',
-				cursor: '#10b981',
-				cursorAccent: '#0f172a',
-				selectionBackground: '#10b98140',
-				black: '#1a1d23', red: '#ef4444', green: '#10b981', yellow: '#f59e0b',
-				blue: '#3b82f6', magenta: '#a855f7', cyan: '#06b6d4', white: '#d4d4d4',
-				brightBlack: '#4a4d55', brightRed: '#ef4444', brightGreen: '#34d399',
-				brightYellow: '#fbbf24', brightBlue: '#60a5fa', brightMagenta: '#c084fc',
-				brightCyan: '#22d3ee', brightWhite: '#f4f4f5'
-			},
-			allowTransparency: true,
-			cols: 80,
-			rows: 12
-		});
-
-		const fitAddon = new FitAddon();
-		term.loadAddon(fitAddon);
-		term.open(div);
-		fitAddon.fit();
-
-		const token = localStorage.getItem('access_token');
-		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-		const wsUrl = `${protocol}//${window.location.host}/api/v1/servers/${c.server_id}/containers/${c.id}/exec-ws?token=${token}`;
-
-		let ws;
-		let isClosing = false;
-
-		function connect() {
-			ws = new WebSocket(wsUrl);
-			ws.onopen = () => {
-				term.focus();
-				const dims = fitAddon.proposeDimensions();
-				if (dims) {
-					ws.send(JSON.stringify({ resize: true, cols: dims.cols, rows: dims.rows }));
-				}
-			};
-			ws.onmessage = (evt) => {
-				term.write(evt.data);
-			};
-			ws.onclose = () => {
-				if (!isClosing) {
-					term.writeln('\r\n\x1b[33m[Disconnected]\x1b[0m');
-				}
-			};
-			ws.onerror = () => {
-				term.writeln('\r\n\x1b[31m[WebSocket error]\x1b[0m');
-			};
-		}
-
-		connect();
-
-		term.onData((data) => {
-			if (ws && ws.readyState === WebSocket.OPEN) {
-				ws.send(data);
-			}
-		});
-
-		term.onResize(({ cols, rows }) => {
-			if (ws && ws.readyState === WebSocket.OPEN) {
-				ws.send(JSON.stringify({ resize: true, cols, rows }));
-			}
-			try { fitAddon.fit(); } catch(e) {}
-		});
-
-		const ro = new ResizeObserver(() => {
-			try { fitAddon.fit(); } catch(e) {}
-		});
-		ro.observe(div);
-
-		execTerms[containerId] = { term, fitAddon, ws, ro, isClosing: () => isClosing };
-	}
-
-	function destroyContainerExecTerm(containerId) {
-		const t = execTerms[containerId];
-		if (!t) return;
-		t.isClosing = true;
-		if (t.ws) t.ws.close();
-		if (t.ro) t.ro.disconnect();
-		try { t.term.dispose(); } catch(e) {}
-		delete execTerms[containerId];
-	}
-
-	function containerExecAction(node, containerId) {
-		initContainerExecTerm(containerId, node);
-		return {
-			destroy() {}
-		};
+	// ── Navigate to detail page ─────────────────────────
+	function goToDetail(c) {
+		goto(`/containers/${c.server_id}/${c.id}`);
 	}
 
 	// ── Display Helpers ────────────────────────────────
@@ -679,35 +339,6 @@
 		return val.toFixed(1) + ' ' + units[i];
 	}
 
-	function escapeHtml(str) {
-		return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-	}
-
-	function formatLogsForDisplay(logStr) {
-		if (!logStr) return '<span style="color: #64748b;">No logs available</span>';
-		const lines = logStr.split('\n').filter(Boolean);
-		return lines.map((line, idx) => {
-			const escaped = escapeHtml(line);
-			const tsRegex = /^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s+(.*)/;
-			const match = escaped.match(tsRegex);
-			let colored;
-			if (match) {
-				const prefix = `<span style="color: #60a5fa;">${match[1]}</span>`;
-				const msg = colorInnerTimestamps(match[2]);
-				colored = prefix + ' ' + msg;
-			} else {
-				colored = `<span style="color: #22c55e;">${escaped}</span>`;
-			}
-			const border = idx < lines.length - 1 ? 'border-bottom: 1px solid rgba(255,255,255,0.06);' : '';
-			return `<div style="padding: 2px 0; ${border}">${colored}</div>`;
-		}).join('\n');
-	}
-
-	function colorInnerTimestamps(text) {
-		const innerTsRegex = /(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/g;
-		return text.replace(innerTsRegex, '<span style="color: #fbbf24;">$1</span>');
-	}
-
 	function severityColor(severity) {
 		switch (severity) {
 			case 'critical': return '#ef4444';
@@ -741,6 +372,53 @@
 		{ value: 'state', label: 'State' },
 		{ value: 'uptime', label: 'Uptime' },
 	];
+
+	// ── Scan All Servers ───────────────────────────────
+	async function scanAllContainers() {
+		scanningAll = true;
+		scanningServerIndex = 0;
+		const serverList = data?.servers || [];
+		for (let idx = 0; idx < serverList.length; idx++) {
+			const sv = serverList[idx];
+			scanningServerIndex = idx + 1;
+			scanningServerName = sv.server.name;
+			try {
+				await api.compliance.scanContainers(sv.server.id);
+			} catch (_) {}
+		}
+		scanningServerName = '';
+		await new Promise(r => setTimeout(r, 5000));
+		await loadData();
+		scanningAll = false;
+		scanningServerIndex = 0;
+	}
+
+	async function scanServerContainers(serverId) {
+		scanningServerId = serverId;
+		try {
+			await api.compliance.scanContainers(serverId);
+			await new Promise(r => setTimeout(r, 5000));
+			await loadData();
+		} catch (_) {}
+		scanningServerId = null;
+	}
+
+	async function scanSingleContainer(c) {
+		scanningContainer = c.id;
+		try {
+			await api.compliance.scanContainer(c.server_id, c.id);
+			for (let i = 0; i < 60; i++) {
+				await new Promise(r => setTimeout(r, 2000));
+				try {
+					const latest = await api.compliance.latest(c.server_id, { scan_type: 'Container Security' });
+					if (latest && latest.status === 'completed') break;
+					if (latest && latest.status === 'failed') break;
+				} catch (_) {}
+			}
+			await loadData();
+		} catch (_) {}
+		scanningContainer = null;
+	}
 </script>
 
 <div class="page-container">
@@ -979,30 +657,30 @@
 					</div>
 					<div class="flex items-center gap-3 shrink-0">
 				<span class="text-xs font-semibold" style="color: var(--color-text-muted);">{svContainers.length} container{svContainers.length !== 1 ? 's' : ''}</span>
-					{#if sv.error}
-						<span class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium"
-							style="background-color: rgba(239,68,68,0.1); color: var(--color-danger);">
-							<Icon icon="solar:danger-triangle-bold" class="h-3 w-3" />
-							Docker unreachable
-						</span>
-					{:else}
-						<span onclick={(e) => { e.stopPropagation(); scanServerContainers(sv.server.id); }}
-							onkeydown={(e) => e.key === 'Enter' && (e.stopPropagation(), scanServerContainers(sv.server.id))}
-							role="button" tabindex="0"
-							class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all cursor-pointer {scanningAll || scanningServerId === sv.server.id ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'}"
-							style="background-color: var(--color-primary); color: #fff;">
-							<Icon icon={scanningServerId === sv.server.id ? 'solar:spinner-bold' : 'solar:shield-bold'}
-								class="h-3 w-3 {scanningServerId === sv.server.id ? 'animate-spin' : ''}" />
-							{scanningServerId === sv.server.id ? 'Scanning...' : 'Scan'}
-						</span>
-						{#if avgScore != null}
-							<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold"
-								style="background-color: {securityBg(avgScore)}; color: {securityColor(avgScore)};">
-								<Icon icon="solar:shield-bold" class="h-3 w-3" />
-								{avgScore}
+						{#if sv.error}
+							<span class="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium"
+								style="background-color: rgba(239,68,68,0.1); color: var(--color-danger);">
+								<Icon icon="solar:danger-triangle-bold" class="h-3 w-3" />
+								Docker unreachable
 							</span>
+						{:else}
+							<span onclick={(e) => { e.stopPropagation(); scanServerContainers(sv.server.id); }}
+								onkeydown={(e) => e.key === 'Enter' && (e.stopPropagation(), scanServerContainers(sv.server.id))}
+								role="button" tabindex="0"
+								class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all cursor-pointer {scanningAll || scanningServerId === sv.server.id ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'}"
+								style="background-color: var(--color-primary); color: #fff;">
+								<Icon icon={scanningServerId === sv.server.id ? 'solar:spinner-bold' : 'solar:shield-bold'}
+									class="h-3 w-3 {scanningServerId === sv.server.id ? 'animate-spin' : ''}" />
+								{scanningServerId === sv.server.id ? 'Scanning...' : 'Scan'}
+							</span>
+							{#if avgScore != null}
+								<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold"
+									style="background-color: {securityBg(avgScore)}; color: {securityColor(avgScore)};">
+									<Icon icon="solar:shield-bold" class="h-3 w-3" />
+									{avgScore}
+								</span>
+							{/if}
 						{/if}
-					{/if}
 						<Icon
 							icon={isServerExpanded ? 'solar:alt-arrow-up-bold' : 'solar:alt-arrow-down-bold'}
 							class="h-4 w-4 transition-transform duration-200"
@@ -1026,373 +704,130 @@
 							{@const isRunning = c.state === 'running'}
 							{@const isStopped = c.state === 'exited' || c.state === 'stopped'}
 							{@const isPaused = c.state === 'paused'}
-							{@const isExpanded = !!expanded[c.id]}
-							{@const ec = expanded[c.id]}
 							{@const sec = c.security}
 							{@const hasSecurity = sec?.score != null}
 							{@const secScore = sec?.score ?? 0}
 
 							<div
-								class="card !p-0 overflow-hidden transition-all duration-200 cursor-pointer"
-								style="{isExpanded ? 'border-color: var(--color-primary);' : ''}"
-								onclick={() => toggleExpand(c)}
-								role="button"
-								tabindex="0"
-								onkeydown={(e) => e.key === 'Enter' && toggleExpand(c)}
+								class="card !p-0 overflow-hidden"
+								style="transition: all 0.15s ease;"
 							>
 								<div class="flex" style="min-height: 0;">
 									<!-- State-based accent bar -->
 									<div style="width: 4px; flex-shrink: 0; background: {isRunning ? 'var(--color-success)' : isStopped ? 'var(--color-danger)' : isPaused ? '#eab308' : 'var(--color-text-muted)'}; border-radius: 4px 0 0 4px;"></div>
 									<div class="flex-1 min-w-0">
-										<!-- Card Header -->
-										<div class="flex items-start justify-between gap-2 px-4 pt-4 pb-2">
-											<div class="min-w-0 flex-1">
-												<div class="flex items-center gap-2">
-													<h3 class="text-sm font-bold truncate" style="color: var(--color-text);" title={c.name}>{c.name}</h3>
-													{#if hasSecurity}
-														<span class="inline-flex items-center justify-center h-5 min-w-[32px] px-1.5 rounded text-[10px] font-bold shrink-0"
-															style="background-color: {securityBg(secScore)}; color: {securityColor(secScore)};"
-															title="Security score: {secScore}/100">
-															{secScore}
+										<!-- Card Content -->
+										<div class="px-4 pt-4 pb-3">
+											<div class="flex items-start justify-between gap-2">
+												<div class="min-w-0 flex-1">
+													<div class="flex items-center gap-2">
+														<h3 class="text-sm font-bold truncate" style="color: var(--color-text);" title={c.name}>{c.name}</h3>
+														{#if hasSecurity}
+															<span class="inline-flex items-center justify-center h-5 min-w-[32px] px-1.5 rounded text-[10px] font-bold shrink-0"
+																style="background-color: {securityBg(secScore)}; color: {securityColor(secScore)};"
+																title="Security score: {secScore}/100">
+																{secScore}
+															</span>
+														{/if}
+													</div>
+													<div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+														<span
+															class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap cursor-pointer hover:opacity-80"
+															style="background-color: {col.bg}18; color: {col.label};"
+															onclick={(e) => { e.stopPropagation(); goToServer(c.server_id); }}
+															title="View server details"
+														>
+															<Icon icon="solar:server-square-bold" class="h-2.5 w-2.5" />
+															{sv.server.name || '—'}
+														</span>
+														<span
+															class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap"
+															style="background-color: {stateBg(c.state)}; color: {stateColor(c.state)};"
+														>
+															<span class="h-1.5 w-1.5 rounded-full" style="background-color: {stateColor(c.state)}; box-shadow: 0 0 4px {stateColor(c.state)};"></span>
+															{isRunning ? 'Running' : isStopped ? 'Stopped' : isPaused ? 'Paused' : c.state || 'Unknown'}
+														</span>
+													</div>
+													{#if sec?.badges?.length}
+														<div class="flex flex-wrap gap-1 mt-1.5">
+															{#each sec.badges as badge}
+																<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium"
+																	style="background-color: rgba(148,163,184,0.1); color: rgba(148,163,184,0.8);">
+																	{badge}
+																</span>
+															{/each}
+														</div>
+													{/if}
+												</div>
+												<div class="flex flex-col items-end gap-1 shrink-0">
+													{#if scanningContainer === c.id}
+														<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style="background: rgba(245,158,11,0.15); color: #fbbf24;">
+															<Icon icon="solar:spinner-bold" class="h-2.5 w-2.5 animate-spin" /> Scanning
 														</span>
 													{/if}
+													<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">#{shortId(c.id)}</span>
 												</div>
-												<div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
-													<span
-														class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap cursor-pointer hover:opacity-80"
-														style="background-color: {col.bg}18; color: {col.label};"
-														onclick={(e) => { e.stopPropagation(); goToServer(c.server_id); }}
-														title="View server details"
-													>
-														<Icon icon="solar:server-square-bold" class="h-2.5 w-2.5" />
-														{sv.server.name || '—'}
-													</span>
-													<span
-														class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap"
-														style="background-color: {stateBg(c.state)}; color: {stateColor(c.state)};"
-													>
-														<span class="h-1.5 w-1.5 rounded-full" style="background-color: {stateColor(c.state)}; box-shadow: 0 0 4px {stateColor(c.state)};"></span>
-														{isRunning ? 'Running' : isStopped ? 'Stopped' : isPaused ? 'Paused' : c.state || 'Unknown'}
-													</span>
-												</div>
-												{#if sec?.badges?.length}
-													<div class="flex flex-wrap gap-1 mt-1.5">
-														{#each sec.badges as badge}
-															<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium"
-																style="background-color: rgba(148,163,184,0.1); color: rgba(148,163,184,0.8);">
-																{badge}
-															</span>
-														{/each}
-													</div>
-												{/if}
 											</div>
-										<div class="flex flex-col items-end gap-1 shrink-0">
-											{#if scanningContainer === c.id}
-												<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style="background: rgba(245,158,11,0.15); color: #fbbf24;">
-													<Icon icon="solar:spinner-bold" class="h-2.5 w-2.5 animate-spin" /> Scanning
-												</span>
-											{/if}
-											<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">#{shortId(c.id)}</span>
-											<Icon
-												icon={isExpanded ? 'solar:alt-arrow-up-bold' : 'solar:alt-arrow-down-bold'}
-												class="h-3.5 w-3.5 transition-transform duration-200"
-												style="color: var(--color-text-muted);"
-											/>
-										</div>
-										</div>
 
-										<!-- Card Body -->
-										<div class="px-4 pb-2 space-y-1">
-											<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">
-												<Icon icon="solar:box-bold" class="h-3 w-3 shrink-0" style="color: var(--color-text-muted);" />
-												<span class="truncate font-mono" title={c.image}>
-													{#if registryLink(c.image)}
-														<button
-															class="hover:underline transition-colors"
-															style="color: var(--color-primary);"
-															onclick={() => goto(registryLink(c.image))}
-														>
-															{c.image}
-														</button>
-													{:else}
-														<span style="color: var(--color-text);">{c.image}</span>
-													{/if}
-												</span>
-											</div>
-											{#if c.ports}
+											<!-- Image & Ports Row -->
+											<div class="mt-2 space-y-1">
 												<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">
-													<Icon icon="solar:plug-circle-bold" class="h-3 w-3 shrink-0" style="color: var(--color-text-muted);" />
-													<span class="truncate">{c.ports}</span>
-												</div>
-											{/if}
-											<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">
-												<Icon icon="solar:clock-circle-bold" class="h-3 w-3 shrink-0" style="color: var(--color-text-muted);" />
-												<span>{formatUptime(c)}
-													{#if c.created}
-														<span style="color: var(--color-text-muted);"> · created {formatTime(c.created)}</span>
-													{/if}
-												</span>
-											</div>
-										</div>
-
-										<!-- ═══════ EXPANDED SECTION ═══════ -->
-										{#if isExpanded}
-											{@const memPct = calcMemPct(ec.stats)}
-											<div class="border-t" style="border-color: var(--color-border-light);" onclick={(e) => e.stopPropagation()}>
-												<!-- Info Grid -->
-												<div class="grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3" style="background-color: var(--color-surface);">
-													<div>
-														<p class="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style="color: var(--color-text-muted);">IMAGE</p>
-														<p class="text-xs font-mono truncate" style="color: var(--color-text);" title={c.image}>{c.image || '—'}</p>
-													</div>
-													<div>
-														<p class="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style="color: var(--color-text-muted);">PORTS</p>
-														<p class="text-xs font-mono truncate" style="color: var(--color-text);">{c.ports || '—'}</p>
-													</div>
-													<div>
-														<p class="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style="color: var(--color-text-muted);">CREATED</p>
-														<p class="text-xs font-mono truncate" style="color: var(--color-text);">{c.created || '—'}</p>
-													</div>
-													<div>
-														<p class="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style="color: var(--color-text-muted);">RESTARTS</p>
-														<p class="text-xs font-mono" style="color: var(--color-text);">{ec.inspect?.restart_count ?? '—'} restarts</p>
-													</div>
-													<div class="col-span-2">
-														<p class="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style="color: var(--color-text-muted);">NETWORK</p>
-														<p class="text-xs font-mono" style="color: var(--color-text);">{ec.inspect?.network_mode || 'bridge'} · {ec.inspect?.ip_address || '—'}</p>
-													</div>
-												</div>
-
-												<!-- Resource Usage -->
-												<div class="px-4 py-3 border-t" style="border-color: var(--color-border-light); background-color: var(--color-card);">
-													<div class="flex items-center justify-between mb-2">
-														<h3 class="text-[11px] font-bold flex items-center gap-1.5" style="color: var(--color-text);">
-															<Icon icon="solar:chart-2-bold" class="h-3.5 w-3.5" style="color: var(--color-primary);" /> RESOURCE USAGE
-														</h3>
-														<button onclick={() => refreshStats(c.id)} disabled={ec.statsLoading}
-															class="inline-flex items-center gap-1 text-[10px] font-medium transition-all hover:opacity-70"
-															style="color: var(--color-text-muted);">
-															<Icon icon={ec.statsLoading ? 'solar:spinner-bold' : 'solar:refresh-bold'}
-																class="h-3 w-3 {ec.statsLoading ? 'animate-spin' : ''}" /> Refresh
-														</button>
-													</div>
-													<div class="mb-2">
-														<div class="flex items-center justify-between mb-0.5">
-															<span class="text-[10px] font-medium" style="color: var(--color-text-secondary);">CPU</span>
-															<span class="text-[10px] font-mono font-semibold" style="color: var(--color-text);">
-																{ec.stats?.cpu_percent != null ? ec.stats.cpu_percent.toFixed(1) + '%' : ec.statsLoading ? '...' : '—'}
-															</span>
-														</div>
-														<div class="h-1.5 rounded-full overflow-hidden" style="background-color: var(--color-border-light);">
-															<div class="h-full rounded-full transition-all duration-500"
-																style="width: {Math.min(ec.stats?.cpu_percent ?? 0, 100)}%; background-color: {(ec.stats?.cpu_percent ?? 0) > 80 ? 'var(--color-danger)' : (ec.stats?.cpu_percent ?? 0) > 60 ? 'var(--color-warning)' : 'var(--color-success)'};">
-															</div>
-														</div>
-													</div>
-													<div class="mb-2">
-														<div class="flex items-center justify-between mb-0.5">
-															<span class="text-[10px] font-medium" style="color: var(--color-text-secondary);">Memory</span>
-															<span class="text-[10px] font-mono font-semibold" style="color: var(--color-text);">
-																{ec.stats?.memory_usage != null ? formatBytes(ec.stats.memory_usage) : '—'} / {ec.stats?.memory_limit ? formatBytes(ec.stats.memory_limit) : '—'}
-															</span>
-														</div>
-														<div class="h-1.5 rounded-full overflow-hidden" style="background-color: var(--color-border-light);">
-															<div class="h-full rounded-full transition-all duration-500"
-																style="width: {Math.min(memPct ?? 0, 100)}%; background-color: {(memPct ?? 0) > 80 ? 'var(--color-danger)' : (memPct ?? 0) > 60 ? '#eab308' : '#f59e0b'};">
-															</div>
-														</div>
-													</div>
-													<div class="grid grid-cols-2 gap-2">
-														<div class="rounded border p-2" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-															<div class="flex items-center gap-1 text-[10px] font-medium mb-0.5" style="color: var(--color-text-muted);">
-																<Icon icon="solar:download-square-bold" class="h-3 w-3" /> RX
-															</div>
-															<p class="text-xs font-semibold font-mono" style="color: var(--color-text);">{ec.stats?.net_rx != null ? formatBytes(ec.stats.net_rx) : '—'}</p>
-														</div>
-														<div class="rounded border p-2" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-															<div class="flex items-center gap-1 text-[10px] font-medium mb-0.5" style="color: var(--color-text-muted);">
-																<Icon icon="solar:upload-square-bold" class="h-3 w-3" /> TX
-															</div>
-															<p class="text-xs font-semibold font-mono" style="color: var(--color-text);">{ec.stats?.net_tx != null ? formatBytes(ec.stats.net_tx) : '—'}</p>
-														</div>
-														<div class="rounded border p-2" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-															<div class="flex items-center gap-1 text-[10px] font-medium mb-0.5" style="color: var(--color-text-muted);">
-																<Icon icon="solar:document-text-bold" class="h-3 w-3" /> Read
-															</div>
-															<p class="text-xs font-semibold font-mono" style="color: var(--color-text);">{ec.stats?.block_read != null ? formatBytes(ec.stats.block_read) : '—'}</p>
-														</div>
-														<div class="rounded border p-2" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-															<div class="flex items-center gap-1 text-[10px] font-medium mb-0.5" style="color: var(--color-text-muted);">
-																<Icon icon="solar:pen-bold" class="h-3 w-3" /> Write
-															</div>
-															<p class="text-xs font-semibold font-mono" style="color: var(--color-text);">{ec.stats?.block_write != null ? formatBytes(ec.stats.block_write) : '—'}</p>
-														</div>
-													</div>
-												</div>
-
-												<!-- Action Buttons -->
-												<div class="flex flex-nowrap items-center gap-1.5 border-t px-3 py-2" style="border-color: var(--color-border-light); background-color: var(--color-surface);">
-													<button onclick={() => confirmAction(c.id, c.server_id, 'start', c.name)}
-														class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all shrink-0"
-														style="background-color: var(--color-success); color: #fff;">
-														<Icon icon="solar:play-bold" class="h-3 w-3" /> Start
-													</button>
-													<button onclick={() => confirmAction(c.id, c.server_id, 'stop', c.name)}
-														class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all shrink-0"
-														style="background-color: var(--color-danger); color: #fff;">
-														<Icon icon="solar:pause-bold" class="h-3 w-3" /> Stop
-													</button>
-													<button onclick={() => confirmAction(c.id, c.server_id, 'restart', c.name)}
-														class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all shrink-0"
-														style="background-color: #eab308; color: #fff;">
-														<Icon icon="solar:refresh-bold" class="h-3 w-3" /> Restart
-													</button>
-													<span class="flex-1 min-w-0"></span>
-													<button onclick={() => viewSecurity(c)}
-														class="inline-flex items-center justify-center h-7 w-7 min-w-[28px] rounded-md shrink-0 transition-all"
-														title="Security"
-														style="border: 1px solid {ec.showSecurity ? 'var(--color-primary)' : 'rgba(148,163,184,0.45)'}; color: {ec.showSecurity ? 'var(--color-primary)' : 'rgba(148,163,184,0.85)'}; background-color: {ec.showSecurity ? 'var(--color-primary-subtle)' : 'rgba(148,163,184,0.1)'};">
-														<Icon icon="solar:shield-bold" class="h-3.5 w-3.5" />
-													</button>
-													<button onclick={() => viewLogs(c)}
-														class="inline-flex items-center justify-center h-7 w-7 min-w-[28px] rounded-md shrink-0 transition-all"
-														title="Logs"
-														style="border: 1px solid {ec.showLogs ? 'var(--color-primary)' : 'rgba(148,163,184,0.45)'}; color: {ec.showLogs ? 'var(--color-primary)' : 'rgba(148,163,184,0.85)'}; background-color: {ec.showLogs ? 'var(--color-primary-subtle)' : 'rgba(148,163,184,0.1)'};">
-														<Icon icon="solar:document-text-bold" class="h-3.5 w-3.5" />
-													</button>
-													<button onclick={() => viewExec(c)}
-														class="inline-flex items-center justify-center h-7 w-7 min-w-[28px] rounded-md shrink-0 transition-all"
-														title="Exec"
-														style="border: 1px solid {ec.showExec ? 'var(--color-primary)' : 'rgba(148,163,184,0.45)'}; color: {ec.showExec ? 'var(--color-primary)' : 'rgba(148,163,184,0.85)'}; background-color: {ec.showExec ? 'var(--color-primary-subtle)' : 'rgba(148,163,184,0.1)'};">
-														<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
-													</button>
-													<button onclick={() => viewInspect(c)}
-														class="inline-flex items-center justify-center h-7 w-7 min-w-[28px] rounded-md shrink-0 transition-all"
-														title="Inspect"
-														style="border: 1px solid {ec.showInspect ? 'var(--color-primary)' : 'rgba(148,163,184,0.45)'}; color: {ec.showInspect ? 'var(--color-primary)' : 'rgba(148,163,184,0.85)'}; background-color: {ec.showInspect ? 'var(--color-primary-subtle)' : 'rgba(148,163,184,0.1)'};">
-														<Icon icon="solar:code-bold" class="h-3.5 w-3.5" />
-													</button>
-												</div>
-
-												<!-- Security Panel -->
-												{#if ec.showSecurity}
-													<div class="border-t px-4 py-3" style="border-color: var(--color-border-light); background-color: var(--color-card);">
-															<h3 class="text-[11px] font-bold flex items-center gap-1.5" style="color: var(--color-text);">
-																<Icon icon="solar:shield-bold" class="h-3.5 w-3.5" /> SECURITY FINDINGS
-															</h3>
-															{#if scanningContainer === c.id}
-																<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold" style="background: rgba(245,158,11,0.15); color: #fbbf24;">
-																	<Icon icon="solar:spinner-bold" class="h-2.5 w-2.5 animate-spin" /> Scanning
-																</span>
-															{/if}
-															<div class="flex items-center gap-2">
-															<div class="flex items-center gap-2">
-																{#if hasSecurity}
-																	<button onclick={() => goto(`/containers/${c.server_id}/${c.id}/security`)}
-																		class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all shrink-0"
-																		style="border: 1px solid var(--color-primary); color: var(--color-primary); background: transparent;">
-																		<Icon icon="solar:export-bold" class="h-3 w-3" /> Report
-																	</button>
-																	<span class="text-[10px]" style="color: var(--color-text-muted);">Scanned: {sec.scanned_at ? sec.scanned_at.substring(0, 10) : '—'}</span>
-																{/if}
-																<button onclick={() => scanSingleContainer(c)}
-																	disabled={scanningContainer === c.id}
-																	class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all shrink-0"
-																	style="background-color: var(--color-primary); color: #fff;">
-																	<Icon icon={scanningContainer === c.id ? 'solar:spinner-bold' : 'solar:shield-bold'}
-																		class="h-3 w-3 {scanningContainer === c.id ? 'animate-spin' : ''}" />
-																	{scanningContainer === c.id ? 'Scanning...' : 'Scan'}
-																</button>
-															</div>
-														</div>
-						{#if scanningContainer === c.id}
-							<div class="flex items-center gap-2 py-3" style="color: var(--text-muted);">
-								<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" />
-								<span class="text-[11px]">Scanning container security configuration...</span>
-							</div>
-						{:else if sec?.findings?.length}
-							<div class="space-y-1.5 max-h-48 overflow-y-auto">
-								{#each sec.findings as finding}
-									<div class="rounded-lg px-3 py-2 text-[11px]"
-										style="background-color: {severityBg(finding.severity)};">
-										<div class="flex items-center gap-2 mb-0.5">
-											<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
-												style="background-color: {severityColor(finding.severity)}22; color: {severityColor(finding.severity)};">
-												{finding.severity}
-											</span>
-											<span class="font-semibold" style="color: var(--color-text);">{finding.title}</span>
-											<span class="text-[10px] font-mono" style="color: var(--color-text-muted);">{finding.check_id}</span>
-										</div>
-										<p class="mb-1" style="color: var(--color-text-secondary);">{finding.description}</p>
-										{#if finding.remediation}
-											<p class="text-[10px]" style="color: var(--color-primary);">
-												<span class="font-semibold">Fix:</span> {finding.remediation}
-											</p>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{:else}
-							<p class="text-xs" style="color: var(--color-text-muted);">No security findings available. Run a Container Security scan first.</p>
-						{/if}
-													</div>
-												{/if}
-
-												<!-- Logs Panel -->
-												{#if ec.showLogs}
-													<div class="border-t px-4 py-3" style="border-color: var(--color-border-light); background-color: var(--color-card);">
-														<div class="flex items-center justify-between mb-2">
-															<h3 class="text-[11px] font-bold flex items-center gap-1.5" style="color: var(--color-text);">
-																<Icon icon="solar:document-text-bold" class="h-3.5 w-3.5" /> RECENT LOGS
-															</h3>
-															<button onclick={() => doFetchLogs(c.id)} disabled={ec.logsLoading}
-																class="inline-flex items-center gap-1 text-[10px] font-medium transition-all hover:opacity-70"
-																style="color: var(--color-text-muted);">
-																<Icon icon={ec.logsLoading ? 'solar:spinner-bold' : 'solar:refresh-bold'}
-																	class="h-3 w-3 {ec.logsLoading ? 'animate-spin' : ''}" /> Refresh
+													<Icon icon="solar:box-bold" class="h-3 w-3 shrink-0" style="color: var(--color-text-muted);" />
+													<span class="truncate font-mono" title={c.image}>
+														{#if registryLink(c.image)}
+															<button
+																class="hover:underline transition-colors"
+																style="color: var(--color-primary);"
+																onclick={() => goto(registryLink(c.image))}
+															>
+																{c.image}
 															</button>
-														</div>
-														<div class="rounded-lg p-3 font-mono text-[10px] leading-relaxed overflow-x-auto"
-															style="background-color: #0f172a; min-height: 60px; max-height: 200px; overflow-y: auto;">
-															{#if ec.logsLoading}
-																<div class="flex items-center gap-2" style="color: #64748b;">
-																	<Icon icon="solar:spinner-bold" class="h-3.5 w-3.5 animate-spin" /> Loading logs...
-																</div>
-															{:else}
-																{@html formatLogsForDisplay(ec.logs)}
-															{/if}
-														</div>
+														{:else}
+															<span style="color: var(--color-text);">{c.image}</span>
+														{/if}
+													</span>
+												</div>
+												{#if c.ports}
+													<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">
+														<Icon icon="solar:plug-circle-bold" class="h-3 w-3 shrink-0" style="color: var(--color-text-muted);" />
+														<span class="truncate">{c.ports}</span>
 													</div>
 												{/if}
-
-												<!-- Exec Panel -->
-												{#if ec.showExec}
-													<div class="border-t" style="border-color: var(--color-border-light); background-color: var(--color-card);">
-														<div class="flex items-center gap-2 px-4 py-2">
-															<h3 class="text-[11px] font-bold flex items-center gap-1.5" style="color: var(--color-text);">
-																<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg> EXEC
-															</h3>
-															<span class="ml-auto text-[10px]" style="color: #64748b;">Interactive terminal — type any command</span>
-														</div>
-														<div
-															use:containerExecAction={c.id}
-															class="exec-terminal h-48 w-full overflow-hidden"
-															style="min-height: 200px;"
-														></div>
-													</div>
-												{/if}
-
-												<!-- Inspect Panel -->
-												{#if ec.showInspect && ec.inspectRaw}
-													<div class="border-t px-4 py-3" style="border-color: var(--color-border-light); background-color: var(--color-card);">
-														<h3 class="text-[11px] font-bold mb-1.5" style="color: var(--color-text);">INSPECT DATA</h3>
-														<div class="rounded-lg p-3 font-mono text-[10px] leading-relaxed overflow-x-auto" style="background-color: #0f172a; color: #a5b4fc; max-height: 250px; overflow-y: auto;">
-															<pre class="whitespace-pre-wrap">{ec.inspectRaw}</pre>
-														</div>
-													</div>
-												{/if}
+												<div class="flex items-center gap-2 text-xs" style="color: var(--color-text-secondary);">
+													<Icon icon="solar:clock-circle-bold" class="h-3 w-3 shrink-0" style="color: var(--color-text-muted);" />
+													<span>{formatUptime(c)}
+														{#if c.created}
+															<span style="color: var(--color-text-muted);"> · created {formatTime(c.created)}</span>
+														{/if}
+													</span>
+												</div>
 											</div>
-										{/if}
+
+											<!-- Action Buttons -->
+											<div class="flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t" style="border-color: var(--color-border-light);">
+												<button onclick={() => confirmAction(c.id, c.server_id, 'start', c.name)}
+													class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all"
+													style="background-color: var(--color-success); color: #fff;">
+													<Icon icon="solar:play-bold" class="h-3 w-3" /> Start
+												</button>
+												<button onclick={() => confirmAction(c.id, c.server_id, 'stop', c.name)}
+													class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all"
+													style="background-color: var(--color-danger); color: #fff;">
+													<Icon icon="solar:pause-bold" class="h-3 w-3" /> Stop
+												</button>
+												<button onclick={() => confirmAction(c.id, c.server_id, 'restart', c.name)}
+													class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all"
+													style="background-color: #eab308; color: #fff;">
+													<Icon icon="solar:refresh-bold" class="h-3 w-3" /> Restart
+												</button>
+												<span class="flex-1"></span>
+												<button onclick={() => goToDetail(c)}
+													class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all hover:opacity-80"
+													style="border: 1px solid var(--color-border); color: var(--color-text-secondary); background: transparent;">
+													<Icon icon="solar:export-bold" class="h-3 w-3" /> Details
+												</button>
+											</div>
+										</div>
 									</div>
 								</div>
 							</div>
