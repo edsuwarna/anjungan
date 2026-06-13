@@ -535,3 +535,167 @@ func FormatSlackSSLNotification(payload map[string]interface{}) ([]byte, error) 
 		"blocks": blocks,
 	})
 }
+
+// ─── Security Alert (Brute Force) ──────────────────────────────────────────────
+
+// SendBruteForceAlert sends a brute force alert notification to the target.
+func SendBruteForceAlert(target *model.NotificationTarget, ipAddress string, failures, windowMinutes, userCount int, firstAttempt, lastAttempt string) (int, string, error) {
+	// Telegram: hot-path via Bot API
+	if target.Platform == "telegram" {
+		text := formatTelegramBruteForceAlert(ipAddress, failures, windowMinutes, userCount, firstAttempt, lastAttempt)
+		apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", target.BotToken)
+		botPayload := map[string]interface{}{
+			"chat_id":    target.ChatID,
+			"text":       text,
+			"parse_mode": "HTML",
+		}
+		bodyBytes, _ := json.Marshal(botPayload)
+		req, err := http.NewRequest("POST", apiURL, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return 0, "", fmt.Errorf("create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			return 0, "", fmt.Errorf("send: %w", err)
+		}
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(respBody), nil
+	}
+
+	// Discord
+	if target.Platform == "discord" {
+		bodyBytes, err := formatDiscordBruteForceAlert(ipAddress, failures, windowMinutes, userCount, firstAttempt, lastAttempt)
+		if err != nil {
+			return 0, "", err
+		}
+		req, err := http.NewRequest("POST", target.URL, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return 0, "", fmt.Errorf("create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			return 0, "", fmt.Errorf("send: %w", err)
+		}
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(respBody), nil
+	}
+
+	// Slack
+	if target.Platform == "slack" {
+		bodyBytes, err := formatSlackBruteForceAlert(ipAddress, failures, windowMinutes, userCount, firstAttempt, lastAttempt)
+		if err != nil {
+			return 0, "", err
+		}
+		req, err := http.NewRequest("POST", target.URL, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return 0, "", fmt.Errorf("create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			return 0, "", fmt.Errorf("send: %w", err)
+		}
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(respBody), nil
+	}
+
+	// Generic: send raw JSON
+	payload := map[string]interface{}{
+		"type":           "brute_force",
+		"ip_address":     ipAddress,
+		"failures":       failures,
+		"window_minutes": windowMinutes,
+		"user_count":     userCount,
+		"first_attempt":  firstAttempt,
+		"last_attempt":   lastAttempt,
+	}
+	return SendRawJSON(target, payload)
+}
+
+func formatTelegramBruteForceAlert(ipAddress string, failures, windowMinutes, userCount int, firstAttempt, lastAttempt string) string {
+	eventType := "Brute Force"
+	if userCount > 5 {
+		eventType = "Credential Stuffing"
+	}
+
+	text := fmt.Sprintf(`🚨 <b>%s Attack Detected</b>
+
+<b>IP:</b> <code>%s</code>
+<b>Failures:</b> %d in %d minutes
+<b>Users affected:</b> %d
+<b>First attempt:</b> %s
+<b>Last attempt:</b> %s`,
+		eventType, ipAddress, failures, windowMinutes, userCount, firstAttempt, lastAttempt)
+
+	return text
+}
+
+func formatDiscordBruteForceAlert(ipAddress string, failures, windowMinutes, userCount int, firstAttempt, lastAttempt string) ([]byte, error) {
+	eventType := "Brute Force"
+	if userCount > 5 {
+		eventType = "Credential Stuffing"
+	}
+
+	color := 0xEF4444 // red
+	embed := map[string]interface{}{
+		"title": fmt.Sprintf("🚨 %s Attack Detected", eventType),
+		"color": color,
+		"fields": []map[string]interface{}{
+			{"name": "IP Address", "value": ipAddress, "inline": true},
+			{"name": "Failures", "value": fmt.Sprintf("%d in %d min", failures, windowMinutes), "inline": true},
+			{"name": "Users Affected", "value": fmt.Sprintf("%d", userCount), "inline": true},
+			{"name": "Period", "value": fmt.Sprintf("%s — %s", firstAttempt, lastAttempt), "inline": false},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+
+	return json.Marshal(map[string]interface{}{
+		"content": fmt.Sprintf("🚨 **%s** attack detected from `%s`", eventType, ipAddress),
+		"embeds":  []map[string]interface{}{embed},
+	})
+}
+
+func formatSlackBruteForceAlert(ipAddress string, failures, windowMinutes, userCount int, firstAttempt, lastAttempt string) ([]byte, error) {
+	eventType := "Brute Force"
+	if userCount > 5 {
+		eventType = "Credential Stuffing"
+	}
+
+	blocks := []map[string]interface{}{
+		{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf(":red_circle: *%s Attack Detected*", eventType),
+			},
+		},
+		{
+			"type": "section",
+			"fields": []map[string]interface{}{
+				{"type": "mrkdwn", "text": fmt.Sprintf("*IP:*\n`%s`", ipAddress)},
+				{"type": "mrkdwn", "text": fmt.Sprintf("*Failures:*\n%d in %d min", failures, windowMinutes)},
+				{"type": "mrkdwn", "text": fmt.Sprintf("*Users Affected:*\n%d", userCount)},
+			},
+		},
+		{
+			"type": "section",
+			"text": map[string]interface{}{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("*Period:* %s — %s", firstAttempt, lastAttempt),
+			},
+		},
+	}
+
+	return json.Marshal(map[string]interface{}{
+		"text":   fmt.Sprintf(":red_circle: %s Attack Detected from %s", eventType, ipAddress),
+		"blocks": blocks,
+	})
+}
