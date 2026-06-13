@@ -14,6 +14,7 @@ import (
 
 	"github.com/edsuwarna/anjungan/internal/admin"
 	"github.com/edsuwarna/anjungan/internal/auth"
+	"github.com/edsuwarna/anjungan/internal/authactivity"
 	"github.com/edsuwarna/anjungan/internal/bookmark"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/compliance"
@@ -64,10 +65,13 @@ func New(cfg *config.Config) (*Server, error) {
 	// ─── Build handlers ────────────────────────────────────────────────────
 	rl := ratelimit.New(rdb, cfg.Security.RateLimitMaxAttempts, cfg.Security.RateLimitWindow, cfg.Security.RateLimitLockout)
 	authSvc := auth.NewService(repo, cfg.JWT, rdb, rl, cfg.Security)
-	authH := auth.NewHandler(authSvc, repo)
+	authH := auth.NewHandler(authSvc, repo, repo)
+
+	// Auth Activity — login monitoring
+	authActivityH := authactivity.NewHandler(repo)
 
 	srv := &Server{cfg: cfg, db: database}
-	srv.setupRouter(authH, authSvc, repo, rl)
+	srv.setupRouter(authH, authSvc, repo, rl, authActivityH)
 
 	// ─── Self-server auto-registration ────────────────────────────────────
 	if cfg.SelfServer.Enabled {
@@ -80,7 +84,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 func (s *Server) Handler() http.Handler { return s.mux }
 
-func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, rl *ratelimit.RateLimiter) {
+func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, rl *ratelimit.RateLimiter, authActivityH *authactivity.Handler) {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -140,6 +144,13 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			uptimeSched.Start(context.Background())
 
 			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
+
+			// Auth Activity — login monitoring (admin only)
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireAdmin)
+				r.Mount("/auth-activity", authActivityH.Routes())
+			})
+
 			r.Mount("/settings", settingsH.Routes())
 			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
 		})
@@ -162,6 +173,7 @@ func authRoutes(h *auth.Handler) chi.Router {
 	r.Post("/logout", h.Logout)
 	r.Put("/password", h.ChangePassword)
 	r.Put("/profile", h.UpdateProfile)
+	r.Get("/login-history", h.LoginHistory)
 	return r
 }
 

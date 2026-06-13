@@ -1063,3 +1063,82 @@ type BookmarkReorderItem struct {
 	ID        string `json:"id"`
 	SortOrder int    `json:"sort_order"`
 }
+
+// ─── Auth Events ────────────────────────────────────────────────────────────────
+
+const (
+	EventTypeLoginAttempt = "login_attempt"
+	EventTypeLoginSuccess = "login_success"
+	EventTypeLoginFailure = "login_failure"
+	EventTypeLogout       = "logout"
+	EventTypeLockout      = "lockout"
+	EventTypePasswordChange = "password_change"
+	EventTypeTOTPSetup    = "totp_setup"
+	EventTypeTOTPDisable  = "totp_disable"
+	EventTypeRegister     = "register"
+	EventTypeRefreshToken = "refresh_token"
+
+	EventStatusSuccess = "success"
+	EventStatusFailure = "failure"
+)
+
+type AuthEvent struct {
+	ID            string    `json:"id"`
+	UserID        string    `json:"user_id,omitempty"`
+	Email         string    `json:"email"`
+	EventType     string    `json:"event_type"`
+	Status        string    `json:"status"`
+	FailureReason string    `json:"failure_reason,omitempty"`
+	IPAddress     string    `json:"ip_address"`
+	UserAgent     string    `json:"user_agent,omitempty"`
+	Country       string    `json:"country,omitempty"`
+	ASN           string    `json:"asn,omitempty"`
+	ISP           string    `json:"isp,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type AuthEventQuery struct {
+	Page       int     `json:"page"`
+	Limit      int     `json:"limit"`
+	EventType  string  `json:"event_type"`
+	Status     string  `json:"status"`
+	UserID     string  `json:"user_id"`
+	Email      string  `json:"email"`
+	IPAddress  string  `json:"ip_address"`
+	Search     string  `json:"search"`
+	Sort       string  `json:"sort"`
+	Order      string  `json:"order"`
+	StartDate  *string `json:"start_date,omitempty"`
+	EndDate    *string `json:"end_date,omitempty"`
+}
+
+type AuthEventListResponse struct {
+	Events     []*AuthEvent `json:"events"`
+	Total      int          `json:"total"`
+	Page       int          `json:"page"`
+	Limit      int          `json:"limit"`
+	TotalPages int          `json:"total_pages"`
+}
+
+type AuthEventSummary struct {
+	LoginsToday  int `json:"logins_today"`
+	FailedToday  int `json:"failed_today"`
+	LockedToday  int `json:"locked_today"`
+	UniqueIPs    int `json:"unique_ips"`
+	SuccessRate  int `json:"success_rate"` // percentage today
+}
+
+type AuthEventTrend struct {
+	Date    string `json:"date"`
+	Success int    `json:"success"`
+	Failure int    `json:"failure"`
+}
+
+type BruteForceAlert struct {
+	IPAddress     string `json:"ip_address"`
+	Failures      int    `json:"failures"`
+	WindowMinutes int    `json:"window_minutes"`
+	FirstAttempt  string `json:"first_attempt"`
+	LastAttempt   string `json:"last_attempt"`
+	UserCount     int    `json:"user_count"`
+}

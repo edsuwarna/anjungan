@@ -71,10 +71,70 @@ export const api = {
 		updateProfile: (data) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
 	},
 
+	// ── Login History (self-service — user sees own) ──────────────
+	loginHistory: {
+		events: (params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.page) qs.set('page', params.page);
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.event_type) qs.set('event_type', params.event_type);
+			if (params.status) qs.set('status', params.status);
+			if (params.search) qs.set('search', params.search);
+			if (params.sort) qs.set('sort', params.sort);
+			if (params.order) qs.set('order', params.order);
+			const q = qs.toString();
+			return request(`/auth/login-history${q ? '?' + q : ''}`);
+		},
+	},
+
+	// ── Auth Activity (admin — all users) ─────────────────────────
+	authActivity: {
+		summary: () => request('/auth-activity/summary'),
+		events: (params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.page) qs.set('page', params.page);
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.event_type) qs.set('event_type', params.event_type);
+			if (params.status) qs.set('status', params.status);
+			if (params.email) qs.set('email', params.email);
+			if (params.ip_address) qs.set('ip_address', params.ip_address);
+			if (params.search) qs.set('search', params.search);
+			if (params.start_date) qs.set('start_date', params.start_date);
+			if (params.end_date) qs.set('end_date', params.end_date);
+			if (params.sort) qs.set('sort', params.sort);
+			if (params.order) qs.set('order', params.order);
+			const q = qs.toString();
+			return request(`/auth-activity/events${q ? '?' + q : ''}`);
+		},
+		trend: (days = 7) => request(`/auth-activity/trend?days=${days}`),
+		bruteForce: () => request('/auth-activity/brute-force'),
+		exportCSV: async (params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.event_type) qs.set('event_type', params.event_type);
+			if (params.status) qs.set('status', params.status);
+			if (params.search) qs.set('search', params.search);
+			if (params.email) qs.set('email', params.email);
+			const q = qs.toString();
+			const url = `${API_BASE}/auth-activity/events/export${q ? '?' + q : ''}`;
+			const res = await fetch(url, {
+				headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+			});
+			if (!res.ok) throw new Error('Export failed');
+			const blob = await res.blob();
+			const a = document.createElement('a');
+			a.href = URL.createObjectURL(blob);
+			a.download = 'auth-events.csv';
+			a.click();
+			URL.revokeObjectURL(a.href);
+		},
+	},
+
+	// ── Dashboard ─────────────────────────────────────────────────
 	dashboard: {
 		summary: () => request('/dashboard'),
 	},
 
+	// ── Servers ───────────────────────────────────────────────────
 	servers: {
 		list: (params = {}) => {
 			const qs = new URLSearchParams();
@@ -96,10 +156,16 @@ export const api = {
 		update: (id, data) => request(`/servers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 		delete: (id) => request(`/servers/${id}`, { method: 'DELETE' }),
 		bulkDelete: (ids) => request('/servers/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
-		testConnection: (data) => request('/servers/test', { method: 'POST', body: JSON.stringify(data) }),
-		testExisting: (id) => request(`/servers/${id}/test`, { method: 'POST' }),
+		groups: () => request('/servers/groups'),
+		createGroup: (data) => request('/servers/groups', { method: 'POST', body: JSON.stringify(data) }),
+		deleteGroup: (id) => request(`/servers/groups/${id}`, { method: 'DELETE' }),
+		stats: () => request('/servers/stats'),
+		regions: () => request('/servers/regions'),
+		types: () => request('/servers/types'),
 		metrics: (id) => request(`/servers/${id}/metrics`),
 		detect: (id) => request(`/servers/${id}/detect`, { method: 'POST' }),
+		testConnection: (data) => request('/servers/test', { method: 'POST', body: JSON.stringify(data) }),
+		testExisting: (id) => request(`/servers/${id}/test`, { method: 'POST' }),
 		containers: (id) => request(`/servers/${id}/containers`),
 		containerStart: (id, container) => request(`/servers/${id}/containers/${container}/start`, { method: 'POST' }),
 		containerStop: (id, container) => request(`/servers/${id}/containers/${container}/stop`, { method: 'POST' }),
@@ -107,11 +173,18 @@ export const api = {
 		containerLogs: (id, container) => request(`/servers/${id}/containers/${container}/logs`),
 		containerInspect: (id, container) => request(`/servers/${id}/containers/${container}/inspect`),
 		containerExec: (id, container, command) => request(`/servers/${id}/containers/${container}/exec`, { method: 'POST', body: JSON.stringify({ command }) }),
-		groups: () => request('/servers/groups'),
-		regions: () => request('/servers/regions'),
-		types: () => request('/servers/types'),
 	},
 
+	// ── SSH Keys ──────────────────────────────────────────────────
+	sshKeys: {
+		list: () => request('/ssh-keys'),
+		get: (id) => request(`/ssh-keys/${id}`),
+		create: (data) => request('/ssh-keys', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/ssh-keys/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/ssh-keys/${id}`, { method: 'DELETE' }),
+	},
+
+	// ── Containers ────────────────────────────────────────────────
 	containers: {
 		list: () => request('/containers'),
 		byServer: () => request('/containers/by-server'),
@@ -125,9 +198,11 @@ export const api = {
 		stats: (id, serverId) => request(`/containers/${id}/stats?server_id=${serverId}`),
 	},
 
+	// ── Registry ──────────────────────────────────────────────────
 	registry: {
 		health: () => request('/registry/health'),
 		config: () => request('/registry/config'),
+		updateConfig: (data) => request('/registry/config', { method: 'PUT', body: JSON.stringify(data) }),
 		myCredentials: () => request('/registry/my-credentials'),
 		resetMyPassword: (data) => request('/registry/my-credentials/reset-password', { method: 'POST', body: JSON.stringify(data) }),
 		list: (params) => {
@@ -150,6 +225,8 @@ export const api = {
 		deleteUser: (id) => request(`/registry/users/${id}`, { method: 'DELETE' }),
 		resetPassword: (id, data) => request(`/registry/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify(data) }),
 		syncHtpasswd: () => request('/registry/sync-htpasswd', { method: 'POST' }),
+		repositories: () => request('/registry/repositories'),
+		tags: (repo) => request(`/registry/${encodeURIComponent(repo)}/tags`),
 		// Webhooks
 		webhooks: {
 			list: () => request('/registry/webhooks'),
@@ -195,14 +272,7 @@ export const api = {
 		},
 	},
 
-	sshKeys: {
-		list: () => request('/ssh-keys'),
-		get: (id) => request(`/ssh-keys/${id}`),
-		create: (data) => request('/ssh-keys', { method: 'POST', body: JSON.stringify(data) }),
-		update: (id, data) => request(`/ssh-keys/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-		delete: (id) => request(`/ssh-keys/${id}`, { method: 'DELETE' }),
-	},
-
+	// ── Compliance ────────────────────────────────────────────────
 	compliance: {
 		summary: () => request('/compliance/summary'),
 		checks: () => request('/compliance/checks'),
@@ -260,6 +330,126 @@ export const api = {
 			request(`/compliance/${serverId}/history/${scanId}`),
 	},
 
+	// ── SSL Monitors ──────────────────────────────────────────────
+	sslMonitors: {
+		list: (params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.all) qs.set('all', 'true');
+			if (params.page) qs.set('page', params.page);
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.search) qs.set('search', params.search);
+			if (params.status) qs.set('status', params.status);
+			if (params.sort) qs.set('sort', params.sort);
+			if (params.order) qs.set('order', params.order);
+			const q = qs.toString();
+			return request(`/ssl-monitors${q ? '?' + q : ''}`);
+		},
+		get: (id) => request(`/ssl-monitors/${id}`),
+		create: (data) => request('/ssl-monitors', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/ssl-monitors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/ssl-monitors/${id}`, { method: 'DELETE' }),
+		checkNow: (id) => request(`/ssl-monitors/${id}/check`, { method: 'POST' }),
+		checkAll: () => request('/ssl-monitors/check-all', { method: 'POST' }),
+		summary: () => request('/ssl-monitors/summary'),
+		history: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.offset) qs.set('offset', params.offset);
+			const q = qs.toString();
+			return request(`/ssl-monitors/${id}/history${q ? '?' + q : ''}`);
+		},
+		trend: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			const q = qs.toString();
+			return request(`/ssl-monitors/${id}/trend${q ? '?' + q : ''}`);
+		},
+		toggle: (id, enabled) =>
+			request(`/ssl-monitors/${id}`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
+		batchImport: (data) => request('/ssl-monitors/import', { method: 'POST', body: JSON.stringify(data) }),
+	},
+
+	// ── Uptime Monitors ───────────────────────────────────────────
+	uptime: {
+		list: (params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.page) qs.set('page', params.page);
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.tags) qs.set('tags', params.tags);
+			if (params.search) qs.set('search', params.search);
+			if (params.server_id) qs.set('server_id', params.server_id);
+			if (params.sort) qs.set('sort', params.sort);
+			if (params.order) qs.set('order', params.order);
+			if (params.status) qs.set('status', params.status);
+			const q = qs.toString();
+			return request(`/uptime-monitors${q ? '?' + q : ''}`);
+		},
+		get: (id) => request(`/uptime-monitors/${id}`),
+		create: (data) => request('/uptime-monitors', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/uptime-monitors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/uptime-monitors/${id}`, { method: 'DELETE' }),
+		summary: () => request('/uptime-monitors/summary'),
+		checkNow: (id) => request(`/uptime-monitors/${id}/check`, { method: 'POST' }),
+		checkAll: () => request('/uptime-monitors/check-all', { method: 'POST' }),
+		pause: (id) => request(`/uptime-monitors/${id}/pause`, { method: 'POST' }),
+		resume: (id) => request(`/uptime-monitors/${id}/resume`, { method: 'POST' }),
+		history: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.after) qs.set('after', params.after);
+			if (params.before) qs.set('before', params.before);
+			const q = qs.toString();
+			return request(`/uptime-monitors/${id}/history${q ? '?' + q : ''}`);
+		},
+		trend: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.days) qs.set('days', params.days);
+			if (params.limit) qs.set('limit', params.limit);
+			const q = qs.toString();
+			return request(`/uptime-monitors/${id}/trend${q ? '?' + q : ''}`);
+		},
+		incidents: (id, params = {}) => {
+			const qs = new URLSearchParams();
+			if (params.all) qs.set('all', 'true');
+			if (params.limit) qs.set('limit', params.limit);
+			if (params.offset) qs.set('offset', params.offset);
+			const q = qs.toString();
+			return request(`/uptime-monitors/${id}/incidents${q ? '?' + q : ''}`);
+		},
+		testNotification: (id) => request(`/uptime-monitors/${id}/test-notification`, { method: 'POST' }),
+		maintenance: {
+			list: (id) => request(`/uptime-monitors/${id}/maintenance`),
+			create: (id, data) => request(`/uptime-monitors/${id}/maintenance`, { method: 'POST', body: JSON.stringify(data) }),
+			delete: (id, mwId) => request(`/uptime-monitors/${id}/maintenance/${mwId}`, { method: 'DELETE' }),
+		},
+	},
+
+	// ── Notification Targets ──────────────────────────────────────
+	notificationTargets: {
+		list: (scope = '') => {
+			const qs = new URLSearchParams();
+			if (scope) qs.set('scope', scope);
+			const q = qs.toString();
+			return request(`/notification-targets${q ? '?' + q : ''}`);
+		},
+		get: (id) => request(`/notification-targets/${id}`),
+		create: (data) => request('/notification-targets', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/notification-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/notification-targets/${id}`, { method: 'DELETE' }),
+		test: (id, scope) => request(`/notification-targets/${id}/test${scope ? '?scope=' + scope : ''}`, { method: 'POST' }),
+		types: () => request('/notification-targets/types'),
+	},
+
+	// ── Bookmarks ────────────────────────────────────────────────
+	bookmarks: {
+		list: () => request('/bookmarks'),
+		create: (data) => request('/bookmarks', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/bookmarks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/bookmarks/${id}`, { method: 'DELETE' }),
+		reorder: (items) => request('/bookmarks/reorder', { method: 'PATCH', body: JSON.stringify(items) }),
+	},
+
+	// ── Admin ─────────────────────────────────────────────────────
 	admin: {
 		users: {
 			list: () => request('/admin/users'),
@@ -316,123 +506,11 @@ export const api = {
 		},
 	},
 
+	// ── Settings ──────────────────────────────────────────────────
 	settings: {
 		complianceThresholds: () => request('/settings/compliance-thresholds'),
 		updateComplianceThresholds: (data) => request('/settings/compliance-thresholds', { method: 'PUT', body: JSON.stringify(data) }),
 		registration: () => request('/settings/registration'),
 		updateRegistration: (data) => request('/settings/registration', { method: 'PUT', body: JSON.stringify(data) }),
-	},
-
-	sslMonitors: {
-		list: (params = {}) => {
-			const qs = new URLSearchParams();
-			if (params.all) qs.set('all', 'true');
-			if (params.page) qs.set('page', params.page);
-			if (params.limit) qs.set('limit', params.limit);
-			if (params.search) qs.set('search', params.search);
-			if (params.status) qs.set('status', params.status);
-			if (params.sort) qs.set('sort', params.sort);
-			if (params.order) qs.set('order', params.order);
-			const q = qs.toString();
-			return request(`/ssl-monitors${q ? '?' + q : ''}`);
-		},
-		get: (id) => request(`/ssl-monitors/${id}`),
-		create: (data) => request('/ssl-monitors', { method: 'POST', body: JSON.stringify(data) }),
-		update: (id, data) => request(`/ssl-monitors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-		delete: (id) => request(`/ssl-monitors/${id}`, { method: 'DELETE' }),
-		checkNow: (id) => request(`/ssl-monitors/${id}/check`, { method: 'POST' }),
-		checkAll: () => request('/ssl-monitors/check-all', { method: 'POST' }),
-		summary: () => request('/ssl-monitors/summary'),
-		history: (id, params = {}) => {
-			const qs = new URLSearchParams();
-			if (params.limit) qs.set('limit', params.limit);
-			if (params.offset) qs.set('offset', params.offset);
-			const q = qs.toString();
-			return request(`/ssl-monitors/${id}/history${q ? '?' + q : ''}`);
-		},
-		trend: (id, params = {}) => {
-			const qs = new URLSearchParams();
-			if (params.limit) qs.set('limit', params.limit);
-			const q = qs.toString();
-			return request(`/ssl-monitors/${id}/trend${q ? '?' + q : ''}`);
-		},
-		toggle: (id, enabled) =>
-			request(`/ssl-monitors/${id}`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
-		batchImport: (data) => request('/ssl-monitors/import', { method: 'POST', body: JSON.stringify(data) }),
-	},
-
-	uptime: {
-		list: (params = {}) => {
-			const qs = new URLSearchParams();
-			if (params.page) qs.set('page', params.page);
-			if (params.limit) qs.set('limit', params.limit);
-			if (params.status) qs.set('status', params.status);
-			if (params.search) qs.set('search', params.search);
-			if (params.sort) qs.set('sort', params.sort);
-			if (params.order) qs.set('order', params.order);
-			const q = qs.toString();
-			return request(`/uptime-monitors${q ? '?' + q : ''}`);
-		},
-		get: (id) => request(`/uptime-monitors/${id}`),
-		create: (data) => request('/uptime-monitors', { method: 'POST', body: JSON.stringify(data) }),
-		update: (id, data) => request(`/uptime-monitors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-		delete: (id) => request(`/uptime-monitors/${id}`, { method: 'DELETE' }),
-		summary: () => request('/uptime-monitors/summary'),
-		checkNow: (id) => request(`/uptime-monitors/${id}/check`, { method: 'POST' }),
-		checkAll: () => request('/uptime-monitors/check-all', { method: 'POST' }),
-		pause: (id) => request(`/uptime-monitors/${id}/pause`, { method: 'POST' }),
-		resume: (id) => request(`/uptime-monitors/${id}/resume`, { method: 'POST' }),
-		history: (id, params = {}) => {
-			const qs = new URLSearchParams();
-			if (params.limit) qs.set('limit', params.limit);
-			if (params.offset) qs.set('offset', params.offset);
-			const q = qs.toString();
-			return request(`/uptime-monitors/${id}/history${q ? '?' + q : ''}`);
-		},
-		trend: (id, params = {}) => {
-			const qs = new URLSearchParams();
-			if (params.period) qs.set('period', params.period);
-			const q = qs.toString();
-			return request(`/uptime-monitors/${id}/trend${q ? '?' + q : ''}`);
-		},
-		incidents: (id, params = {}) => {
-			const qs = new URLSearchParams();
-			if (params.limit) qs.set('limit', params.limit);
-			if (params.offset) qs.set('offset', params.offset);
-			const q = qs.toString();
-			return request(`/uptime-monitors/${id}/incidents${q ? '?' + q : ''}`);
-		},
-		testNotification: (id) => request(`/uptime-monitors/${id}/test-notification`, { method: 'POST' }),
-		maintenance: {
-			list: (id) => request(`/uptime-monitors/${id}/maintenance`),
-			create: (id, data) => request(`/uptime-monitors/${id}/maintenance`, { method: 'POST', body: JSON.stringify(data) }),
-			delete: (id, mwId) => request(`/uptime-monitors/${id}/maintenance/${mwId}`, { method: 'DELETE' }),
-		},
-	},
-
-	notificationTargets: {
-		list: (scope = '') => {
-			const qs = new URLSearchParams();
-			if (scope) qs.set('scope', scope);
-			const q = qs.toString();
-			return request(`/notification-targets${q ? '?' + q : ''}`);
-		},
-		get: (id) => request(`/notification-targets/${id}`),
-		create: (data) => request('/notification-targets', { method: 'POST', body: JSON.stringify(data) }),
-		update: (id, data) => request(`/notification-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-		delete: (id) => request(`/notification-targets/${id}`, { method: 'DELETE' }),
-		test: (id, scope) => request(`/notification-targets/${id}/test${scope ? '?scope=' + scope : ''}`, { method: 'POST' }),
-	},
-
-	registryWebhooks: {
-		list: () => request('/registry/webhooks'),
-	},
-
-	bookmarks: {
-		list: () => request('/bookmarks'),
-		create: (data) => request('/bookmarks', { method: 'POST', body: JSON.stringify(data) }),
-		update: (id, data) => request(`/bookmarks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-		delete: (id) => request(`/bookmarks/${id}`, { method: 'DELETE' }),
-		reorder: (items) => request('/bookmarks/reorder', { method: 'PATCH', body: JSON.stringify(items) }),
 	},
 };
