@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -108,8 +109,25 @@ func New(cfg *config.Config) (*Server, error) {
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
 		ctx := context.Background()
+
+		// Read hostname for notifications
+		hostname := "anjungan"
+		if hn, err := os.Hostname(); err == nil && hn != "" {
+			hostname = hn
+		}
+		// Try to get self-server name from config
+		if cfg.SelfServer.Name != "" {
+			hostname = cfg.SelfServer.Name
+		}
+
 		for range ticker.C {
-			alerts, err := repo.DetectBruteForce(ctx)
+			// Read config for dynamic threshold/window
+			bfCfg, cfgErr := repo.GetBruteForceConfig(ctx)
+			if cfgErr != nil {
+				zlog.Error().Err(cfgErr).Msg("failed to read brute force config, using defaults")
+				bfCfg = &model.BruteForceConfig{Threshold: 20, WindowMinutes: 5}
+			}
+			alerts, err := repo.DetectBruteForce(ctx, bfCfg.Threshold, bfCfg.WindowMinutes)
 			if err != nil {
 				zlog.Error().Err(err).Msg("brute force detection error")
 				continue
@@ -164,6 +182,7 @@ func New(cfg *config.Config) (*Server, error) {
 						statusCode, respBody, err := notification.SendBruteForceAlert(
 							t, a.IPAddress, a.Failures, a.WindowMinutes,
 							a.UserCount, a.FirstAttempt, a.LastAttempt,
+							hostname, a.Country, a.ISP, a.ASN, a.SampleEmails,
 						)
 						if err != nil {
 							zlog.Warn().Err(err).Str("ip", a.IPAddress).Str("target", t.Name).Msg("failed to send brute force notification")

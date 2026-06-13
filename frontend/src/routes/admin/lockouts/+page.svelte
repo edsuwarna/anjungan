@@ -8,12 +8,15 @@
 	let error = $state('');
 
 	// Config
-	let config = $state({ notification_target_ids: [] });
+	let config = $state({ notification_target_ids: [], threshold: 20, window_minutes: 5 });
 	let allTargets = $state([]);
 	let configLoading = $state(true);
 	let configSaving = $state(false);
 	let configError = $state('');
 	let configSaved = $state(false);
+	let testing = $state(false);
+	let testResult = $state('');
+	let testError = $state('');
 
 	// Unlock
 	let unlocking = $state('');
@@ -60,7 +63,7 @@
 				api.authActivity.config(),
 				api.notificationTargets.list(),
 			]);
-			config = { notification_target_ids: cfg?.notification_target_ids || [] };
+			config = { notification_target_ids: cfg?.notification_target_ids || [], threshold: cfg?.threshold || 20, window_minutes: cfg?.window_minutes || 5 };
 			allTargets = targets || [];
 		} catch (e) {
 			configError = e.message;
@@ -76,6 +79,8 @@
 		try {
 			await api.authActivity.updateConfig({
 				notification_target_ids: config.notification_target_ids,
+				threshold: config.threshold,
+				window_minutes: config.window_minutes,
 			});
 			configSaved = true;
 			setTimeout(() => configSaved = false, 3000);
@@ -84,6 +89,30 @@
 		} finally {
 			configSaving = false;
 		}
+	}
+
+	async function handleTest() {
+		const ids = config.notification_target_ids;
+		if (ids.length === 0) return;
+		testing = true;
+		testResult = '';
+		testError = '';
+		let allOk = true;
+		for (const id of ids) {
+			try {
+				const res = await api.notificationTargets.test(id, 'bruteforce');
+				if (!res.success) {
+					allOk = false;
+					testError = (res.error || 'delivery failed');
+				}
+			} catch (e) {
+				allOk = false;
+				testError = e.message;
+			}
+		}
+		testResult = allOk ? 'Test notification sent!' : 'Test failed';
+		testing = false;
+		setTimeout(() => { testResult = ''; testError = ''; }, 5000);
 	}
 
 	function toggleTarget(id) {
@@ -191,14 +220,59 @@
 				<p class="mb-3 text-xs" style="color: #ef4444;">{configError}</p>
 			{/if}
 
-			<button
-				class="btn-primary text-xs"
-				onclick={saveConfig}
-				disabled={configSaving}
-			>
-				<Icon icon={configSaving ? 'svg-spinners:180-ring' : 'solar:diskette-bold'} class="h-3.5 w-3.5" />
-				{configSaving ? 'Saving...' : 'Save Configuration'}
-			</button>
+			<div class="grid grid-cols-2 gap-4 mb-4">
+				<div>
+					<label class="block text-xs font-medium mb-1" style="color: var(--color-text-secondary);">Threshold (failures)</label>
+					<input
+						type="number"
+						bind:value={config.threshold}
+						min="1"
+						max="999"
+						class="w-full rounded-lg border px-3 py-2 text-sm"
+						style="background: var(--color-card); color: var(--color-text); border-color: var(--color-border);"
+					/>
+					<p class="mt-1 text-xs" style="color: var(--color-text-muted);">Min failed attempts before alert</p>
+				</div>
+				<div>
+					<label class="block text-xs font-medium mb-1" style="color: var(--color-text-secondary);">Window (minutes)</label>
+					<input
+						type="number"
+						bind:value={config.window_minutes}
+						min="1"
+						max="1440"
+						class="w-full rounded-lg border px-3 py-2 text-sm"
+						style="background: var(--color-card); color: var(--color-text); border-color: var(--color-border);"
+					/>
+					<p class="mt-1 text-xs" style="color: var(--color-text-muted);">Time window to count failures</p>
+				</div>
+			</div>
+
+			<div class="flex items-center gap-3">
+				<button
+					class="btn-primary text-xs"
+					onclick={saveConfig}
+					disabled={configSaving}
+				>
+					<Icon icon={configSaving ? 'svg-spinners:180-ring' : 'solar:diskette-bold'} class="h-3.5 w-3.5" />
+					{configSaving ? 'Saving...' : 'Save Configuration'}
+				</button>
+
+				<button
+					class="btn-secondary text-xs"
+					onclick={handleTest}
+					disabled={testing || config.notification_target_ids.length === 0}
+				>
+					<Icon icon={testing ? 'svg-spinners:180-ring' : 'solar:bell-bold'} class="h-3.5 w-3.5" />
+					{testing ? 'Testing...' : 'Test Notification'}
+				</button>
+
+				{#if testResult && !testError}
+					<span class="text-xs font-medium" style="color: var(--color-success);">{testResult}</span>
+				{/if}
+				{#if testError}
+					<span class="text-xs font-medium" style="color: #ef4444;">{testError}</span>
+				{/if}
+			</div>
 		{/if}
 	</div>
 

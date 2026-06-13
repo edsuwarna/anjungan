@@ -1136,6 +1136,10 @@ type BruteForceAlert struct {
 	FirstAttempt  string `json:"first_attempt"`
 	LastAttempt   string `json:"last_attempt"`
 	UserCount     int    `json:"user_count"`
+	Country       string `json:"country,omitempty"`
+	ISP           string `json:"isp,omitempty"`
+	ASN           string `json:"asn,omitempty"`
+	SampleEmails  string `json:"sample_emails,omitempty"`
 }
 
 type TopIPEntry struct {
@@ -1177,10 +1181,12 @@ type SecurityEvent struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-// BruteForceConfig stores notification target IDs for brute force alerts.
+// BruteForceConfig stores notification target IDs and detection parameters for brute force alerts.
 type BruteForceConfig struct {
 	ID                   string    `json:"id"`
 	NotificationTargetIDs []string `json:"notification_target_ids"`
+	Threshold            int       `json:"threshold"`
+	WindowMinutes        int       `json:"window_minutes"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }

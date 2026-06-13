@@ -21,7 +21,7 @@ type Repository interface {
 	ListAuthEvents(ctx context.Context, q model.AuthEventQuery) (*model.AuthEventListResponse, error)
 	GetAuthEventSummary(ctx context.Context) (*model.AuthEventSummary, error)
 	GetAuthEventTrend(ctx context.Context, days int) ([]model.AuthEventTrend, error)
-	DetectBruteForce(ctx context.Context) ([]model.BruteForceAlert, error)
+	DetectBruteForce(ctx context.Context, threshold, windowMinutes int) ([]model.BruteForceAlert, error)
 	ListMyAuthEvents(ctx context.Context, userID string, limit int) ([]*model.AuthEvent, error)
 	GetTopIPs(ctx context.Context, days int) ([]model.TopIPEntry, error)
 	GetTopUsers(ctx context.Context, days int) ([]model.TopUserEntry, error)
@@ -33,7 +33,7 @@ type Repository interface {
 	PurgeAuthEvents(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetUserIDByEmail(ctx context.Context, email string) (string, error)
 	GetBruteForceConfig(ctx context.Context) (*model.BruteForceConfig, error)
-	UpsertBruteForceConfig(ctx context.Context, targetIDs []string) (*model.BruteForceConfig, error)
+	UpsertBruteForceConfig(ctx context.Context, targetIDs []string, threshold, windowMinutes int) (*model.BruteForceConfig, error)
 }
 
 type Handler struct {
@@ -113,7 +113,12 @@ func (h *Handler) Trend(w http.ResponseWriter, r *http.Request) {
 
 // GET /brute-force — brute force detection
 func (h *Handler) BruteForce(w http.ResponseWriter, r *http.Request) {
-	alerts, err := h.repo.DetectBruteForce(r.Context())
+	cfg, err := h.repo.GetBruteForceConfig(r.Context())
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to get brute force config")
+		return
+	}
+	alerts, err := h.repo.DetectBruteForce(r.Context(), cfg.Threshold, cfg.WindowMinutes)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to detect brute force")
 		return
@@ -422,17 +427,26 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	common.JSON(w, http.StatusOK, cfg)
 }
 
-// PUT /config — updates brute force notification target IDs
+// PUT /config — updates brute force notification config
 func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		NotificationTargetIDs []string `json:"notification_target_ids"`
+		Threshold            int      `json:"threshold"`
+		WindowMinutes        int      `json:"window_minutes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	cfg, err := h.repo.UpsertBruteForceConfig(r.Context(), req.NotificationTargetIDs)
+	if req.Threshold <= 0 {
+		req.Threshold = 20
+	}
+	if req.WindowMinutes <= 0 {
+		req.WindowMinutes = 5
+	}
+
+	cfg, err := h.repo.UpsertBruteForceConfig(r.Context(), req.NotificationTargetIDs, req.Threshold, req.WindowMinutes)
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to update brute force config")
 		return

@@ -450,7 +450,7 @@ export const api = {
 		create: (data) => request('/notification-targets', { method: 'POST', body: JSON.stringify(data) }),
 		update: (id, data) => request(`/notification-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 		delete: (id) => request(`/notification-targets/${id}`, { method: 'DELETE' }),
-		test: (id) => request(`/notification-targets/${id}/test`, { method: 'POST' }),
+		test: (id, scope) => request(`/notification-targets/${id}/test${scope ? '?scope=' + scope : ''}`, { method: 'POST' }),
 		types: () => request('/notification-targets/types'),
 	},
 

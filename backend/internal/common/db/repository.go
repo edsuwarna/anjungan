@@ -4233,17 +4233,26 @@ func (r *Repository) GetAuthEventTrend(ctx context.Context, days int) ([]model.A
 	return trends, nil
 }
 
-func (r *Repository) DetectBruteForce(ctx context.Context) ([]model.BruteForceAlert, error) {
-	threshold := 20
-	windowMinutes := 5
-
+func (r *Repository) DetectBruteForce(ctx context.Context, threshold, windowMinutes int) ([]model.BruteForceAlert, error) {
 	rows, err := r.db.Pool.Query(ctx,
-		`SELECT ip_address, COUNT(*) AS failures,
-		        MIN(created_at) AS first_attempt, MAX(created_at) AS last_attempt,
-		        COUNT(DISTINCT user_id) AS user_count
-		 FROM auth_events
-		 WHERE status = 'failure' AND created_at >= NOW() - ($1 || ' minutes')::INTERVAL
-		 GROUP BY ip_address
+		`WITH failed_events AS (
+		   SELECT ip_address, created_at, user_id, email, country, isp, asn
+		   FROM auth_events
+		   WHERE status = 'failure'
+		     AND created_at >= NOW() - ($1 || ' minutes')::INTERVAL
+		 )
+		 SELECT
+		   fe.ip_address,
+		   COUNT(*) AS failures,
+		   MIN(fe.created_at) AS first_attempt,
+		   MAX(fe.created_at) AS last_attempt,
+		   COUNT(DISTINCT fe.user_id) AS user_count,
+		   COALESCE((SELECT fe2.country FROM failed_events fe2 WHERE fe2.ip_address = fe.ip_address AND fe2.country != '' LIMIT 1), '') AS country,
+		   COALESCE((SELECT fe2.isp FROM failed_events fe2 WHERE fe2.ip_address = fe.ip_address AND fe2.isp != '' LIMIT 1), '') AS isp,
+		   COALESCE((SELECT fe2.asn FROM failed_events fe2 WHERE fe2.ip_address = fe.ip_address AND fe2.asn != '' LIMIT 1), '') AS asn,
+		   COALESCE((SELECT STRING_AGG(DISTINCT sub.email, ', ') FROM (SELECT DISTINCT fe3.email FROM failed_events fe3 WHERE fe3.ip_address = fe.ip_address LIMIT 3) sub), '') AS sample_emails
+		 FROM failed_events fe
+		 GROUP BY fe.ip_address
 		 HAVING COUNT(*) >= $2
 		 ORDER BY failures DESC`,
 		fmt.Sprintf("%d", windowMinutes), threshold,
@@ -4259,7 +4268,8 @@ func (r *Repository) DetectBruteForce(ctx context.Context) ([]model.BruteForceAl
 			WindowMinutes: windowMinutes,
 		}
 		var first, last time.Time
-		if err := rows.Scan(&a.IPAddress, &a.Failures, &first, &last, &a.UserCount); err != nil {
+		if err := rows.Scan(&a.IPAddress, &a.Failures, &first, &last, &a.UserCount,
+			&a.Country, &a.ISP, &a.ASN, &a.SampleEmails); err != nil {
 			return nil, err
 		}
 		a.FirstAttempt = first.Format(time.RFC3339)
@@ -4490,33 +4500,40 @@ func (r *Repository) PurgeAuthEvents(ctx context.Context, olderThan time.Duratio
 func (r *Repository) GetBruteForceConfig(ctx context.Context) (*model.BruteForceConfig, error) {
 	cfg := &model.BruteForceConfig{}
 	err := r.db.Pool.QueryRow(ctx,
-		`SELECT id, COALESCE(notification_target_ids, '{}'), created_at, updated_at
+		`SELECT id, COALESCE(notification_target_ids, '{}'),
+		        COALESCE(threshold, 20), COALESCE(window_minutes, 5),
+		        created_at, updated_at
 		 FROM brute_force_config WHERE id = 'default'`,
-	).Scan(&cfg.ID, &cfg.NotificationTargetIDs, &cfg.CreatedAt, &cfg.UpdatedAt)
+	).Scan(&cfg.ID, &cfg.NotificationTargetIDs, &cfg.Threshold, &cfg.WindowMinutes, &cfg.CreatedAt, &cfg.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &model.BruteForceConfig{ID: "default", NotificationTargetIDs: []string{}}, nil
+			return &model.BruteForceConfig{ID: "default", NotificationTargetIDs: []string{}, Threshold: 20, WindowMinutes: 5}, nil
 		}
 		return nil, err
 	}
 	if cfg.NotificationTargetIDs == nil {
 		cfg.NotificationTargetIDs = []string{}
 	}
+	if cfg.Threshold <= 0 {
+		cfg.Threshold = 20
+	}
+	if cfg.WindowMinutes <= 0 {
+		cfg.WindowMinutes = 5
+	}
 	return cfg, nil
 }
 
 // UpsertBruteForceConfig updates the brute force alert config.
-func (r *Repository) UpsertBruteForceConfig(ctx context.Context, targetIDs []string) (*model.BruteForceConfig, error) {
-	if targetIDs == nil {
-		targetIDs = []string{}
-	}
+func (r *Repository) UpsertBruteForceConfig(ctx context.Context, targetIDs []string, threshold, windowMinutes int) (*model.BruteForceConfig, error) {
 	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO brute_force_config (id, notification_target_ids, created_at, updated_at)
-		 VALUES ('default', $1, NOW(), NOW())
+		`INSERT INTO brute_force_config (id, notification_target_ids, threshold, window_minutes, created_at, updated_at)
+		 VALUES ('default', $1, $2, $3, NOW(), NOW())
 		 ON CONFLICT (id) DO UPDATE SET
 		   notification_target_ids = $1,
+		   threshold = $2,
+		   window_minutes = $3,
 		   updated_at = NOW()`,
-		targetIDs,
+		targetIDs, threshold, windowMinutes,
 	)
 	if err != nil {
 		return nil, err
