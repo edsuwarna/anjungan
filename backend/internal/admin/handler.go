@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	zlog "github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/edsuwarna/anjungan/internal/auth"
@@ -383,6 +384,19 @@ func (h *Handler) UnlockUser(w http.ResponseWriter, r *http.Request) {
 
 	h.logAudit(r, "user.unlock", "user", id,
 		fmt.Sprintf("Unlocked user %s (%s)", user.Name, user.Email))
+
+	// Record unlock event in auth_events
+	unlockEvent := &model.AuthEvent{
+		ID:        uuid.New().String(),
+		UserID:    id,
+		Email:     user.Email,
+		EventType: model.EventTypeUnlock,
+		Status:    model.EventStatusSuccess,
+		CreatedAt: time.Now(),
+	}
+	if err := h.repo.CreateAuthEvent(r.Context(), unlockEvent); err != nil {
+		zlog.Warn().Err(err).Str("user_id", id).Msg("failed to record unlock auth event")
+	}
 
 	common.JSON(w, http.StatusOK, map[string]string{"message": "user unlocked"})
 }

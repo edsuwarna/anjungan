@@ -1079,6 +1079,7 @@ const (
 	EventTypeRefreshToken = "refresh_token"
 	EventTypeRateLimited  = "rate_limited"
 	EventTypeIPBlocked    = "ip_blocked"
+	EventTypeUnlock       = "unlock"
 
 	EventStatusSuccess = "success"
 	EventStatusFailure = "failure"
