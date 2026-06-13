@@ -104,6 +104,7 @@
 				{ href: '/ssl-monitors', icon: 'solar:shield-check-bold', label: 'SSL Monitors' },
 				{ href: '/compliance', icon: 'solar:shield-check-bold', label: 'Compliance' },
 				{ href: '/admin/login-activity', icon: 'solar:login-2-bold', label: 'Login Activity', adminOnly: true },
+				{ href: '/admin/lockouts', icon: 'solar:lock-bold', label: 'Lockouts', adminOnly: true },
 			],
 		},
 		{

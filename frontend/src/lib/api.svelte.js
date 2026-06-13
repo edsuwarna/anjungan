@@ -140,6 +140,7 @@ export const api = {
 		}),
 		blockedIPs: () => request('/auth-activity/blocked-ips'),
 		myEvents: () => request('/auth-activity/events/mine'),
+		lockouts: () => request('/auth-activity/lockouts'),
 	},
 
 	// ── Dashboard ─────────────────────────────────────────────────
