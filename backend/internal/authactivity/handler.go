@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/model"
 )
@@ -24,6 +25,10 @@ type Repository interface {
 	GetTopIPs(ctx context.Context, days int) ([]model.TopIPEntry, error)
 	GetTopUsers(ctx context.Context, days int) ([]model.TopUserEntry, error)
 	GetHourlyHeatmap(ctx context.Context, days int) ([]model.HourlyHeatmapEntry, error)
+	CreateSecurityEvent(ctx context.Context, e *model.SecurityEvent) error
+	CreateBlockedIP(ctx context.Context, b *model.BlockedIP) error
+	RemoveBlockedIP(ctx context.Context, ipAddress string) error
+	ListBlockedIPs(ctx context.Context) ([]model.BlockedIP, error)
 }
 
 type Handler struct {
@@ -259,11 +264,12 @@ func (h *Handler) BlockIP(w http.ResponseWriter, r *http.Request) {
 		createdBy = claims.Email
 	}
 
+	now := time.Now()
 	data, _ := json.Marshal(map[string]interface{}{
 		"ip_address": req.IPAddress,
 		"created_by": createdBy,
 		"reason":     req.Reason,
-		"created_at": time.Now(),
+		"created_at": now,
 	})
 
 	key := "blocked_ip:" + req.IPAddress
@@ -274,6 +280,19 @@ func (h *Handler) BlockIP(w http.ResponseWriter, r *http.Request) {
 
 	// Also add to blocked_ips set for listing
 	h.rdb.SAdd(r.Context(), "blocked_ips", req.IPAddress)
+
+	// Persist to DB for durability
+	dbIP := &model.BlockedIP{
+		ID:        uuid.New().String(),
+		IPAddress: req.IPAddress,
+		Reason:    req.Reason,
+		CreatedBy: createdBy,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := h.repo.CreateBlockedIP(r.Context(), dbIP); err != nil {
+		zlog.Warn().Err(err).Str("ip", req.IPAddress).Msg("failed to persist blocked IP to DB")
+	}
 
 	common.JSON(w, http.StatusOK, map[string]string{"status": "blocked", "ip": req.IPAddress})
 }
@@ -296,40 +315,59 @@ func (h *Handler) UnblockIP(w http.ResponseWriter, r *http.Request) {
 	h.rdb.Del(r.Context(), key)
 	h.rdb.SRem(r.Context(), "blocked_ips", req.IPAddress)
 
+	// Remove from DB
+	if err := h.repo.RemoveBlockedIP(r.Context(), req.IPAddress); err != nil {
+		zlog.Warn().Err(err).Str("ip", req.IPAddress).Msg("failed to remove blocked IP from DB")
+	}
+
 	common.JSON(w, http.StatusOK, map[string]string{"status": "unblocked", "ip": req.IPAddress})
 }
 
-// GET /blocked-ips — list all blocked IPs
+// GET /blocked-ips — list all blocked IPs (Redis + DB merge)
 func (h *Handler) ListBlockedIPs(w http.ResponseWriter, r *http.Request) {
-	if h.rdb == nil {
-		common.JSON(w, http.StatusOK, []model.BlockedIP{})
-		return
+	byIP := make(map[string]model.BlockedIP)
+
+	// Get from DB (authoritative for metadata)
+	dbIPs, err := h.repo.ListBlockedIPs(r.Context())
+	if err != nil {
+		zlog.Warn().Err(err).Msg("failed to list blocked IPs from DB, falling back to Redis")
+	} else {
+		for _, b := range dbIPs {
+			byIP[b.IPAddress] = b
+		}
 	}
 
-	ips, err := h.rdb.SMembers(r.Context(), "blocked_ips").Result()
-	if err != nil {
-		common.Error(w, http.StatusInternalServerError, "failed to list blocked IPs")
-		return
+	// Get from Redis (real-time listing)
+	if h.rdb != nil {
+		ips, err := h.rdb.SMembers(r.Context(), "blocked_ips").Result()
+		if err == nil {
+			for _, ip := range ips {
+				if _, exists := byIP[ip]; !exists {
+					key := "blocked_ip:" + ip
+					data, err := h.rdb.Get(r.Context(), key).Result()
+					if err == nil {
+						var b model.BlockedIP
+						if json.Unmarshal([]byte(data), &b) == nil {
+							byIP[ip] = b
+						} else {
+							byIP[ip] = model.BlockedIP{IPAddress: ip}
+						}
+					} else {
+						byIP[ip] = model.BlockedIP{IPAddress: ip}
+					}
+				}
+			}
+		}
 	}
 
 	var result []model.BlockedIP
-	for _, ip := range ips {
-		key := "blocked_ip:" + ip
-		data, err := h.rdb.Get(r.Context(), key).Result()
-		if err != nil {
-			result = append(result, model.BlockedIP{IPAddress: ip})
-			continue
-		}
-		var b model.BlockedIP
-		if json.Unmarshal([]byte(data), &b) == nil {
-			result = append(result, b)
-		} else {
-			result = append(result, model.BlockedIP{IPAddress: ip})
-		}
+	for _, b := range byIP {
+		result = append(result, b)
 	}
 	if result == nil {
 		result = []model.BlockedIP{}
 	}
+
 	common.JSON(w, http.StatusOK, result)
 }
 

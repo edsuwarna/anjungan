@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/edsuwarna/anjungan/internal/bookmark"
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
+	"github.com/edsuwarna/anjungan/internal/common/model"
 	"github.com/edsuwarna/anjungan/internal/compliance"
 	"github.com/edsuwarna/anjungan/internal/config"
 	"github.com/edsuwarna/anjungan/internal/container"
@@ -76,6 +78,28 @@ func New(cfg *config.Config) (*Server, error) {
 	authActivityH := authactivity.NewHandler(repo)
 	authActivityH.SetRedis(rdb)
 
+	// Sync blocked IPs from DB into Redis on startup (in case Redis was restarted)
+	go func() {
+		ctx := context.Background()
+		dbIPs, err := repo.ListBlockedIPs(ctx)
+		if err != nil {
+			zlog.Warn().Err(err).Msg("failed to sync blocked IPs from DB on startup")
+		} else if len(dbIPs) > 0 {
+			for _, b := range dbIPs {
+				key := "blocked_ip:" + b.IPAddress
+				data, _ := json.Marshal(map[string]interface{}{
+					"ip_address": b.IPAddress,
+					"created_by": b.CreatedBy,
+					"reason":     b.Reason,
+					"created_at": b.CreatedAt,
+				})
+				rdb.Set(ctx, key, string(data), 0)
+				rdb.SAdd(ctx, "blocked_ips", b.IPAddress)
+			}
+			zlog.Info().Int("count", len(dbIPs)).Msg("synced blocked IPs from DB to Redis")
+		}
+	}()
+
 	srv := &Server{cfg: cfg, db: database}
 	srv.setupRouter(authH, authSvc, repo, rl, authActivityH)
 
@@ -93,22 +117,36 @@ func New(cfg *config.Config) (*Server, error) {
 			if len(alerts) > 0 {
 				zlog.Warn().Int("alerts", len(alerts)).Msg("brute force alerts detected")
 				for _, a := range alerts {
-				zlog.Warn().
-					Str("ip", a.IPAddress).
-					Int("failures", a.Failures).
-					Int("users", a.UserCount).
-					Int("window_min", a.WindowMinutes).
-					Msg("brute force alert")
-				// Store alert in audit log for persistence
-				meta, _ := json.Marshal(map[string]interface{}{
-						"ip_address":     a.IPAddress,
+					zlog.Warn().
+						Str("ip", a.IPAddress).
+						Int("failures", a.Failures).
+						Int("users", a.UserCount).
+						Int("window_min", a.WindowMinutes).
+						Msg("brute force alert")
+					// Determine event type by user count
+					eventType := "brute_force"
+					if a.UserCount > 5 {
+						eventType = "credential_stuffing"
+					}
+					details, _ := json.Marshal(map[string]interface{}{
 						"failures":       a.Failures,
 						"user_count":     a.UserCount,
 						"window_minutes": a.WindowMinutes,
 						"first_attempt":  a.FirstAttempt,
 						"last_attempt":   a.LastAttempt,
 					})
-					_ = meta // reserved — future: write to security_events table
+					sev := &model.SecurityEvent{
+						ID:         uuid.New().String(),
+						EventType:  eventType,
+						IPAddress:  a.IPAddress,
+						Details:    string(details),
+						Severity:   "high",
+						DetectedAt: time.Now(),
+						CreatedAt:  time.Now(),
+					}
+					if err := repo.CreateSecurityEvent(ctx, sev); err != nil {
+						zlog.Error().Err(err).Str("ip", a.IPAddress).Msg("failed to persist security event")
+					}
 				}
 			}
 		}

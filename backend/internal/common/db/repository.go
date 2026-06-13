@@ -4408,3 +4408,58 @@ func maskIP(ip string) string {
 	}
 	return ip
 }
+
+// ─── Security Events ──────────────────────────────────────────────────────────
+
+func (r *Repository) CreateSecurityEvent(ctx context.Context, e *model.SecurityEvent) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO security_events (id, event_type, ip_address, details, severity, detected_at, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		e.ID, e.EventType, e.IPAddress, e.Details, e.Severity, e.DetectedAt, e.CreatedAt,
+	)
+	return err
+}
+
+// ─── Blocked IPs (DB-backed persistence) ─────────────────────────────────────
+
+func (r *Repository) CreateBlockedIP(ctx context.Context, b *model.BlockedIP) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO blocked_ips (id, ip_address, reason, created_by, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (ip_address) DO UPDATE SET
+		   reason = EXCLUDED.reason,
+		   created_by = EXCLUDED.created_by,
+		   updated_at = NOW()`,
+		b.ID, b.IPAddress, b.Reason, b.CreatedBy, b.CreatedAt, b.CreatedAt,
+	)
+	return err
+}
+
+func (r *Repository) RemoveBlockedIP(ctx context.Context, ipAddress string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM blocked_ips WHERE ip_address = $1`, ipAddress)
+	return err
+}
+
+func (r *Repository) ListBlockedIPs(ctx context.Context) ([]model.BlockedIP, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, ip_address, COALESCE(reason,''), COALESCE(created_by,''), created_at, updated_at
+		 FROM blocked_ips ORDER BY created_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ips []model.BlockedIP
+	for rows.Next() {
+		var b model.BlockedIP
+		if err := rows.Scan(&b.ID, &b.IPAddress, &b.Reason, &b.CreatedBy, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			return nil, err
+		}
+		ips = append(ips, b)
+	}
+	if ips == nil {
+		ips = []model.BlockedIP{}
+	}
+	return ips, nil
+}

@@ -1165,8 +1165,21 @@ type HourlyHeatmapEntry struct {
 }
 
 type BlockedIP struct {
+	ID        string    `json:"id"`
 	IPAddress string    `json:"ip_address"`
-	CreatedAt time.Time `json:"created_at"`
-	CreatedBy string    `json:"created_by,omitempty"`
 	Reason    string    `json:"reason,omitempty"`
+	CreatedBy string    `json:"created_by,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SecurityEvent records high-severity security events (brute force, credential stuffing, etc.)
+type SecurityEvent struct {
+	ID         string    `json:"id"`
+	EventType  string    `json:"event_type"`
+	IPAddress  string    `json:"ip_address"`
+	Details    string    `json:"details,omitempty"`
+	Severity   string    `json:"severity"`
+	DetectedAt time.Time `json:"detected_at"`
+	CreatedAt  time.Time `json:"created_at"`
 }
