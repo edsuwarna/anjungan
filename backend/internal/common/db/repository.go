@@ -3557,18 +3557,13 @@ func (r *Repository) ListActiveMaintenanceWindows(ctx context.Context, monitorID
 
 // ─── Notification Targets (shared — SSL + Uptime) ──────────────────────────
 
-// ListNotificationTargets returns enabled notification targets, optionally filtered by scope.
-func (r *Repository) ListNotificationTargets(ctx context.Context, scope string) ([]model.NotificationTarget, error) {
-	var args []interface{}
+// ListNotificationTargets returns enabled notification targets.
+func (r *Repository) ListNotificationTargets(ctx context.Context) ([]model.NotificationTarget, error) {
 	query := `SELECT id, name, url, platform, COALESCE(webhook_secret, ''), COALESCE(bot_token, ''), COALESCE(chat_id, ''), enabled,
-		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at
-		 FROM notification_targets WHERE enabled=true`
-	if scope != "" {
-		query += ` AND scopes @> ARRAY[$1]`
-		args = append(args, scope)
-	}
+		 COALESCE(created_by, ''), created_at, updated_at
+		 FROM notification_targets WHERE enabled=true ORDER BY name`
 
-	rows, err := r.db.Pool.Query(ctx, query, args...)
+	rows, err := r.db.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -3577,7 +3572,7 @@ func (r *Repository) ListNotificationTargets(ctx context.Context, scope string) 
 	var items []model.NotificationTarget
 	for rows.Next() {
 		var t model.NotificationTarget
-		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.BotToken, &t.ChatID, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.BotToken, &t.ChatID, &t.Enabled, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, t)
@@ -3593,9 +3588,9 @@ func (r *Repository) GetNotificationTarget(ctx context.Context, id string) (*mod
 	t := &model.NotificationTarget{}
 	err := r.db.Pool.QueryRow(ctx,
 		`SELECT id, name, url, platform, COALESCE(webhook_secret, ''), COALESCE(bot_token, ''), COALESCE(chat_id, ''), enabled,
-		 COALESCE(scopes, '{}'), COALESCE(created_by, ''), created_at, updated_at
+		 COALESCE(created_by, ''), created_at, updated_at
 		 FROM notification_targets WHERE id = $1`, id).
-		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.BotToken, &t.ChatID, &t.Enabled, &t.Scopes, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
+		Scan(&t.ID, &t.Name, &t.URL, &t.Platform, &t.WebhookSecret, &t.BotToken, &t.ChatID, &t.Enabled, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -3611,9 +3606,9 @@ func (r *Repository) CreateNotificationTarget(ctx context.Context, t *model.Noti
 		t.ID = uuid.New().String()
 	}
 	_, err := r.db.Pool.Exec(ctx,
-		`INSERT INTO notification_targets (id, name, url, platform, webhook_secret, bot_token, chat_id, enabled, scopes, created_by, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.BotToken, t.ChatID, t.Enabled, t.Scopes, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
+		`INSERT INTO notification_targets (id, name, url, platform, webhook_secret, bot_token, chat_id, enabled, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		t.ID, t.Name, t.URL, t.Platform, t.WebhookSecret, t.BotToken, t.ChatID, t.Enabled, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
 	return err
 }
 
@@ -3621,8 +3616,8 @@ func (r *Repository) CreateNotificationTarget(ctx context.Context, t *model.Noti
 func (r *Repository) UpdateNotificationTarget(ctx context.Context, t *model.NotificationTarget) error {
 	_, err := r.db.Pool.Exec(ctx,
 		`UPDATE notification_targets SET name=$1, url=$2, platform=$3, webhook_secret=$4,
-		 bot_token=$5, chat_id=$6, enabled=$7, scopes=$8, updated_at=NOW() WHERE id=$9`,
-		t.Name, t.URL, t.Platform, t.WebhookSecret, t.BotToken, t.ChatID, t.Enabled, t.Scopes, t.ID)
+		 bot_token=$5, chat_id=$6, enabled=$7, updated_at=NOW() WHERE id=$8`,
+		t.Name, t.URL, t.Platform, t.WebhookSecret, t.BotToken, t.ChatID, t.Enabled, t.ID)
 	return err
 }
 
@@ -4044,4 +4039,504 @@ func (r *Repository) ReorderBookmarks(ctx context.Context, items []model.Bookmar
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+// ─── Auth Events ──────────────────────────────────────────────────────────────
+
+func (r *Repository) CreateAuthEvent(ctx context.Context, e *model.AuthEvent) error {
+	var userID *string
+	if e.UserID != "" {
+		userID = &e.UserID
+	}
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO auth_events (id, user_id, email, event_type, status, failure_reason, ip_address, user_agent, country, asn, isp, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		e.ID, userID, e.Email, e.EventType, e.Status, e.FailureReason,
+		e.IPAddress, e.UserAgent, e.Country, e.ASN, e.ISP, e.CreatedAt,
+	)
+	return err
+}
+
+func (r *Repository) ListAuthEvents(ctx context.Context, q model.AuthEventQuery) (*model.AuthEventListResponse, error) {
+	where := []string{"1=1"}
+	args := []interface{}{}
+	argIdx := 1
+
+	if q.EventType != "" {
+		where = append(where, fmt.Sprintf("event_type = $%d", argIdx))
+		args = append(args, q.EventType)
+		argIdx++
+	}
+	if q.Status != "" {
+		where = append(where, fmt.Sprintf("status = $%d", argIdx))
+		args = append(args, q.Status)
+		argIdx++
+	}
+	if q.UserID != "" {
+		where = append(where, fmt.Sprintf("user_id = $%d", argIdx))
+		args = append(args, q.UserID)
+		argIdx++
+	}
+	if q.Email != "" {
+		where = append(where, fmt.Sprintf("email ILIKE $%d", argIdx))
+		args = append(args, "%"+q.Email+"%")
+		argIdx++
+	}
+	if q.IPAddress != "" {
+		where = append(where, fmt.Sprintf("ip_address = $%d", argIdx))
+		args = append(args, q.IPAddress)
+		argIdx++
+	}
+	if q.Search != "" {
+		where = append(where, fmt.Sprintf("(email ILIKE $%d OR ip_address ILIKE $%d OR failure_reason ILIKE $%d)", argIdx, argIdx+1, argIdx+2))
+		search := "%" + q.Search + "%"
+		args = append(args, search, search, search)
+		argIdx += 3
+	}
+	if q.StartDate != nil && *q.StartDate != "" {
+		where = append(where, fmt.Sprintf("created_at >= $%d", argIdx))
+		args = append(args, *q.StartDate)
+		argIdx++
+	}
+	if q.EndDate != nil && *q.EndDate != "" {
+		where = append(where, fmt.Sprintf("created_at <= $%d", argIdx))
+		args = append(args, *q.EndDate)
+		argIdx++
+	}
+
+	whereClause := strings.Join(where, " AND ")
+
+	// Count total
+	var total int
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM auth_events WHERE %s`, whereClause)
+	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	// Sort & order
+	sort := "created_at"
+	order := "DESC"
+	if q.Sort != "" {
+		validSorts := map[string]bool{"created_at": true, "email": true, "event_type": true, "status": true, "ip_address": true}
+		if validSorts[q.Sort] {
+			sort = q.Sort
+		}
+	}
+	if q.Order == "asc" {
+		order = "ASC"
+	}
+
+	// Pagination
+	limit := 50
+	if q.Limit > 0 && q.Limit <= 200 {
+		limit = q.Limit
+	}
+	page := 1
+	if q.Page > 0 {
+		page = q.Page
+	}
+	offset := (page - 1) * limit
+
+	query := fmt.Sprintf(
+		`SELECT id, COALESCE(user_id::TEXT,''), email, event_type, status, COALESCE(failure_reason,''), ip_address, user_agent, country, asn, isp, created_at
+		 FROM auth_events WHERE %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		whereClause, sort, order, argIdx, argIdx+1,
+	)
+	fullArgs := append(args, limit, offset)
+
+	rows, err := r.db.Pool.Query(ctx, query, fullArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*model.AuthEvent
+	for rows.Next() {
+		e := &model.AuthEvent{}
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Email, &e.EventType, &e.Status, &e.FailureReason,
+			&e.IPAddress, &e.UserAgent, &e.Country, &e.ASN, &e.ISP, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	return &model.AuthEventListResponse{
+		Events:     events,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (r *Repository) GetAuthEventSummary(ctx context.Context) (*model.AuthEventSummary, error) {
+	s := &model.AuthEventSummary{}
+
+	r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM auth_events WHERE event_type = 'login_success' AND created_at >= CURRENT_DATE`,
+	).Scan(&s.LoginsToday)
+
+	r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM auth_events WHERE status = 'failure' AND created_at >= CURRENT_DATE`,
+	).Scan(&s.FailedToday)
+
+	r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM auth_events WHERE event_type = 'lockout' AND created_at >= CURRENT_DATE`,
+	).Scan(&s.LockedToday)
+
+	r.db.Pool.QueryRow(ctx,
+		`SELECT COUNT(DISTINCT ip_address) FROM auth_events WHERE ip_address != '' AND created_at >= CURRENT_DATE`,
+	).Scan(&s.UniqueIPs)
+
+	totalToday := s.LoginsToday + s.FailedToday
+	if totalToday > 0 {
+		s.SuccessRate = int(float64(s.LoginsToday) / float64(totalToday) * 100)
+	}
+
+	return s, nil
+}
+
+func (r *Repository) GetAuthEventTrend(ctx context.Context, days int) ([]model.AuthEventTrend, error) {
+	if days < 1 || days > 90 {
+		days = 7
+	}
+
+	since := time.Now().AddDate(0, 0, -days).Truncate(24 * time.Hour)
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT DATE(created_at)::TEXT AS d,
+		        COUNT(*) FILTER (WHERE event_type = 'login_success') AS success,
+		        COUNT(*) FILTER (WHERE status = 'failure') AS failure
+		 FROM auth_events
+		 WHERE created_at >= $1
+		 GROUP BY DATE(created_at)
+		 ORDER BY d ASC`,
+		since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var trends []model.AuthEventTrend
+	for rows.Next() {
+		t := model.AuthEventTrend{}
+		if err := rows.Scan(&t.Date, &t.Success, &t.Failure); err != nil {
+			return nil, err
+		}
+		trends = append(trends, t)
+	}
+	return trends, nil
+}
+
+func (r *Repository) DetectBruteForce(ctx context.Context, threshold, windowMinutes int) ([]model.BruteForceAlert, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`WITH failed_events AS (
+		   SELECT ip_address, created_at, user_id, email, country, isp, asn
+		   FROM auth_events
+		   WHERE status = 'failure'
+		     AND created_at >= NOW() - ($1 || ' minutes')::INTERVAL
+		 )
+		 SELECT
+		   fe.ip_address,
+		   COUNT(*) AS failures,
+		   MIN(fe.created_at) AS first_attempt,
+		   MAX(fe.created_at) AS last_attempt,
+		   COUNT(DISTINCT fe.user_id) AS user_count,
+		   COALESCE((SELECT fe2.country FROM failed_events fe2 WHERE fe2.ip_address = fe.ip_address AND fe2.country != '' LIMIT 1), '') AS country,
+		   COALESCE((SELECT fe2.isp FROM failed_events fe2 WHERE fe2.ip_address = fe.ip_address AND fe2.isp != '' LIMIT 1), '') AS isp,
+		   COALESCE((SELECT fe2.asn FROM failed_events fe2 WHERE fe2.ip_address = fe.ip_address AND fe2.asn != '' LIMIT 1), '') AS asn,
+		   COALESCE((SELECT STRING_AGG(DISTINCT sub.email, ', ') FROM (SELECT DISTINCT fe3.email FROM failed_events fe3 WHERE fe3.ip_address = fe.ip_address LIMIT 3) sub), '') AS sample_emails
+		 FROM failed_events fe
+		 GROUP BY fe.ip_address
+		 HAVING COUNT(*) >= $2
+		 ORDER BY failures DESC`,
+		fmt.Sprintf("%d", windowMinutes), threshold,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alerts []model.BruteForceAlert
+	for rows.Next() {
+		a := model.BruteForceAlert{
+			WindowMinutes: windowMinutes,
+		}
+		var first, last time.Time
+		if err := rows.Scan(&a.IPAddress, &a.Failures, &first, &last, &a.UserCount,
+			&a.Country, &a.ISP, &a.ASN, &a.SampleEmails); err != nil {
+			return nil, err
+		}
+		a.FirstAttempt = first.Format(time.RFC3339)
+		a.LastAttempt = last.Format(time.RFC3339)
+		alerts = append(alerts, a)
+	}
+	return alerts, nil
+}
+
+// ListMyAuthEvents returns recent auth events for a specific user.
+func (r *Repository) ListMyAuthEvents(ctx context.Context, userID string, limit int) ([]*model.AuthEvent, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, COALESCE(user_id::TEXT,''), email, event_type, status, COALESCE(failure_reason,''),
+		        ip_address, user_agent, country, asn, isp, created_at
+		 FROM auth_events WHERE user_id = $1
+		 ORDER BY created_at DESC LIMIT $2`,
+		userID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*model.AuthEvent
+	for rows.Next() {
+		e := &model.AuthEvent{}
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Email, &e.EventType, &e.Status, &e.FailureReason,
+			&e.IPAddress, &e.UserAgent, &e.Country, &e.ASN, &e.ISP, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		e.IPAddress = maskIP(e.IPAddress)
+		events = append(events, e)
+	}
+	return events, nil
+}
+
+// GetTopIPs returns IPs with the most failed auth events in the given period.
+func (r *Repository) GetTopIPs(ctx context.Context, days int) ([]model.TopIPEntry, error) {
+	if days < 1 || days > 90 {
+		days = 7
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT ip_address, COUNT(*) AS failures, COUNT(DISTINCT user_id) AS users,
+		        COALESCE(MIN(country), '') AS country
+		 FROM auth_events
+		 WHERE status = 'failure' AND created_at >= NOW() - ($1 || ' days')::INTERVAL AND ip_address != ''
+		 GROUP BY ip_address
+		 ORDER BY failures DESC LIMIT 10`,
+		fmt.Sprintf("%d", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.TopIPEntry
+	for rows.Next() {
+		var e model.TopIPEntry
+		if err := rows.Scan(&e.IPAddress, &e.Failures, &e.Users, &e.Country); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
+// GetTopUsers returns users with the most failed auth events in the given period.
+func (r *Repository) GetTopUsers(ctx context.Context, days int) ([]model.TopUserEntry, error) {
+	if days < 1 || days > 90 {
+		days = 7
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT email, COUNT(*) AS failures, COALESCE(user_id::TEXT, '') AS user_id
+		 FROM auth_events
+		 WHERE status = 'failure' AND created_at >= NOW() - ($1 || ' days')::INTERVAL
+		  AND email != ''
+		 GROUP BY email, user_id
+		 ORDER BY failures DESC LIMIT 10`,
+		fmt.Sprintf("%d", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.TopUserEntry
+	for rows.Next() {
+		var e model.TopUserEntry
+		if err := rows.Scan(&e.Email, &e.Failures, &e.UserID); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
+// GetHourlyHeatmap returns hourly aggregated auth events for the given period.
+func (r *Repository) GetHourlyHeatmap(ctx context.Context, days int) ([]model.HourlyHeatmapEntry, error) {
+	if days < 1 || days > 90 {
+		days = 7
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT EXTRACT(HOUR FROM created_at)::int AS hour,
+		        COUNT(*) FILTER (WHERE status = 'success') AS success,
+		        COUNT(*) FILTER (WHERE status = 'failure') AS failure
+		 FROM auth_events
+		 WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+		 GROUP BY hour
+		 ORDER BY hour`,
+		fmt.Sprintf("%d", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.HourlyHeatmapEntry
+	for rows.Next() {
+		var e model.HourlyHeatmapEntry
+		if err := rows.Scan(&e.Hour, &e.Success, &e.Failure); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
+// maskIP obscures the last octet(s) of an IP for user-facing views.
+func maskIP(ip string) string {
+	if ip == "" {
+		return ip
+	}
+	// Simple IPv4 masking
+	for i := len(ip) - 1; i >= 0; i-- {
+		if ip[i] == '.' {
+			return ip[:i+1] + "***"
+		}
+	}
+	return ip
+}
+
+// ─── Security Events ──────────────────────────────────────────────────────────
+
+func (r *Repository) CreateSecurityEvent(ctx context.Context, e *model.SecurityEvent) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO security_events (id, event_type, ip_address, details, severity, detected_at, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		e.ID, e.EventType, e.IPAddress, e.Details, e.Severity, e.DetectedAt, e.CreatedAt,
+	)
+	return err
+}
+
+// ─── Blocked IPs (DB-backed persistence) ─────────────────────────────────────
+
+func (r *Repository) CreateBlockedIP(ctx context.Context, b *model.BlockedIP) error {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO blocked_ips (id, ip_address, reason, created_by, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (ip_address) DO UPDATE SET
+		   reason = EXCLUDED.reason,
+		   created_by = EXCLUDED.created_by,
+		   updated_at = NOW()`,
+		b.ID, b.IPAddress, b.Reason, b.CreatedBy, b.CreatedAt, b.CreatedAt,
+	)
+	return err
+}
+
+func (r *Repository) RemoveBlockedIP(ctx context.Context, ipAddress string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM blocked_ips WHERE ip_address = $1`, ipAddress)
+	return err
+}
+
+func (r *Repository) ListBlockedIPs(ctx context.Context) ([]model.BlockedIP, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, ip_address, COALESCE(reason,''), COALESCE(created_by,''), created_at, updated_at
+		 FROM blocked_ips ORDER BY created_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ips []model.BlockedIP
+	for rows.Next() {
+		var b model.BlockedIP
+		if err := rows.Scan(&b.ID, &b.IPAddress, &b.Reason, &b.CreatedBy, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			return nil, err
+		}
+		ips = append(ips, b)
+	}
+	if ips == nil {
+		ips = []model.BlockedIP{}
+	}
+	return ips, nil
+}
+
+// GetUserIDByEmail returns a user's ID by their email address.
+func (r *Repository) GetUserIDByEmail(ctx context.Context, email string) (string, error) {
+	var userID string
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id::TEXT FROM users WHERE email = $1`, email,
+	).Scan(&userID)
+	if err != nil {
+		return "", err
+	}
+	return userID, nil
+}
+
+// ─── Auth Events Purge ─────────────────────────────────────────────────────────
+
+func (r *Repository) PurgeAuthEvents(ctx context.Context, olderThan time.Duration) (int64, error) {
+	result, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM auth_events WHERE created_at < NOW() - ($1 || ' days')::INTERVAL`,
+		fmt.Sprintf("%d", int(olderThan.Hours()/24)),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+// ─── Brute Force Config ─────────────────────────────────────────────────────
+
+// GetBruteForceConfig returns the brute force alert config.
+func (r *Repository) GetBruteForceConfig(ctx context.Context) (*model.BruteForceConfig, error) {
+	cfg := &model.BruteForceConfig{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, COALESCE(notification_target_ids, '{}'),
+		        COALESCE(threshold, 20), COALESCE(window_minutes, 5),
+		        created_at, updated_at
+		 FROM brute_force_config WHERE id = 'default'`,
+	).Scan(&cfg.ID, &cfg.NotificationTargetIDs, &cfg.Threshold, &cfg.WindowMinutes, &cfg.CreatedAt, &cfg.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &model.BruteForceConfig{ID: "default", NotificationTargetIDs: []string{}, Threshold: 20, WindowMinutes: 5}, nil
+		}
+		return nil, err
+	}
+	if cfg.NotificationTargetIDs == nil {
+		cfg.NotificationTargetIDs = []string{}
+	}
+	if cfg.Threshold <= 0 {
+		cfg.Threshold = 20
+	}
+	if cfg.WindowMinutes <= 0 {
+		cfg.WindowMinutes = 5
+	}
+	return cfg, nil
+}
+
+// UpsertBruteForceConfig updates the brute force alert config.
+func (r *Repository) UpsertBruteForceConfig(ctx context.Context, targetIDs []string, threshold, windowMinutes int) (*model.BruteForceConfig, error) {
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO brute_force_config (id, notification_target_ids, threshold, window_minutes, created_at, updated_at)
+		 VALUES ('default', $1, $2, $3, NOW(), NOW())
+		 ON CONFLICT (id) DO UPDATE SET
+		   notification_target_ids = $1,
+		   threshold = $2,
+		   window_minutes = $3,
+		   updated_at = NOW()`,
+		targetIDs, threshold, windowMinutes,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetBruteForceConfig(ctx)
 }

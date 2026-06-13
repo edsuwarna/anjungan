@@ -958,7 +958,6 @@ type NotificationTarget struct {
 	BotToken      string    `json:"bot_token,omitempty"`
 	ChatID        string    `json:"chat_id,omitempty"`
 	Enabled       bool      `json:"enabled"`
-	Scopes        []string  `json:"scopes"`
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -972,7 +971,6 @@ type NotificationTargetRequest struct {
 	BotToken      string   `json:"bot_token,omitempty"`
 	ChatID        string   `json:"chat_id,omitempty"`
 	Enabled       *bool    `json:"enabled,omitempty"`
-	Scopes        []string `json:"scopes"`
 }
 
 func (r *NotificationTargetRequest) Validate() string {
@@ -995,12 +993,6 @@ func (r *NotificationTargetRequest) Validate() string {
 		}
 	} else if r.URL == "" {
 		return "URL is required for this platform"
-	}
-	for _, s := range r.Scopes {
-		validScopes := map[string]bool{"ssl": true, "uptime": true}
-		if !validScopes[s] {
-			return "scope must be ssl or uptime"
-		}
 	}
 	return ""
 }
@@ -1062,4 +1054,139 @@ func (r *BookmarkRequest) Validate() string {
 type BookmarkReorderItem struct {
 	ID        string `json:"id"`
 	SortOrder int    `json:"sort_order"`
+}
+
+// ─── Auth Events ────────────────────────────────────────────────────────────────
+
+const (
+	EventTypeLoginAttempt = "login_attempt"
+	EventTypeLoginSuccess = "login_success"
+	EventTypeLoginFailure = "login_failure"
+	EventTypeLogout       = "logout"
+	EventTypeLockout      = "lockout"
+	EventTypePasswordChange = "password_change"
+	EventTypeTOTPSetup    = "totp_setup"
+	EventTypeTOTPDisable  = "totp_disable"
+	EventTypeRegister     = "register"
+	EventTypeRefreshToken = "refresh_token"
+	EventTypeRateLimited  = "rate_limited"
+	EventTypeIPBlocked    = "ip_blocked"
+	EventTypeUnlock       = "unlock"
+
+	EventStatusSuccess = "success"
+	EventStatusFailure = "failure"
+)
+
+type AuthEvent struct {
+	ID            string    `json:"id"`
+	UserID        string    `json:"user_id,omitempty"`
+	Email         string    `json:"email"`
+	EventType     string    `json:"event_type"`
+	Status        string    `json:"status"`
+	FailureReason string    `json:"failure_reason,omitempty"`
+	IPAddress     string    `json:"ip_address"`
+	UserAgent     string    `json:"user_agent,omitempty"`
+	Country       string    `json:"country,omitempty"`
+	ASN           string    `json:"asn,omitempty"`
+	ISP           string    `json:"isp,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type AuthEventQuery struct {
+	Page       int     `json:"page"`
+	Limit      int     `json:"limit"`
+	EventType  string  `json:"event_type"`
+	Status     string  `json:"status"`
+	UserID     string  `json:"user_id"`
+	Email      string  `json:"email"`
+	IPAddress  string  `json:"ip_address"`
+	Search     string  `json:"search"`
+	Sort       string  `json:"sort"`
+	Order      string  `json:"order"`
+	StartDate  *string `json:"start_date,omitempty"`
+	EndDate    *string `json:"end_date,omitempty"`
+}
+
+type AuthEventListResponse struct {
+	Events     []*AuthEvent `json:"events"`
+	Total      int          `json:"total"`
+	Page       int          `json:"page"`
+	Limit      int          `json:"limit"`
+	TotalPages int          `json:"total_pages"`
+}
+
+type AuthEventSummary struct {
+	LoginsToday  int `json:"logins_today"`
+	FailedToday  int `json:"failed_today"`
+	LockedToday  int `json:"locked_today"`
+	UniqueIPs    int `json:"unique_ips"`
+	SuccessRate  int `json:"success_rate"` // percentage today
+}
+
+type AuthEventTrend struct {
+	Date    string `json:"date"`
+	Success int    `json:"success"`
+	Failure int    `json:"failure"`
+}
+
+type BruteForceAlert struct {
+	IPAddress     string `json:"ip_address"`
+	Failures      int    `json:"failures"`
+	WindowMinutes int    `json:"window_minutes"`
+	FirstAttempt  string `json:"first_attempt"`
+	LastAttempt   string `json:"last_attempt"`
+	UserCount     int    `json:"user_count"`
+	Country       string `json:"country,omitempty"`
+	ISP           string `json:"isp,omitempty"`
+	ASN           string `json:"asn,omitempty"`
+	SampleEmails  string `json:"sample_emails,omitempty"`
+}
+
+type TopIPEntry struct {
+	IPAddress string `json:"ip_address"`
+	Failures  int    `json:"failures"`
+	Users     int    `json:"users"`
+	Country   string `json:"country,omitempty"`
+}
+
+type TopUserEntry struct {
+	Email    string `json:"email"`
+	Failures int    `json:"failures"`
+	UserID   string `json:"user_id,omitempty"`
+}
+
+type HourlyHeatmapEntry struct {
+	Hour    int `json:"hour"`
+	Success int `json:"success"`
+	Failure int `json:"failure"`
+}
+
+type BlockedIP struct {
+	ID        string    `json:"id"`
+	IPAddress string    `json:"ip_address"`
+	Reason    string    `json:"reason,omitempty"`
+	CreatedBy string    `json:"created_by,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SecurityEvent records high-severity security events (brute force, credential stuffing, etc.)
+type SecurityEvent struct {
+	ID         string    `json:"id"`
+	EventType  string    `json:"event_type"`
+	IPAddress  string    `json:"ip_address"`
+	Details    string    `json:"details,omitempty"`
+	Severity   string    `json:"severity"`
+	DetectedAt time.Time `json:"detected_at"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// BruteForceConfig stores notification target IDs and detection parameters for brute force alerts.
+type BruteForceConfig struct {
+	ID                   string    `json:"id"`
+	NotificationTargetIDs []string `json:"notification_target_ids"`
+	Threshold            int       `json:"threshold"`
+	WindowMinutes        int       `json:"window_minutes"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }

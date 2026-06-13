@@ -187,7 +187,7 @@ func (s *Scheduler) dispatchNotification(ctx context.Context, m *model.UptimeMon
 	}
 
 	// Load all enabled notification targets
-	targets, err := s.repo.ListNotificationTargets(ctx, "")
+	targets, err := s.repo.ListNotificationTargets(ctx)
 	if err != nil {
 		log.Printf("[uptime] failed to load notification targets for %s: %v", m.ID, err)
 		return

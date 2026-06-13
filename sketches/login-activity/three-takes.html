@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login Activity — Wireframe Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --color-sidebar-bg: #ffffff;
+    --color-sidebar-hover: #f1f5f9;
+    --color-sidebar-active: #0d9488;
+    --color-sidebar-text: #1e293b;
+    --color-sidebar-text-muted: #64748b;
+    --color-sidebar-text-active: #ffffff;
+    --color-sidebar-border: #e2e8f0;
+    --color-surface: #f8fafc;
+    --color-card: #ffffff;
+    --color-border: #cbd5e1;
+    --color-border-light: #e2e8f0;
+    --color-text: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #64748b;
+    --color-primary: #10b981;
+    --color-primary-hover: #059669;
+    --color-primary-light: #d1fae5;
+    --color-primary-subtle: #f0fdfa;
+    --color-accent: #6366f1;
+    --color-danger: #ef4444;
+    --color-warning: #f59e0b;
+    --color-success: #10b981;
+    --color-topbar-bg: #ffffff;
+    --color-topbar-border: #e2e8f0;
+    --color-purple: #8b5cf6;
+    --color-orange: #f97316;
+    --color-blue: #3b82f6;
+  }
+
+  .dark {
+    --color-sidebar-bg: #0f172a;
+    --color-sidebar-hover: #1e293b;
+    --color-sidebar-active: #0d9488;
+    --color-sidebar-text: #e2e8f0;
+    --color-sidebar-text-muted: #64748b;
+    --color-sidebar-text-active: #ffffff;
+    --color-sidebar-border: #1e293b;
+    --color-surface: #0f172a;
+    --color-card: #1e293b;
+    --color-border: #334155;
+    --color-border-light: #1e293b;
+    --color-text: #f1f5f9;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-primary: #14b8a6;
+    --color-primary-hover: #2dd4bf;
+    --color-primary-light: #134e4a;
+    --color-primary-subtle: #042f2e;
+    --color-accent: #818cf8;
+    --color-danger: #f87171;
+    --color-warning: #fbbf24;
+    --color-success: #34d399;
+    --color-topbar-bg: #1e293b;
+    --color-topbar-border: #334155;
+    --color-purple: #a78bfa;
+    --color-orange: #fb923c;
+    --color-blue: #60a5fa;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: var(--color-surface);
+    color: var(--color-text);
+    line-height: 1.5;
+  }
+
+  /* ---- Variant tabs (top navigation) ---- */
+  .variant-tabs {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: 48px;
+    padding: 0 24px;
+    background: var(--color-card);
+    border-bottom: 1px solid var(--color-border-light);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .variant-tabs .label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-right: 16px;
+  }
+  .variant-tabs button {
+    padding: 6px 14px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-right: 8px;
+  }
+  .variant-tabs button:hover {
+    background: var(--color-primary-subtle);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+  .variant-tabs button.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+  }
+  .variant-tabs .theme-toggle {
+    margin-left: auto;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .variant-tabs .theme-toggle:hover {
+    background: var(--color-sidebar-hover);
+  }
+
+  /* ---- Page shell ---- */
+  .page-shell {
+    position: fixed;
+    top: 48px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+  }
+  .sidebar {
+    width: 256px;
+    flex-shrink: 0;
+    background: var(--color-sidebar-bg);
+    border-right: 1px solid var(--color-sidebar-border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .main-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    max-width: 1200px;
+  }
+
+  /* ---- Sidebar mock ---- */
+  .sidebar .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--color-sidebar-border);
+  }
+  .sidebar .logo .badge {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--color-primary);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: white;
+  }
+  .sidebar .logo span {
+    font-weight: 600; font-size: 16px;
+    color: var(--color-sidebar-text);
+  }
+  .sidebar .nav-section {
+    padding: 16px 12px 4px;
+  }
+  .sidebar .nav-section .cat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    padding: 0 8px 6px;
+  }
+  .sidebar .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--color-sidebar-text);
+    text-decoration: none;
+    transition: all 0.12s;
+    cursor: default;
+  }
+  .sidebar .nav-item:hover {
+    background: var(--color-sidebar-hover);
+  }
+  .sidebar .nav-item.active {
+    background: var(--color-sidebar-active);
+    color: var(--color-sidebar-text-active);
+  }
+  .sidebar .nav-item .icon {
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .sidebar .bottom-section {
+    margin-top: auto;
+    border-top: 1px solid var(--color-sidebar-border);
+    padding: 12px;
+  }
+
+  /* ---- Shared page components ---- */
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+  .page-header p {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+  }
+
+  /* ======== VARIANT 1: PRD-Faithful ======== */
+  .v1-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .v1-card {
+    border-radius: 12px;
+    border: 1px solid var(--color-border-light);
+    padding: 16px;
+    background: var(--color-card);
+  }
+  .v1-card .stat-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+  }
+  .v1-card .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+  .v1-card .stat-sub {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+  }
+
+  .v1-filters {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border-left: 3px solid var(--color-primary);
+  }
+  .v1-filters select, .v1-filters input {
+    padding: 7px 10px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--color-card);
+    color: var(--color-text);
+    font-family: inherit;
+    outline: none;
+  }
+  .v1-filters select:focus, .v1-filters input:focus {
+    border-color: var(--color-primary);
+  }
+  .v1-filters .btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .v1-filters .btn-primary {
+    background: var(--color-primary);
+    color: white;
+  }
+  .v1-filters .btn-primary:hover {
+    background: var(--color-primary-hover);
+  }
+
+  .v1-table-wrap {
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .v1-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .v1-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    padding: 10px 14px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border-light);
+    white-space: nowrap;
+  }
+  .v1-table td {
+    padding: 10px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--color-border-light);
+    color: var(--color-text);
+  }
+  .v1-table tr:last-child td { border-bottom: none; }
+  .v1-table tr:hover td { background: var(--color-primary-subtle); }
+
+  .v1-event-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .v1-event-icon.success { background: #d1fae5; color: #059669; }
+  .v1-event-icon.failure { background: #fee2e2; color: #dc2626; }
+  .v1-event-icon.lockout { background: #fef3c7; color: #d97706; }
+  .v1-event-icon.logout  { background: #e0e7ff; color: #4f46e5; }
+  .dark .v1-event-icon.success { background: #064e3b; color: #34d399; }
+  .dark .v1-event-icon.failure { background: #450a0a; color: #f87171; }
+  .dark .v1-event-icon.lockout { background: #451a03; color: #fbbf24; }
+  .dark .v1-event-icon.logout  { background: #1e1b4b; color: #818cf8; }
+
+  .v1-flag { font-size: 15px; }
+
+  .v1-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-border-light);
+  }
+  .v1-pagination .info {
+    font-size: 12px;
+    color: var(--color-text-muted);
+  }
+  .v1-pagination .pages {
+    display: flex;
+    gap: 4px;
+  }
+  .v1-pagination .pages button {
+    width: 30px; height: 30px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .v1-pagination .pages button.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+
+  .v1-chart-section {
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .v1-chart-section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .v1-chart-section .chart-sub {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin-bottom: 16px;
+  }
+  .v1-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    height: 120px;
+    padding-top: 8px;
+  }
+  .v1-bar-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .v1-bar-wrapper {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 100px;
+  }
+  .v1-bar-green {
+    width: 14px;
+    background: var(--color-success);
+    border-radius: 3px 3px 0 0;
+    min-height: 4px;
+    transition: height 0.3s;
+  }
+  .v1-bar-red {
+    width: 14px;
+    background: var(--color-danger);
+    border-radius: 3px 3px 0 0;
+    min-height: 4px;
+    transition: height 0.3s;
+  }
+  .v1-bar-label {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+  }
+
+  /* ======== VARIANT 2: Split-pane with side filters ======== */
+  .v2-layout {
+    display: flex;
+    gap: 20px;
+  }
+  .v2-filter-panel {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    padding: 16px;
+    align-self: flex-start;
+    position: sticky;
+    top: 0;
+  }
+  .v2-filter-panel h4 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin-bottom: 14px;
+  }
+  .v2-filter-group {
+    margin-bottom: 14px;
+  }
+  .v2-filter-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+  }
+  .v2-filter-group select,
+  .v2-filter-group input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    outline: none;
+  }
+  .v2-filter-group select:focus,
+  .v2-filter-group input:focus {
+    border-color: var(--color-primary);
+  }
+  .v2-filter-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 16px;
+  }
+  .v2-filter-actions button {
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+  }
+  .v2-filter-actions .btn-apply {
+    background: var(--color-primary);
+    color: white;
+  }
+  .v2-filter-actions .btn-apply:hover { background: var(--color-primary-hover); }
+  .v2-filter-actions .btn-clear {
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border-light);
+  }
+  .v2-filter-actions .btn-clear:hover {
+    background: var(--color-sidebar-hover);
+  }
+
+  .v2-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .v2-summary-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .v2-stat-mini {
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .v2-stat-mini .s-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .v2-stat-mini .s-info .s-val {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .v2-stat-mini .s-info .s-lbl {
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+
+  .v2-table-compact {
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .v2-table-compact table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .v2-table-compact th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border-light);
+    white-space: nowrap;
+  }
+  .v2-table-compact td {
+    padding: 8px 12px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--color-border-light);
+    color: var(--color-text);
+  }
+  .v2-table-compact tr:hover td { background: var(--color-primary-subtle); }
+  .v2-table-compact tr:last-child td { border-bottom: none; }
+
+  .v2-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .v2-badge.success { background: #d1fae5; color: #059669; }
+  .v2-badge.failure { background: #fee2e2; color: #dc2626; }
+  .v2-badge.lockout { background: #fef3c7; color: #d97706; }
+  .v2-badge.logout  { background: #e0e7ff; color: #4f46e5; }
+  .dark .v2-badge.success { background: #064e3b; color: #34d399; }
+  .dark .v2-badge.failure { background: #450a0a; color: #f87171; }
+  .dark .v2-badge.lockout { background: #451a03; color: #fbbf24; }
+  .dark .v2-badge.logout  { background: #1e1b4b; color: #818cf8; }
+
+  .v2-ip { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--color-text-muted); }
+
+  /* ======== VARIANT 3: Timeline/Card Feed ======== */
+  .v3-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .v3-summary-item {
+    background: var(--color-card);
+    border-radius: 12px;
+    padding: 14px;
+    border: 1px solid var(--color-border-light);
+    text-align: center;
+  }
+  .v3-summary-item .v3-s-val {
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .v3-summary-item .v3-s-lbl {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+  }
+  .v3-summary-item .v3-s-trend {
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 4px;
+  }
+  .v3-summary-item .v3-s-trend.up { color: var(--color-success); }
+  .v3-summary-item .v3-s-trend.down { color: var(--color-danger); }
+
+  .v3-timeline {
+    position: relative;
+    padding-left: 32px;
+  }
+  .v3-timeline::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--color-border-light);
+  }
+  .v3-event {
+    position: relative;
+    margin-bottom: 4px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.12s;
+    cursor: default;
+  }
+  .v3-event:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .v3-event::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+    background: var(--color-card);
+  }
+  .v3-event.success::before { border-color: var(--color-success); background: #d1fae5; }
+  .v3-event.failure::before { border-color: var(--color-danger); background: #fee2e2; }
+  .v3-event.lockout::before { border-color: var(--color-warning); background: #fef3c7; }
+  .v3-event.logout::before  { border-color: var(--color-accent); background: #e0e7ff; }
+  .dark .v3-event.success::before { background: #064e3b; }
+  .dark .v3-event.failure::before { background: #450a0a; }
+  .dark .v3-event.lockout::before { background: #451a03; }
+  .dark .v3-event.logout::before  { background: #1e1b4b; }
+
+  .v3-event .v3-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .v3-event .v3-dot.success { background: var(--color-success); }
+  .v3-event .v3-dot.failure { background: var(--color-danger); }
+  .v3-event .v3-dot.lockout { background: var(--color-warning); }
+  .v3-event .v3-dot.logout  { background: var(--color-accent); }
+
+  .v3-event .v3-body { flex: 1; min-width: 0; }
+  .v3-event .v3-body .v3-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .v3-event .v3-body .v3-top .v3-user {
+    font-weight: 500;
+    font-size: 13px;
+  }
+  .v3-event .v3-body .v3-top .v3-type {
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .v3-event .v3-body .v3-top .v3-type.success { background: #d1fae5; color: #059669; }
+  .v3-event .v3-body .v3-top .v3-type.failure { background: #fee2e2; color: #dc2626; }
+  .v3-event .v3-body .v3-top .v3-type.lockout { background: #fef3c7; color: #d97706; }
+  .v3-event .v3-body .v3-top .v3-type.logout  { background: #e0e7ff; color: #4f46e5; }
+  .dark .v3-event .v3-body .v3-top .v3-type.success { background: #064e3b; color: #34d399; }
+  .dark .v3-event .v3-body .v3-top .v3-type.failure { background: #450a0a; color: #f87171; }
+  .dark .v3-event .v3-body .v3-top .v3-type.lockout { background: #451a03; color: #fbbf24; }
+  .dark .v3-event .v3-body .v3-top .v3-type.logout  { background: #1e1b4b; color: #818cf8; }
+
+  .v3-event .v3-body .v3-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+  .v3-event .v3-time {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .v3-flag-sm { font-size: 14px; }
+
+  /* ---- Utility ---- */
+  .hidden-variant { display: none; }
+  .text-muted { color: var(--color-text-muted); }
+  .mt-2 { margin-top: 8px; }
+  .mt-4 { margin-top: 16px; }
+  .mb-4 { margin-bottom: 16px; }
+  .gap-2 { gap: 8px; }
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<!-- Variant switcher bar -->
+<div class="variant-tabs" id="tabBar">
+  <span class="label">🎨 Wireframe</span>
+  <button class="active" data-variant="v1" onclick="switchVariant('v1')">📋 PRD-Faithful</button>
+  <button data-variant="v2" onclick="switchVariant('v2')">🗂️ Split-Pane</button>
+  <button data-variant="v3" onclick="switchVariant('v3')">📰 Timeline Feed</button>
+  <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙 Dark</button>
+</div>
+
+<!-- Page shell (sidebar + main) -->
+<div class="page-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="badge">A</div>
+      <span>Anjungan</span>
+    </div>
+    <div class="nav-section">
+      <div class="cat-label">Dashboard</div>
+      <div class="nav-item"><span class="icon">📊</span> Overview</div>
+    </div>
+    <div class="nav-section">
+      <div class="cat-label">Infrastructure</div>
+      <div class="nav-item"><span class="icon">🖥️</span> Servers</div>
+      <div class="nav-item"><span class="icon">🔑</span> SSH Keys</div>
+      <div class="nav-item"><span class="icon">📦</span> Containers <span style="margin-left: auto; font-size: 11px; background: var(--color-primary); color: white; padding: 0 7px; border-radius: 10px;">12</span></div>
+    </div>
+    <div class="nav-section">
+      <div class="cat-label">Artifact</div>
+      <div class="nav-item"><span class="icon">🗃️</span> Registry</div>
+    </div>
+    <div class="nav-section">
+      <div class="cat-label">Security</div>
+      <div class="nav-item"><span class="icon">🛡️</span> SSL Monitors</div>
+      <div class="nav-item"><span class="icon">✅</span> Compliance</div>
+    </div>
+    <div class="nav-section">
+      <div class="cat-label">Administration</div>
+      <div class="nav-item"><span class="icon">👥</span> Users</div>
+      <div class="nav-item active"><span class="icon">🔐</span> Login Activity</div>
+      <div class="nav-item"><span class="icon">📝</span> Audit Log</div>
+    </div>
+    <div class="bottom-section">
+      <div class="nav-item"><span class="icon">🌙</span> Dark Mode</div>
+      <div class="nav-item"><span class="icon">⚙️</span> Settings</div>
+    </div>
+  </aside>
+
+  <!-- ========== VARIANT 1: PRD-Faithful ========== -->
+  <div class="main-area variant-panel" id="v1">
+    <div class="page-header">
+      <div>
+        <h1>Login Activity</h1>
+        <p>Monitor authentication events across the platform</p>
+      </div>
+      <button class="v1-filters btn btn-primary" style="padding: 8px 16px; background: var(--color-primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">📥 Export CSV</button>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="v1-summary-cards">
+      <div class="v1-card" style="border-left: 3px solid var(--color-primary);">
+        <div class="stat-label">📊 Logins Today</div>
+        <div class="stat-value" style="color: var(--color-primary);">175</div>
+        <div class="stat-sub">128 success · 47 failed</div>
+      </div>
+      <div class="v1-card" style="border-left: 3px solid var(--color-danger);">
+        <div class="stat-label">❌ Failed Today</div>
+        <div class="stat-value" style="color: var(--color-danger);">47</div>
+        <div class="stat-sub">↑ 312% from yesterday</div>
+      </div>
+      <div class="v1-card" style="border-left: 3px solid var(--color-warning);">
+        <div class="stat-label">🔒 Locked Accounts</div>
+        <div class="stat-value" style="color: var(--color-warning);">3</div>
+        <div class="stat-sub">2 auto-unlock in 12 min</div>
+      </div>
+      <div class="v1-card" style="border-left: 3px solid var(--color-purple);">
+        <div class="stat-label">🌐 Unique IPs</div>
+        <div class="stat-value" style="color: var(--color-purple);">24</div>
+        <div class="stat-sub">18 countries today</div>
+      </div>
+      <div class="v1-card" style="border-left: 3px solid var(--color-success);">
+        <div class="stat-label">🎯 Success Rate</div>
+        <div class="stat-value" style="color: var(--color-success);">73%</div>
+        <div class="stat-sub">7d avg: 91%</div>
+      </div>
+    </div>
+
+    <!-- Brute Force Alert -->
+    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px;">
+      <span style="font-size: 16px;">🚨</span>
+      <div style="flex: 1;">
+        <strong style="color: #92400e;">Brute force detected</strong>
+        <span style="color: #92400e;"> — IP <strong>185.220.101.23</strong> has 23 failed attempts in 5 min targeting 2 users</span>
+      </div>
+      <button style="padding: 6px 14px; border-radius: 8px; background: #92400e; color: white; border: none; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap;">⛔ Block IP</button>
+    </div>
+    <div class="v1-bf-dark" style="display: none; background: #451a03; border: 1px solid #78350f; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; display: none; align-items: center; gap: 10px; font-size: 13px;">
+      <span style="font-size: 16px;">🚨</span>
+      <div style="flex: 1;">
+        <strong style="color: #fbbf24;">Brute force detected</strong>
+        <span style="color: #fbbf24;"> — IP <strong>185.220.101.23</strong> has 23 failed attempts in 5 min targeting 2 users</span>
+      </div>
+      <button style="padding: 6px 14px; border-radius: 8px; background: #fbbf24; color: #451a03; border: none; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap;">⛔ Block IP</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="v1-filters">
+      <select><option>All Events</option><option>Success</option><option>Failed</option><option>Lockout</option><option>Logout</option></select>
+      <select><option>All Users</option><option>admin@anjungan.id</option><option>endang@edsuwarna.id</option></select>
+      <select><option>Last 24h</option><option>Last 7d</option><option>Last 30d</option><option>Custom</option></select>
+      <input type="text" placeholder="Search email, IP..." style="flex: 1; min-width: 160px;">
+      <button class="btn btn-primary">🔍 Apply</button>
+      <button class="btn" style="background: transparent; color: var(--color-text-muted); border: 1px solid var(--color-border-light);">Clear</button>
+    </div>
+
+    <!-- Table -->
+    <div class="v1-table-wrap">
+      <table class="v1-table">
+        <thead>
+          <tr>
+            <th style="width: 36px;"></th>
+            <th>Time</th>
+            <th>User</th>
+            <th>IP</th>
+            <th>Location</th>
+            <th>Event</th>
+            <th>Reason</th>
+            <th>Method</th>
+            <th style="width: 10px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="v1-event-icon failure">✕</span></td>
+            <td style="color: var(--color-text-muted); white-space: nowrap;">08:32:15</td>
+            <td style="font-weight: 500;">admin@anjungan.id</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-text-muted);">185.220.101.23</td>
+            <td><span class="v1-flag">🇷🇺</span> RU · AS12345</td>
+            <td><span class="v2-badge failure">Login Failed</span></td>
+            <td style="color: var(--color-danger); font-size: 12px;">invalid_password</td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">password</td>
+            <td style="color: var(--color-text-muted);">▶</td>
+          </tr>
+          <tr>
+            <td><span class="v1-event-icon failure">✕</span></td>
+            <td style="color: var(--color-text-muted); white-space: nowrap;">08:31:58</td>
+            <td style="font-weight: 500;">admin@anjungan.id</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-text-muted);">185.220.101.23</td>
+            <td><span class="v1-flag">🇷🇺</span> RU · AS12345</td>
+            <td><span class="v2-badge failure">Login Failed</span></td>
+            <td style="color: var(--color-danger); font-size: 12px;">invalid_password</td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">password</td>
+            <td style="color: var(--color-text-muted);">▶</td>
+          </tr>
+          <tr>
+            <td><span class="v1-event-icon failure">✕</span></td>
+            <td style="color: var(--color-text-muted); white-space: nowrap;">08:31:12</td>
+            <td style="font-weight: 500;">admin@anjungan.id</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-text-muted);">185.220.101.23</td>
+            <td><span class="v1-flag">🇷🇺</span> RU · AS12345</td>
+            <td><span class="v2-badge failure">Login Failed</span></td>
+            <td style="color: var(--color-danger); font-size: 12px;">invalid_password</td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">password</td>
+            <td style="color: var(--color-text-muted);">▶</td>
+          </tr>
+          <tr style="background: var(--color-primary-subtle);">
+            <td><span class="v1-event-icon success">✓</span></td>
+            <td style="color: var(--color-text-muted); white-space: nowrap;">08:30:44</td>
+            <td style="font-weight: 500;">endang@edsuwarna.id</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-text-muted);">10.0.0.5</td>
+            <td><span class="v1-flag">🏠</span> Local</td>
+            <td><span class="v2-badge success">Login Success</span></td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">—</td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">password</td>
+            <td style="color: var(--color-text-muted);">▶</td>
+          </tr>
+          <tr>
+            <td><span class="v1-event-icon lockout">🔒</span></td>
+            <td style="color: var(--color-text-muted); white-space: nowrap;">08:15:22</td>
+            <td style="font-weight: 500;">user@example.com</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-text-muted);">103.235.46.88</td>
+            <td><span class="v1-flag">🇨🇳</span> CN · AS4847</td>
+            <td><span class="v2-badge lockout">Lockout</span></td>
+            <td style="color: var(--color-warning); font-size: 12px;">account_locked</td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">password</td>
+            <td style="color: var(--color-text-muted);">▶</td>
+          </tr>
+          <tr>
+            <td><span class="v1-event-icon success">✓</span></td>
+            <td style="color: var(--color-text-muted); white-space: nowrap;">07:55:03</td>
+            <td style="font-weight: 500;">endang@edsuwarna.id</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-text-muted);">10.0.0.5</td>
+            <td><span class="v1-flag">🏠</span> Local</td>
+            <td><span class="v2-badge success">Login Success</span></td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">—</td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">totp</td>
+            <td style="color: var(--color-text-muted);">▶</td>
+          </tr>
+          <tr>
+            <td><span class="v1-event-icon logout">↩</span></td>
+            <td style="color: var(--color-text-muted); white-space: nowrap;">07:50:18</td>
+            <td style="font-weight: 500;">admin@anjungan.id</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-text-muted);">10.0.0.8</td>
+            <td><span class="v1-flag">🏠</span> Local</td>
+            <td><span class="v2-badge logout">Logout</span></td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">—</td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">session</td>
+            <td style="color: var(--color-text-muted);">▶</td>
+          </tr>
+          <tr>
+            <td><span class="v1-event-icon failure">✕</span></td>
+            <td style="color: var(--color-text-muted); white-space: nowrap;">07:45:33</td>
+            <td style="font-weight: 500;">user@example.com</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-text-muted);">103.235.46.88</td>
+            <td><span class="v1-flag">🇨🇳</span> CN · AS4847</td>
+            <td><span class="v2-badge failure">Login Failed</span></td>
+            <td style="color: var(--color-danger); font-size: 12px;">rate_limited</td>
+            <td style="font-size: 12px; color: var(--color-text-muted);">password</td>
+            <td style="color: var(--color-text-muted);">▶</td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- Pagination -->
+      <div class="v1-pagination">
+        <span class="info">Showing 1-8 of 543 events</span>
+        <div class="pages">
+          <button>◀</button>
+          <button class="active">1</button>
+          <button>2</button>
+          <button>3</button>
+          <button>…</button>
+          <button>68</button>
+          <button>▶</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trend Chart -->
+    <div class="v1-chart-section">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+        <div>
+          <h3>Login Trends (7 Days)</h3>
+          <div class="chart-sub">Daily login attempts — green: success, red: failure</div>
+        </div>
+        <div style="display: flex; gap: 12px; font-size: 12px; color: var(--color-text-muted);">
+          <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--color-success); margin-right: 4px;"></span> Success</span>
+          <span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--color-danger); margin-right: 4px;"></span> Failure</span>
+        </div>
+      </div>
+      <div class="v1-bars">
+        <div class="v1-bar-group">
+          <div class="v1-bar-wrapper">
+            <div class="v1-bar-green" style="height: 60px;"></div>
+            <div class="v1-bar-red" style="height: 8px;"></div>
+          </div>
+          <div class="v1-bar-label">Jun 05</div>
+        </div>
+        <div class="v1-bar-group">
+          <div class="v1-bar-wrapper">
+            <div class="v1-bar-green" style="height: 70px;"></div>
+            <div class="v1-bar-red" style="height: 6px;"></div>
+          </div>
+          <div class="v1-bar-label">Jun 06</div>
+        </div>
+        <div class="v1-bar-group">
+          <div class="v1-bar-wrapper">
+            <div class="v1-bar-green" style="height: 55px;"></div>
+            <div class="v1-bar-red" style="height: 10px;"></div>
+          </div>
+          <div class="v1-bar-label">Jun 07</div>
+        </div>
+        <div class="v1-bar-group">
+          <div class="v1-bar-wrapper">
+            <div class="v1-bar-green" style="height: 80px;"></div>
+            <div class="v1-bar-red" style="height: 14px;"></div>
+          </div>
+          <div class="v1-bar-label">Jun 08</div>
+        </div>
+        <div class="v1-bar-group">
+          <div class="v1-bar-wrapper">
+            <div class="v1-bar-green" style="height: 65px;"></div>
+            <div class="v1-bar-red" style="height: 40px;"></div>
+          </div>
+          <div class="v1-bar-label">Jun 09</div>
+        </div>
+        <div class="v1-bar-group">
+          <div class="v1-bar-wrapper">
+            <div class="v1-bar-green" style="height: 72px;"></div>
+            <div class="v1-bar-red" style="height: 52px;"></div>
+          </div>
+          <div class="v1-bar-label">Jun 10</div>
+        </div>
+        <div class="v1-bar-group">
+          <div class="v1-bar-wrapper">
+            <div class="v1-bar-green" style="height: 62px;"></div>
+            <div class="v1-bar-red" style="height: 78px;"></div>
+          </div>
+          <div class="v1-bar-label">Jun 11</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== VARIANT 2: Split-Pane ========== -->
+  <div class="main-area variant-panel hidden-variant" id="v2">
+    <div class="page-header">
+      <div>
+        <h1>Login Activity</h1>
+        <p>Monitor authentication events across the platform</p>
+      </div>
+      <button style="padding: 8px 16px; background: var(--color-primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">📥 Export CSV</button>
+    </div>
+
+    <div class="v2-layout">
+      <!-- Filter Panel (sticky) -->
+      <div class="v2-filter-panel">
+        <h4>🔍 Filters</h4>
+        <div class="v2-filter-group">
+          <label>Event Type</label>
+          <select>
+            <option>All Events</option>
+            <option>Login Success</option>
+            <option>Login Failed</option>
+            <option>Lockout</option>
+            <option>Unlock</option>
+            <option>Logout</option>
+          </select>
+        </div>
+        <div class="v2-filter-group">
+          <label>User</label>
+          <input type="text" placeholder="Search by email..." value="admin@anjungan.id" style="background: var(--color-primary-subtle); border-color: var(--color-primary);">
+        </div>
+        <div class="v2-filter-group">
+          <label>IP Address</label>
+          <input type="text" placeholder="e.g. 185.220.101.23">
+        </div>
+        <div class="v2-filter-group">
+          <label>Country</label>
+          <select>
+            <option>All Countries</option>
+            <option>🇷🇺 Russia</option>
+            <option>🇨🇳 China</option>
+            <option>🇺🇸 United States</option>
+            <option>🇮🇩 Indonesia</option>
+            <option>🏠 Local</option>
+          </select>
+        </div>
+        <div class="v2-filter-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label>From</label>
+            <input type="date" value="2026-06-10">
+          </div>
+          <div>
+            <label>To</label>
+            <input type="date" value="2026-06-11">
+          </div>
+        </div>
+        <div class="v2-filter-group">
+          <label>Auth Method</label>
+          <select>
+            <option>All Methods</option>
+            <option>Password</option>
+            <option>TOTP</option>
+            <option>Session</option>
+          </select>
+        </div>
+        <div class="v2-filter-actions">
+          <button class="btn-apply">🔍 Apply Filters</button>
+          <button class="btn-clear">Reset All</button>
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <div class="v2-main">
+        <!-- Compact summary strip -->
+        <div class="v2-summary-row">
+          <div class="v2-stat-mini">
+            <div class="s-icon" style="background: var(--color-primary-subtle); color: var(--color-primary);">📊</div>
+            <div class="s-info">
+              <div class="s-val" style="color: var(--color-primary);">175</div>
+              <div class="s-lbl">Logins Today</div>
+            </div>
+          </div>
+          <div class="v2-stat-mini">
+            <div class="s-icon" style="background: #fee2e2; color: #dc2626;">✕</div>
+            <div class="s-info">
+              <div class="s-val" style="color: var(--color-danger);">47</div>
+              <div class="s-lbl">Failed</div>
+            </div>
+          </div>
+          <div class="v2-stat-mini">
+            <div class="s-icon" style="background: #fef3c7; color: #d97706;">🔒</div>
+            <div class="s-info">
+              <div class="s-val" style="color: var(--color-warning);">3</div>
+              <div class="s-lbl">Locked</div>
+            </div>
+          </div>
+          <div class="v2-stat-mini">
+            <div class="s-icon" style="background: #e0e7ff; color: #4f46e5;">🌐</div>
+            <div class="s-info">
+              <div class="s-val" style="color: var(--color-purple);">24</div>
+              <div class="s-lbl">Unique IPs</div>
+            </div>
+          </div>
+          <div class="v2-stat-mini">
+            <div class="s-icon" style="background: #d1fae5; color: #059669;">%</div>
+            <div class="s-info">
+              <div class="s-val" style="color: var(--color-success);">73%</div>
+              <div class="s-lbl">Success Rate</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alert banner -->
+        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 13px;">
+          <span style="font-size: 16px;">🚨</span>
+          <span style="font-weight: 500; color: #92400e;">Brute force detected</span>
+          <span style="color: #92400e;">— IP <strong>185.220.101.23</strong> has 23 failed attempts in 5 min targeting 2 users</span>
+          <button style="margin-left: auto; padding: 4px 12px; border-radius: 6px; background: #92400e; color: white; border: none; font-size: 12px; cursor: pointer;">Block IP</button>
+        </div>
+        <div class="dark" style="display: none;">
+          <div style="background: #451a03; border-color: #78350f; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 13px;">
+            <span style="font-size: 16px;">🚨</span>
+            <span style="font-weight: 500; color: #fbbf24;">Brute force detected</span>
+            <span style="color: #fbbf24;">— IP <strong>185.220.101.23</strong> has 23 failed attempts in 5 min targeting 2 users</span>
+            <button style="margin-left: auto; padding: 4px 12px; border-radius: 6px; background: #fbbf24; color: #451a03; border: none; font-size: 12px; cursor: pointer;">Block IP</button>
+          </div>
+        </div>
+
+        <!-- Compact table -->
+        <div class="v2-table-compact">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 60px;">Event</th>
+                <th>Time</th>
+                <th>User</th>
+                <th>IP</th>
+                <th>Country</th>
+                <th>Reason</th>
+                <th>Method</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="v2-badge failure">✕ Failed</span></td>
+                <td style="color: var(--color-text-muted); white-space: nowrap;">08:32</td>
+                <td>admin@anjungan.id</td>
+                <td class="v2-ip">185.220.101.23</td>
+                <td>🇷🇺 RU</td>
+                <td style="font-size: 11px; color: var(--color-danger);">wrong pwd</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">pwd</td>
+              </tr>
+              <tr>
+                <td><span class="v2-badge failure">✕ Failed</span></td>
+                <td style="color: var(--color-text-muted); white-space: nowrap;">08:31</td>
+                <td>admin@anjungan.id</td>
+                <td class="v2-ip">185.220.101.23</td>
+                <td>🇷🇺 RU</td>
+                <td style="font-size: 11px; color: var(--color-danger);">wrong pwd</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">pwd</td>
+              </tr>
+              <tr>
+                <td><span class="v2-badge failure">✕ Failed</span></td>
+                <td style="color: var(--color-text-muted); white-space: nowrap;">08:31</td>
+                <td>admin@anjungan.id</td>
+                <td class="v2-ip">185.220.101.23</td>
+                <td>🇷🇺 RU</td>
+                <td style="font-size: 11px; color: var(--color-danger);">wrong pwd</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">pwd</td>
+              </tr>
+              <tr>
+                <td><span class="v2-badge success">✓ Success</span></td>
+                <td style="color: var(--color-text-muted); white-space: nowrap;">08:30</td>
+                <td>endang@edsuwarna.id</td>
+                <td class="v2-ip">10.0.0.5</td>
+                <td>🏠 Local</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">—</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">pwd</td>
+              </tr>
+              <tr>
+                <td><span class="v2-badge lockout">🔒 Locked</span></td>
+                <td style="color: var(--color-text-muted); white-space: nowrap;">08:15</td>
+                <td>user@example.com</td>
+                <td class="v2-ip">103.235.46.88</td>
+                <td>🇨🇳 CN</td>
+                <td style="font-size: 11px; color: var(--color-warning);">locked</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">pwd</td>
+              </tr>
+              <tr>
+                <td><span class="v2-badge success">✓ Success</span></td>
+                <td style="color: var(--color-text-muted); white-space: nowrap;">07:55</td>
+                <td>endang@edsuwarna.id</td>
+                <td class="v2-ip">10.0.0.5</td>
+                <td>🏠 Local</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">—</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">totp</td>
+              </tr>
+              <tr>
+                <td><span class="v2-badge logout">↩ Logout</span></td>
+                <td style="color: var(--color-text-muted); white-space: nowrap;">07:50</td>
+                <td>admin@anjungan.id</td>
+                <td class="v2-ip">10.0.0.8</td>
+                <td>🏠 Local</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">—</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">ses</td>
+              </tr>
+              <tr>
+                <td><span class="v2-badge failure">✕ Failed</span></td>
+                <td style="color: var(--color-text-muted); white-space: nowrap;">07:45</td>
+                <td>user@example.com</td>
+                <td class="v2-ip">103.235.46.88</td>
+                <td>🇨🇳 CN</td>
+                <td style="font-size: 11px; color: var(--color-danger);">rate limit</td>
+                <td style="font-size: 11px; color: var(--color-text-muted);">pwd</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="v1-pagination">
+            <span class="info">1-8 of 543</span>
+            <div class="pages">
+              <button>◀</button>
+              <button class="active">1</button>
+              <button>2</button>
+              <button>3</button>
+              <button>…</button>
+              <button>68</button>
+              <button>▶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== VARIANT 3: Timeline Feed ========== -->
+  <div class="main-area variant-panel hidden-variant" id="v3">
+    <div class="page-header">
+      <div>
+        <h1>Login Activity</h1>
+        <p>Real-time authentication event feed</p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button style="padding: 8px 14px; background: transparent; color: var(--color-text-secondary); border: 1px solid var(--color-border-light); border-radius: 8px; font-size: 13px; cursor: pointer;">🔴 Live (15s)</button>
+        <button style="padding: 8px 16px; background: var(--color-primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">📥 Export</button>
+      </div>
+    </div>
+
+    <!-- Summary strip -->
+    <div class="v3-summary-strip">
+      <div class="v3-summary-item" style="border-bottom: 3px solid var(--color-primary);">
+        <div class="v3-s-val" style="color: var(--color-primary);">175</div>
+        <div class="v3-s-lbl">Today logins</div>
+        <div class="v3-s-trend up">↑ 12%</div>
+      </div>
+      <div class="v3-summary-item" style="border-bottom: 3px solid var(--color-danger);">
+        <div class="v3-s-val" style="color: var(--color-danger);">47</div>
+        <div class="v3-s-lbl">Failed attempts</div>
+        <div class="v3-s-trend down">↑ 312%</div>
+      </div>
+      <div class="v3-summary-item" style="border-bottom: 3px solid var(--color-warning);">
+        <div class="v3-s-val" style="color: var(--color-warning);">3</div>
+        <div class="v3-s-lbl">Locked accounts</div>
+        <div class="v3-s-trend down" style="color: var(--color-text-muted);">—</div>
+      </div>
+      <div class="v3-summary-item" style="border-bottom: 3px solid var(--color-purple);">
+        <div class="v3-s-val" style="color: var(--color-purple);">24</div>
+        <div class="v3-s-lbl">Unique IPs</div>
+        <div class="v3-s-trend up">↑ 8</div>
+      </div>
+      <div class="v3-summary-item" style="border-bottom: 3px solid var(--color-success);">
+        <div class="v3-s-val" style="color: var(--color-success);">73%</div>
+        <div class="v3-s-lbl">Success rate</div>
+        <div class="v3-s-trend down">↓ 18%</div>
+      </div>
+    </div>
+
+    <!-- Timeline filter chips -->
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+      <span style="font-size: 12px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Show:</span>
+      <button class="filter-chip active" onclick="toggleChip(this)" style="padding: 4px 12px; border-radius: 20px; font-size: 12px; border: 1px solid var(--color-border-light); background: var(--color-primary); color: white; cursor: pointer;">All Events</button>
+      <button class="filter-chip" onclick="toggleChip(this)" style="padding: 4px 12px; border-radius: 20px; font-size: 12px; border: 1px solid var(--color-border-light); background: transparent; color: var(--color-text-secondary); cursor: pointer;">✅ Success</button>
+      <button class="filter-chip" onclick="toggleChip(this)" style="padding: 4px 12px; border-radius: 20px; font-size: 12px; border: 1px solid var(--color-border-light); background: transparent; color: var(--color-text-secondary); cursor: pointer;">❌ Failed</button>
+      <button class="filter-chip" onclick="toggleChip(this)" style="padding: 4px 12px; border-radius: 20px; font-size: 12px; border: 1px solid var(--color-border-light); background: transparent; color: var(--color-text-secondary); cursor: pointer;">🔒 Lockouts</button>
+      <input type="text" placeholder="Search email or IP..." style="margin-left: auto; padding: 6px 12px; border: 1px solid var(--color-border-light); border-radius: 20px; font-size: 12px; background: var(--color-card); color: var(--color-text); font-family: inherit; outline: none; width: 200px;">
+    </div>
+
+    <!-- Timeline -->
+    <div class="v3-timeline">
+      <!-- Date separator -->
+      <div style="font-size: 12px; font-weight: 600; color: var(--color-text-muted); margin: 12px 0 8px; padding-left: 4px;">Today, Jun 11</div>
+
+      <div class="v3-event failure">
+        <div class="v3-dot failure"></div>
+        <div class="v3-body">
+          <div class="v3-top">
+            <span class="v3-user">admin@anjungan.id</span>
+            <span class="v3-type failure">Login Failed</span>
+            <span class="v3-flag-sm">🇷🇺</span>
+            <span style="font-size: 11px; color: var(--color-text-muted);">RU · AS12345</span>
+          </div>
+          <div class="v3-meta">
+            <span>📌 185.220.101.23</span>
+            <span>🔴 invalid_password</span>
+            <span>🔐 password</span>
+          </div>
+        </div>
+        <div class="v3-time">08:32</div>
+      </div>
+
+      <div class="v3-event failure">
+        <div class="v3-dot failure"></div>
+        <div class="v3-body">
+          <div class="v3-top">
+            <span class="v3-user">admin@anjungan.id</span>
+            <span class="v3-type failure">Login Failed</span>
+            <span class="v3-flag-sm">🇷🇺</span>
+            <span style="font-size: 11px; color: var(--color-text-muted);">RU · AS12345</span>
+          </div>
+          <div class="v3-meta">
+            <span>📌 185.220.101.23</span>
+            <span>🔴 invalid_password</span>
+            <span>🔐 password</span>
+          </div>
+        </div>
+        <div class="v3-time">08:31</div>
+      </div>
+
+      <div class="v3-event success">
+        <div class="v3-dot success"></div>
+        <div class="v3-body">
+          <div class="v3-top">
+            <span class="v3-user">endang@edsuwarna.id</span>
+            <span class="v3-type success">Login Success</span>
+            <span class="v3-flag-sm">🏠</span>
+            <span style="font-size: 11px; color: var(--color-text-muted);">Local</span>
+          </div>
+          <div class="v3-meta">
+            <span>📌 10.0.0.5</span>
+            <span>🔐 password</span>
+          </div>
+        </div>
+        <div class="v3-time">08:30</div>
+      </div>
+
+      <!-- Alert: brute force detected -->
+      <div style="margin: 8px 0 8px -10px; padding: 10px 14px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 10px; display: flex; align-items: center; gap: 8px; font-size: 13px;">
+        <span style="font-size: 16px;">🚨</span>
+        <div>
+          <strong style="color: #92400e;">Brute force detected</strong>
+          <span style="color: #92400e;"> — IP 185.220.101.23 · 23 failures/5min · target: admin, root</span>
+        </div>
+      </div>
+      <div class="dark" style="display: none;">
+        <div style="margin: 8px 0 8px -10px; padding: 10px 14px; background: #451a03; border: 1px solid #78350f; border-radius: 10px; display: flex; align-items: center; gap: 8px; font-size: 13px;">
+          <span style="font-size: 16px;">🚨</span>
+          <div>
+            <strong style="color: #fbbf24;">Brute force detected</strong>
+            <span style="color: #fbbf24;"> — IP 185.220.101.23 · 23 failures/5min · target: admin, root</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="v3-event lockout">
+        <div class="v3-dot lockout"></div>
+        <div class="v3-body">
+          <div class="v3-top">
+            <span class="v3-user">user@example.com</span>
+            <span class="v3-type lockout">Account Locked</span>
+            <span class="v3-flag-sm">🇨🇳</span>
+            <span style="font-size: 11px; color: var(--color-text-muted);">CN · AS4847</span>
+          </div>
+          <div class="v3-meta">
+            <span>📌 103.235.46.88</span>
+            <span>🔒 auto-unlock in 12 min</span>
+            <span>🔐 password</span>
+          </div>
+        </div>
+        <div class="v3-time">08:15</div>
+      </div>
+
+      <div class="v3-event success">
+        <div class="v3-dot success"></div>
+        <div class="v3-body">
+          <div class="v3-top">
+            <span class="v3-user">endang@edsuwarna.id</span>
+            <span class="v3-type success">Login Success</span>
+            <span class="v3-flag-sm">🏠</span>
+            <span style="font-size: 11px; color: var(--color-text-muted);">Local</span>
+          </div>
+          <div class="v3-meta">
+            <span>📌 10.0.0.5</span>
+            <span>🔐 TOTP</span>
+          </div>
+        </div>
+        <div class="v3-time">07:55</div>
+      </div>
+
+      <div class="v3-event logout">
+        <div class="v3-dot logout"></div>
+        <div class="v3-body">
+          <div class="v3-top">
+            <span class="v3-user">admin@anjungan.id</span>
+            <span class="v3-type logout">Logout</span>
+            <span class="v3-flag-sm">🏠</span>
+            <span style="font-size: 11px; color: var(--color-text-muted);">Local</span>
+          </div>
+          <div class="v3-meta">
+            <span>📌 10.0.0.8</span>
+            <span>🔐 session</span>
+          </div>
+        </div>
+        <div class="v3-time">07:50</div>
+      </div>
+
+      <!-- Date separator: yesterday -->
+      <div style="font-size: 12px; font-weight: 600; color: var(--color-text-muted); margin: 20px 0 8px; padding-left: 4px;">Yesterday, Jun 10</div>
+
+      <div class="v3-event failure">
+        <div class="v3-dot failure"></div>
+        <div class="v3-body">
+          <div class="v3-top">
+            <span class="v3-user">user@example.com</span>
+            <span class="v3-type failure">Login Failed</span>
+            <span class="v3-flag-sm">🇨🇳</span>
+            <span style="font-size: 11px; color: var(--color-text-muted);">CN · AS4847</span>
+          </div>
+          <div class="v3-meta">
+            <span>📌 103.235.46.88</span>
+            <span>🔴 rate_limited</span>
+            <span>🔐 password</span>
+          </div>
+        </div>
+        <div class="v3-time">23:12</div>
+      </div>
+
+      <div class="v3-event success">
+        <div class="v3-dot success"></div>
+        <div class="v3-body">
+          <div class="v3-top">
+            <span class="v3-user">endang@edsuwarna.id</span>
+            <span class="v3-type success">Login Success</span>
+            <span class="v3-flag-sm">🏠</span>
+            <span style="font-size: 11px; color: var(--color-text-muted);">Local</span>
+          </div>
+          <div class="v3-meta">
+            <span>📌 10.0.0.5</span>
+            <span>🔐 password</span>
+          </div>
+        </div>
+        <div class="v3-time">18:30</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- / page-shell -->
+
+<script>
+  function switchVariant(name) {
+    document.querySelectorAll('.variant-panel').forEach(el => el.classList.add('hidden-variant'));
+    document.getElementById(name).classList.remove('hidden-variant');
+    document.querySelectorAll('#tabBar button[data-variant]').forEach(b => b.classList.remove('active'));
+    document.querySelector(`#tabBar button[data-variant="${name}"]`).classList.add('active');
+  }
+
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.getElementById('themeBtn');
+    const isDark = html.classList.toggle('dark');
+    btn.textContent = isDark ? '☀️ Light' : '🌙 Dark';
+
+    // Toggle dark-mode alert banners
+    document.querySelectorAll('.dark').forEach(el => {
+      el.style.display = isDark ? 'block' : 'none';
+    });
+    // Hide light-mode alerts when dark
+    document.querySelectorAll('[class*="dark"]').forEach(el => {
+      // actually let's just handle the two alert banners
+    });
+    // Show light alerts in light mode, hide in dark
+    document.querySelectorAll('.v3-event ~ .dark').forEach(el => {});
+    // simpler: just handle the brute force banners
+    const lightAlerts = document.querySelectorAll('.v3-event + div:not(.v3-event):not(.v3-timeline)');
+    // Not the cleanest but the alerts have inline bg colors so they'll still show but may look off
+  }
+
+  function toggleChip(btn) {
+    document.querySelectorAll('.filter-chip').forEach(c => {
+      c.style.background = 'transparent';
+      c.style.color = 'var(--color-text-secondary)';
+    });
+    btn.style.background = 'var(--color-primary)';
+    btn.style.color = 'white';
+  }
+
+  // Attach toggleTheme to the sidebar dark mode item too
+  document.querySelectorAll('.bottom-section .nav-item').forEach(el => {
+    if (el.textContent.includes('Dark') || el.textContent.includes('Light')) {
+      el.style.cursor = 'pointer';
+      el.onclick = toggleTheme;
+    }
+  });
+
+  // Fix dark mode alerts on variant 2
+  const origToggle = toggleTheme;
+  toggleTheme = function() {
+    origToggle();
+    // Sync variant 2 alert
+    const v2Light = document.querySelector('#v2 .v2-main > div:nth-child(2)');
+    const v2Dark = document.querySelector('#v2 .v2-main > div:nth-child(3)');
+    if (v2Light && v2Dark) {
+      const isDark = document.documentElement.classList.contains('dark');
+      v2Light.style.display = isDark ? 'none' : 'flex';
+      v2Dark.style.display = isDark ? 'flex' : 'none';
+    }
+    // Sync variant 1 brute force alert
+    const v1Light = document.querySelector('#v1');
+    const v1BfLight = v1Light?.querySelector('div:not([class]) > div:not([class])');
+    // Use more specific selector
+    const allBfAlerts = document.querySelectorAll('#v1 > div:not([class])');
+    allBfAlerts.forEach(el => {
+      if (el.querySelector('strong') && el.textContent.includes('Brute force')) {
+        if (!el.classList.contains('v1-bf-dark')) {
+          el.style.display = isDark ? 'none' : 'flex';
+        } else {
+          el.style.display = isDark ? 'flex' : 'none';
+        }
+      }
+    });
+    // Sync variant 3 alert
+    const v3Alerts = document.querySelectorAll('#v3 .v3-timeline > div:not(.v3-event)');
+    v3Alerts.forEach(div => {
+      if (div.classList.contains('dark')) {
+        div.style.display = document.documentElement.classList.contains('dark') ? 'flex' : 'none';
+      } else if (div.querySelector('strong') && !div.classList.contains('dark')) {
+        div.style.display = document.documentElement.classList.contains('dark') ? 'none' : 'flex';
+      }
+    });
+  };
+
+  // Initialize
+  document.querySelector('#v2 .v2-main > div:nth-child(3)').style.display = 'none';
+
+  // Init variant 3 dark alerts
+  document.querySelectorAll('#v3 .v3-timeline > div.dark').forEach(el => el.style.display = 'none');
+  // Init variant 2 dark alert
+  const v2DarkInit = document.querySelector('#v2 .v2-main > div:nth-child(3)');
+  if (v2DarkInit) v2DarkInit.style.display = 'none';
+  // Init variant 1 dark alert
+  document.querySelectorAll('.v1-bf-dark').forEach(el => el.style.display = 'none');
+
+  console.log('Wireframe loaded — switch between variants using the top bar');
+</script>
+
+</body>
+</html>

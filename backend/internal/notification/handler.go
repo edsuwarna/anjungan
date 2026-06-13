@@ -42,9 +42,7 @@ func (h *Handler) Routes() chi.Router {
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	scope := r.URL.Query().Get("scope")
-
-	targets, err := h.repo.ListNotificationTargets(r.Context(), scope)
+	targets, err := h.repo.ListNotificationTargets(r.Context())
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to list notification targets")
 		return
@@ -89,7 +87,6 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		BotToken:      req.BotToken,
 		ChatID:        req.ChatID,
 		Enabled:       enabled,
-		Scopes:        req.Scopes,
 		CreatedBy:     userID,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -151,7 +148,6 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	existing.BotToken = req.BotToken
 	existing.ChatID = req.ChatID
 	existing.Enabled = enabled
-	existing.Scopes = req.Scopes
 	existing.UpdatedAt = time.Now()
 
 	if err := h.repo.UpdateNotificationTarget(r.Context(), existing); err != nil {
@@ -202,11 +198,30 @@ func (h *Handler) TestDelivery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Optional query param overrides which format to use
-	// "ssl" → SendSSLToTarget, "uptime" → SendToTarget
-	// If not provided, fall back to checking target's scopes
+	// "ssl" → SendSSLToTarget, "bruteforce" → SendBruteForceAlert, anything else → SendToTarget
 	testScope := r.URL.Query().Get("scope")
 
 	loc, _ := time.LoadLocation("Asia/Jakarta")
+	now := time.Now()
+
+	if testScope == "bruteforce" {
+		_, _, sendErr := SendBruteForceAlert(target, "203.0.113.42", 12, 15, 3,
+			now.Add(-15*time.Minute).In(loc).Format("2006-01-02 15:04:05 WIB"),
+			now.In(loc).Format("2006-01-02 15:04:05 WIB"),
+			"anjungan-dev", "China", "Chinanet", "AS4134", "admin@example.com, user@example.com")
+		if sendErr != nil {
+			common.JSON(w, http.StatusOK, map[string]interface{}{
+				"success": false,
+				"error":   sendErr.Error(),
+			})
+			return
+		}
+		common.JSON(w, http.StatusOK, map[string]interface{}{
+			"success": true,
+		})
+		return
+	}
+
 	var testPayload map[string]interface{}
 
 	if testScope == "ssl" {
@@ -249,26 +264,11 @@ func (h *Handler) TestDelivery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var useSSL bool
-	if testScope == "ssl" {
-		useSSL = true
-	} else if testScope == "uptime" {
-		useSSL = false
-	} else {
-		// Fallback: check if target has SSL scope
-		for _, scope := range target.Scopes {
-			if scope == "ssl" {
-				useSSL = true
-				break
-			}
-		}
-	}
-
 	var statusCode int
 	var respBody string
 	var sendErr error
 
-	if useSSL {
+	if testScope == "ssl" {
 		statusCode, respBody, sendErr = SendSSLToTarget(target, testPayload)
 	} else {
 		statusCode, respBody, sendErr = SendToTarget(target, testPayload)

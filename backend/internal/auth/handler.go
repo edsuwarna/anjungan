@@ -7,16 +7,19 @@ import (
 	"strings"
 
 	"github.com/edsuwarna/anjungan/internal/audit"
+	"github.com/edsuwarna/anjungan/internal/authactivity"
 	"github.com/edsuwarna/anjungan/internal/common"
+	"github.com/edsuwarna/anjungan/internal/common/model"
 )
 
 type Handler struct {
-	svc  *Service
-	repo audit.Repository
+	svc        *Service
+	repo       audit.Repository
+	authEvents authactivity.Repository
 }
 
-func NewHandler(svc *Service, repo audit.Repository) *Handler {
-	return &Handler{svc: svc, repo: repo}
+func NewHandler(svc *Service, repo audit.Repository, authEvents authactivity.Repository) *Handler {
+	return &Handler{svc: svc, repo: repo, authEvents: authEvents}
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -27,21 +30,41 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ip := audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+	userAgent := r.Header.Get("User-Agent")
 	resp, err := h.svc.Login(r.Context(), req.Email, req.Password, req.TOTPCode, ip)
 	if err != nil {
 		if errors.Is(err, ErrTOTPRequired) {
+			h.recordAuthEvent("", req.Email, model.EventTypeLoginAttempt, model.EventStatusSuccess, "", ip, userAgent)
 			common.JSON(w, http.StatusOK, map[string]string{"status": "totp_required", "email": req.Email})
 			return
 		}
 		if errors.Is(err, ErrAccountLocked) {
+			h.recordAuthEvent("", req.Email, model.EventTypeLoginFailure, model.EventStatusFailure, "account_locked", ip, userAgent)
+			if u, lookupErr := h.svc.GetUserByEmail(r.Context(), req.Email); lookupErr == nil {
+				h.recordAuthEvent(u.ID, u.Email, model.EventTypeLockout, model.EventStatusSuccess, "", ip, userAgent)
+				audit.Log(h.repo, u.ID, u.Email, ip,
+					"user.locked", "user", u.ID,
+					"Account locked due to too many failed login attempts")
+			}
 			common.Error(w, http.StatusTooManyRequests, "account locked. too many failed attempts")
 			return
 		}
 
-		// Check if account just got locked — log lockout event for audit trail
+		if errors.Is(err, ErrRateLimited) {
+			h.recordAuthEvent("", req.Email, model.EventTypeLoginFailure, model.EventStatusFailure, "rate_limited", ip, userAgent)
+			common.Error(w, http.StatusTooManyRequests, "too many attempts. please wait before trying again")
+			return
+		}
+
 		if errors.Is(err, ErrInvalidCredentials) {
+			h.recordAuthEvent("", req.Email, model.EventTypeLoginFailure, model.EventStatusFailure, "invalid_password", ip, userAgent)
 			if locked, _ := h.svc.IsLocked(r.Context(), req.Email); locked {
-				if u, lookupErr := h.svc.GetUserByEmail(r.Context(), req.Email); lookupErr == nil {
+				// Lockout event already handled above in the account_locked path
+				// But we also need to re-raise if the account got locked just now
+			}
+			if u, lookupErr := h.svc.GetUserByEmail(r.Context(), req.Email); lookupErr == nil {
+				if locked, _ := h.svc.IsLocked(r.Context(), req.Email); locked {
+					h.recordAuthEvent(u.ID, u.Email, model.EventTypeLockout, model.EventStatusSuccess, "", ip, userAgent)
 					audit.Log(h.repo, u.ID, u.Email, ip,
 						"user.locked", "user", u.ID,
 						"Account locked due to too many failed login attempts")
@@ -53,8 +76,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Audit log: successful login
+	// Success — audit + record auth event
 	if resp.User != nil {
+		h.recordAuthEvent(resp.User.ID, resp.User.Email, model.EventTypeLoginSuccess, model.EventStatusSuccess, "", ip, userAgent)
+
 		meta, _ := json.Marshal(map[string]string{
 			"user_name": resp.User.Name,
 			"user_role": resp.User.Role,
@@ -74,7 +99,6 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if registration is enabled
 	if !h.svc.IsRegistrationEnabled(r.Context()) {
 		common.Error(w, http.StatusForbidden, "registration is disabled")
 		return
@@ -89,6 +113,9 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		common.Error(w, http.StatusConflict, "email already registered")
 		return
 	}
+
+	ip := audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+	h.recordAuthEvent(user.ID, user.Email, model.EventTypeRegister, model.EventStatusSuccess, "", ip, r.Header.Get("User-Agent"))
 
 	meta, _ := json.Marshal(map[string]string{
 		"user_name": user.Name,
@@ -110,6 +137,41 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	common.JSON(w, http.StatusOK, claims)
 }
 
+// LoginHistory returns auth events for the currently authenticated user.
+// Mounted under /auth/ so it only needs auth middleware, not admin.
+func (h *Handler) LoginHistory(w http.ResponseWriter, r *http.Request) {
+	claims := extractClaims(h.svc, r)
+	if claims == nil {
+		common.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	q := model.AuthEventQuery{
+		Page:      common.ParseQueryInt(r, "page", 1),
+		Limit:     common.ParseQueryInt(r, "limit", 30),
+		EventType: r.URL.Query().Get("event_type"),
+		Status:    r.URL.Query().Get("status"),
+		Email:     claims.Email,
+		IPAddress: r.URL.Query().Get("ip_address"),
+		Search:    r.URL.Query().Get("search"),
+		Sort:      r.URL.Query().Get("sort"),
+		Order:     r.URL.Query().Get("order"),
+	}
+
+	resp, err := h.authEvents.ListAuthEvents(r.Context(), q)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to list login history")
+		return
+	}
+
+	common.JSONWithMeta(w, http.StatusOK, resp.Events, &common.Meta{
+		Page:       resp.Page,
+		PerPage:    resp.Limit,
+		Total:      resp.Total,
+		TotalPages: resp.TotalPages,
+	})
+}
+
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	common.Error(w, http.StatusNotImplemented, "not implemented yet")
 }
@@ -117,6 +179,9 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r.Context())
 	if claims != nil && h.repo != nil {
+		ip := audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+		h.recordAuthEvent(claims.UserID, claims.Email, model.EventTypeLogout, model.EventStatusSuccess, "", ip, r.Header.Get("User-Agent"))
+
 		meta, _ := json.Marshal(map[string]string{
 			"user_email": claims.Email,
 			"user_role":  claims.Role,
@@ -136,14 +201,16 @@ func (h *Handler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ip := audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+	userAgent := r.Header.Get("User-Agent")
 	resp, err := h.svc.VerifyTOTPCode(r.Context(), req.Email, req.Token)
 	if err != nil {
+		h.recordAuthEvent("", req.Email, model.EventTypeLoginFailure, model.EventStatusFailure, "totp_invalid", ip, userAgent)
 		common.Error(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
-	// Audit login completion
 	if resp.User != nil {
+		h.recordAuthEvent(resp.User.ID, resp.User.Email, model.EventTypeLoginSuccess, model.EventStatusSuccess, "", ip, userAgent)
 		meta, _ := json.Marshal(map[string]string{
 			"user_name": resp.User.Name,
 			"user_role": resp.User.Role,
@@ -188,6 +255,9 @@ func (h *Handler) SetupTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.recordAuthEvent(claims.UserID, claims.Email, model.EventTypeTOTPSetup, model.EventStatusSuccess, "",
+		audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For")), r.Header.Get("User-Agent"))
+
 	meta, _ := json.Marshal(map[string]string{"user_email": claims.Email})
 	audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
 		"auth.2fa_setup", "user", claims.UserID,
@@ -215,6 +285,7 @@ func (h *Handler) VerifyTOTPSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// No separate auth event for verify-setup; the setup event already captured the initiation
 	meta, _ := json.Marshal(map[string]string{"user_email": claims.Email})
 	audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
 		"auth.2fa_enable", "user", claims.UserID,
@@ -245,6 +316,9 @@ func (h *Handler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
 		common.Error(w, http.StatusInternalServerError, "failed to disable 2FA")
 		return
 	}
+
+	h.recordAuthEvent(claims.UserID, claims.Email, model.EventTypeTOTPDisable, model.EventStatusSuccess, "",
+		audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For")), r.Header.Get("User-Agent"))
 
 	meta, _ := json.Marshal(map[string]string{"user_email": claims.Email})
 	audit.Log(h.repo, claims.UserID, claims.Email, r.RemoteAddr,
@@ -311,11 +385,14 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		common.Error(w, http.StatusInternalServerError, "failed to change password")
 		return
 	}
+
+	h.recordAuthEvent(claims.UserID, claims.Email, model.EventTypePasswordChange, model.EventStatusSuccess, "",
+		audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For")), r.Header.Get("User-Agent"))
+
 	common.JSON(w, http.StatusOK, map[string]string{"message": "password changed"})
 }
 
 // UpdateProfile updates the authenticated user's name and/or email.
-// If the email was changed, a new JWT token pair is issued with the updated claims.
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var req UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -349,7 +426,6 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Always re-issue tokens so the JWT claims (especially email) stay in sync
 	ip := audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
 	meta, _ := json.Marshal(map[string]string{
 		"user_name": user.Name,
@@ -365,4 +441,12 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.JSON(w, http.StatusOK, resp)
+}
+
+// recordAuthEvent records an auth event asynchronously (best-effort).
+func (h *Handler) recordAuthEvent(userID, email, eventType, status, failureReason, ip, userAgent string) {
+	if h.authEvents == nil {
+		return
+	}
+	authactivity.RecordEvent(h.authEvents, userID, email, eventType, status, failureReason, ip, userAgent)
 }

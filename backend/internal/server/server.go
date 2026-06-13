@@ -5,17 +5,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/edsuwarna/anjungan/internal/admin"
 	"github.com/edsuwarna/anjungan/internal/auth"
+	"github.com/edsuwarna/anjungan/internal/authactivity"
 	"github.com/edsuwarna/anjungan/internal/bookmark"
+	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/db"
+	"github.com/edsuwarna/anjungan/internal/common/model"
 	"github.com/edsuwarna/anjungan/internal/compliance"
 	"github.com/edsuwarna/anjungan/internal/config"
 	"github.com/edsuwarna/anjungan/internal/container"
@@ -38,7 +43,7 @@ type Server struct {
 
 func New(cfg *config.Config) (*Server, error) {
 	zerolog.SetGlobalLevel(parseLogLevel(cfg.Log.Level))
-	log.Logger = log.With().Caller().Logger()
+	zlog.Logger = zlog.With().Caller().Logger()
 
 	database, err := db.Connect(cfg.Postgres)
 	if err != nil {
@@ -48,26 +53,152 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, fmt.Errorf("database ping: %w", err)
 	}
 
+	zlog.Info().Msgf("connected to database: %s", cfg.Postgres.DBName)
+
+	rdb := db.NewRedis(cfg.Redis)
+	zlog.Info().Msg("redis connected")
+
 	// ─── Auto-run pending migrations ─────────────────────────────────────
-	log.Info().Str("dir", cfg.MigrationsPath).Msg("running database migrations")
+	zlog.Info().Str("dir", cfg.MigrationsPath).Msg("running database migrations")
 	if n, err := db.RunMigrations(context.Background(), database.Pool, cfg.MigrationsPath); err != nil {
 		return nil, fmt.Errorf("migrations: %w", err)
 	} else if n > 0 {
-		log.Info().Int("applied", n).Msg("database migrations applied")
+		zlog.Info().Int("applied", n).Msg("database migrations applied")
 	} else {
-		log.Info().Msg("no pending migrations")
+		zlog.Info().Msg("no pending migrations")
 	}
 
-	rdb := db.NewRedis(cfg.Redis)
 	repo := db.NewRepository(database)
 
 	// ─── Build handlers ────────────────────────────────────────────────────
 	rl := ratelimit.New(rdb, cfg.Security.RateLimitMaxAttempts, cfg.Security.RateLimitWindow, cfg.Security.RateLimitLockout)
 	authSvc := auth.NewService(repo, cfg.JWT, rdb, rl, cfg.Security)
-	authH := auth.NewHandler(authSvc, repo)
+	authH := auth.NewHandler(authSvc, repo, repo)
+
+	// Auth Activity — login monitoring
+	authActivityH := authactivity.NewHandler(repo)
+	authActivityH.SetRedis(rdb)
+
+	// Sync blocked IPs from DB into Redis on startup (in case Redis was restarted)
+	go func() {
+		ctx := context.Background()
+		dbIPs, err := repo.ListBlockedIPs(ctx)
+		if err != nil {
+			zlog.Warn().Err(err).Msg("failed to sync blocked IPs from DB on startup")
+		} else if len(dbIPs) > 0 {
+			for _, b := range dbIPs {
+				key := "blocked_ip:" + b.IPAddress
+				data, _ := json.Marshal(map[string]interface{}{
+					"ip_address": b.IPAddress,
+					"created_by": b.CreatedBy,
+					"reason":     b.Reason,
+					"created_at": b.CreatedAt,
+				})
+				rdb.Set(ctx, key, string(data), 0)
+				rdb.SAdd(ctx, "blocked_ips", b.IPAddress)
+			}
+			zlog.Info().Int("count", len(dbIPs)).Msg("synced blocked IPs from DB to Redis")
+		}
+	}()
 
 	srv := &Server{cfg: cfg, db: database}
-	srv.setupRouter(authH, authSvc, repo, rl)
+	srv.setupRouter(authH, authSvc, repo, rl, authActivityH)
+
+	// ─── Brute force detection scheduler ─────────────────────────────────
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		ctx := context.Background()
+
+		// Read hostname for notifications
+		hostname := "anjungan"
+		if hn, err := os.Hostname(); err == nil && hn != "" {
+			hostname = hn
+		}
+		// Try to get self-server name from config
+		if cfg.SelfServer.Name != "" {
+			hostname = cfg.SelfServer.Name
+		}
+
+		for range ticker.C {
+			// Read config for dynamic threshold/window
+			bfCfg, cfgErr := repo.GetBruteForceConfig(ctx)
+			if cfgErr != nil {
+				zlog.Error().Err(cfgErr).Msg("failed to read brute force config, using defaults")
+				bfCfg = &model.BruteForceConfig{Threshold: 20, WindowMinutes: 5}
+			}
+			alerts, err := repo.DetectBruteForce(ctx, bfCfg.Threshold, bfCfg.WindowMinutes)
+			if err != nil {
+				zlog.Error().Err(err).Msg("brute force detection error")
+				continue
+			}
+			if len(alerts) > 0 {
+				zlog.Warn().Int("alerts", len(alerts)).Msg("brute force alerts detected")
+				for _, a := range alerts {
+					zlog.Warn().
+						Str("ip", a.IPAddress).
+						Int("failures", a.Failures).
+						Int("users", a.UserCount).
+						Int("window_min", a.WindowMinutes).
+						Msg("brute force alert")
+					// Determine event type by user count
+					eventType := "brute_force"
+					if a.UserCount > 5 {
+						eventType = "credential_stuffing"
+					}
+					details, _ := json.Marshal(map[string]interface{}{
+						"failures":       a.Failures,
+						"user_count":     a.UserCount,
+						"window_minutes": a.WindowMinutes,
+						"first_attempt":  a.FirstAttempt,
+						"last_attempt":   a.LastAttempt,
+					})
+					sev := &model.SecurityEvent{
+						ID:         uuid.New().String(),
+						EventType:  eventType,
+						IPAddress:  a.IPAddress,
+						Details:    string(details),
+						Severity:   "high",
+						DetectedAt: time.Now(),
+						CreatedAt:  time.Now(),
+					}
+					if err := repo.CreateSecurityEvent(ctx, sev); err != nil {
+						zlog.Error().Err(err).Str("ip", a.IPAddress).Msg("failed to persist security event")
+					}
+				}
+
+			// Send notifications to brute force config targets
+			go func(alerts []model.BruteForceAlert) {
+				cfg, err := repo.GetBruteForceConfig(ctx)
+				if err != nil || len(cfg.NotificationTargetIDs) == 0 {
+					return
+				}
+				for _, a := range alerts {
+					for _, targetID := range cfg.NotificationTargetIDs {
+						t, err := repo.GetNotificationTarget(ctx, targetID)
+						if err != nil || t == nil || !t.Enabled {
+							continue
+						}
+						statusCode, respBody, err := notification.SendBruteForceAlert(
+							t, a.IPAddress, a.Failures, a.WindowMinutes,
+							a.UserCount, a.FirstAttempt, a.LastAttempt,
+							hostname, a.Country, a.ISP, a.ASN, a.SampleEmails,
+						)
+						if err != nil {
+							zlog.Warn().Err(err).Str("ip", a.IPAddress).Str("target", t.Name).Msg("failed to send brute force notification")
+						} else {
+							zlog.Debug().Str("ip", a.IPAddress).Str("target", t.Name).Int("status", statusCode).Str("resp", respBody).Msg("brute force notification sent")
+						}
+					}
+				}
+			}(alerts)
+			}
+		}
+	}()
+	zlog.Info().Msg("brute force detection scheduler started (every 60s)")
+
+	// ─── Auth events purge scheduler ──────────────────────────────────────
+	authactivity.StartPurgeScheduler(context.Background(), repo)
 
 	// ─── Self-server auto-registration ────────────────────────────────────
 	if cfg.SelfServer.Enabled {
@@ -80,7 +211,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 func (s *Server) Handler() http.Handler { return s.mux }
 
-func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, rl *ratelimit.RateLimiter) {
+func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *db.Repository, rl *ratelimit.RateLimiter, authActivityH *authactivity.Handler) {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -140,6 +271,14 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			uptimeSched.Start(context.Background())
 
 			r.Mount("/admin", admin.NewHandler(repo, rl).Routes())
+
+		// Auth Activity — login monitoring (admin only)
+		r.Group(func(r chi.Router) {
+		r.Use(auth.RequireAdmin)
+		r.Use(bridgeClaims) // copy auth claims to common context
+		r.Mount("/auth-activity", authActivityH.Routes())
+	})
+
 			r.Mount("/settings", settingsH.Routes())
 			r.Get("/dashboard", dashboard.NewHandler(repo).Summary)
 		})
@@ -162,7 +301,27 @@ func authRoutes(h *auth.Handler) chi.Router {
 	r.Post("/logout", h.Logout)
 	r.Put("/password", h.ChangePassword)
 	r.Put("/profile", h.UpdateProfile)
+	r.Get("/login-history", h.LoginHistory)
 	return r
+}
+
+// bridgeClaims copies auth package's JWT claims to the common context
+// so downstream handlers (e.g. authactivity) can read user identity
+// without importing the auth package (avoids import cycles).
+func bridgeClaims(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims := auth.GetClaims(r.Context())
+		if claims != nil {
+			ctx := common.SetUserClaims(r.Context(), &common.UserClaims{
+				UserID: claims.UserID,
+				Email:  claims.Email,
+				Role:   claims.Role,
+			})
+			next.ServeHTTP(w, r.WithContext(ctx))
+		} else {
+			next.ServeHTTP(w, r)
+		}
+	})
 }
 
 func parseLogLevel(level string) zerolog.Level {

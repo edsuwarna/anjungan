@@ -438,7 +438,7 @@ func (h *Handler) dispatchNotification(ctx context.Context, m *model.SSLMonitor,
 	}
 
 	// Load all enabled notification targets
-	allTargets, err := h.repo.ListNotificationTargets(ctx, "")
+	allTargets, err := h.repo.ListNotificationTargets(ctx)
 	if err != nil {
 		log.Printf("[sslmonitor] failed to load notification targets for %s: %v", m.ID, err)
 		return
