@@ -240,6 +240,83 @@ GET /api/v1/admin/audit-log/export        — Export as CSV
 
 ---
 
+## Auth Activity
+
+Auth activity endpoints under `/api/v1/auth-activity` — login monitoring, brute force detection, IP blocking.
+
+```
+GET    /api/v1/auth-activity/events             — Auth events (paginated, filterable)
+GET    /api/v1/auth-activity/events/mine        — Current user's own login history (last 20)
+GET    /api/v1/auth-activity/events/export      — CSV export for audit
+GET    /api/v1/auth-activity/summary             — Dashboard summary cards
+GET    /api/v1/auth-activity/lockouts            — Currently locked accounts
+GET    /api/v1/auth-activity/trend               — Aggregated daily stats for charts (?days=7, max 90)
+GET    /api/v1/auth-activity/brute-force         — Brute force detection results
+GET    /api/v1/auth-activity/top-ips             — IPs with most failures (?days=7)
+GET    /api/v1/auth-activity/top-users           — Users with most failures (?days=7)
+GET    /api/v1/auth-activity/heatmap             — Hourly auth event distribution (?days=7)
+POST   /api/v1/auth-activity/block-ip            — Block an IP address
+POST   /api/v1/auth-activity/unblock-ip          — Unblock an IP address
+GET    /api/v1/auth-activity/blocked-ips         — List blocked IPs
+GET    /api/v1/auth-activity/config              — Brute force notification config
+PUT    /api/v1/auth-activity/config              — Update brute force config
+```
+
+### Query Parameters (GET /events)
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `page` | int | Page number (default 1) |
+| `limit` | int | Page size (default 50) |
+| `event_type` | string | Filter by event type |
+| `status` | string | Filter by success/failure |
+| `email` | string | Filter by email |
+| `ip_address` | string | Filter by IP address |
+| `search` | string | Full-text search |
+| `start_date` | string | ISO date (YYYY-MM-DD) |
+| `end_date` | string | ISO date (YYYY-MM-DD) |
+| `sort` | string | Sort column (default: created_at) |
+| `order` | string | Sort order: asc/desc |
+
+### Events Response
+
+```json
+{
+  "events": [{
+    "id": "aev_xxx",
+    "user_id": "usr_xxx",
+    "email": "admin@example.com",
+    "event_type": "login_failure",
+    "status": "failure",
+    "failure_reason": "invalid_password",
+    "ip_address": "185.220.101.23",
+    "country": "RU",
+    "asn": "AS12345",
+    "isp": "Example ISP",
+    "user_agent": "Mozilla/5.0 ...",
+    "auth_method": "password",
+    "created_at": "2026-06-11T08:30:00Z"
+  }],
+  "_meta": { "total": 543, "page": 1, "per_page": 50, "total_pages": 11 }
+}
+```
+
+### Summary Response
+
+```json
+{
+  "today_logins": 128,
+  "today_failures": 47,
+  "today_success_rate": 63.3,
+  "today_lockouts": 0,
+  "unique_ips": 24,
+  "blocked_ips_count": 2,
+  "active_brute_force_alerts": 2
+}
+```
+
+---
+
 ## Settings
 
 ```

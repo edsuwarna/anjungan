@@ -48,6 +48,8 @@ anjungan/
 │   │   ├── config/           # Environment configuration
 │   │   ├── common/           # Shared types, DB, helpers
 │   │   ├── auth/             # Authentication & authorization
+│   │   ├── authactivity/     # Login activity & brute force detection
+│   │   ├── bookmark/         # Tool shortcut bookmarks
 │   │   ├── infra/            # Server/infrastructure management
 │   │   ├── container/        # Docker container management
 │   │   ├── registry/         # Container registry integration
@@ -55,6 +57,9 @@ anjungan/
 │   │   ├── deployment/       # Deployment pipeline
 │   │   ├── dashboard/        # Dashboard aggregation
 │   │   ├── compliance/       # Security compliance checks
+│   │   ├── sslmonitor/       # SSL certificate monitoring
+│   │   ├── uptime/           # Uptime monitoring
+│   │   ├── notification/     # Notification targets & delivery
 │   │   ├── settings/         # Application settings (thresholds)
 │   │   ├── admin/            # User & permission management
 │   │   └── audit/            # Audit logging

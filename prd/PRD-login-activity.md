@@ -1,9 +1,9 @@
 # Anjungan — PRD: Login Activity & Auth Security Monitoring
 
-> **Version:** 1.0
-> **Status:** 🔴 Not Implemented — Proposed for Phase 3
+> **Version:** 1.1
+> **Status:** ✅ Implemented — v0.14.0 (Login Activity, Brute Force, Lockouts, GeoIP, Trend Charts, CSV Export)
 > **Author:** Endang Suwarna
-> **Last Updated:** June 11, 2026
+> **Last Updated:** June 13, 2026
 
 ---
 
@@ -41,13 +41,17 @@ Without auth security monitoring:
 
 | Aspect | Status |
 |--------|--------|
-| Audit log (generic) | ✅ Available — records auth events but no dedicated view |
+| Audit log (generic) | ✅ Available — records auth events with dedicated auth_events table |
 | Rate limiting (Redis) | ✅ Implemented — 5 failed attempts → backoff |
 | Account lockout | ✅ Implemented — 10 failed attempts → locked 15 min |
-| TOTP 2FA | 🔴 Not implemented — PRD-totp-2fa.md proposed |
-| Login Activity dashboard | ❌ Not implemented — This PRD |
-| Brute force alerting | ❌ Not implemented |
-| GeoIP on login events | ❌ Not implemented |
+| TOTP 2FA | ✅ Implemented — PRD-totp-2fa.md |
+| Login Activity dashboard | ✅ Implemented — v0.14.0 |
+| Brute force alerting | ✅ Implemented — threshold-based detection + notification |
+| GeoIP on login events | ✅ Implemented — MaxMind GeoLite2 |
+| IP blocking | ✅ Implemented — Redis + DB persistent block/unblock |
+| CSV export | ✅ Implemented — /events/export endpoint |
+| Hourly heatmap | ✅ Implemented — /heatmap endpoint |
+| Self-service login history | ✅ Implemented — /events/mine, last 20 events |
 
 ### Target Audience
 
@@ -60,12 +64,15 @@ Without auth security monitoring:
 | Goal | Metric |
 |------|--------|
 | Login attempts visible in dedicated dashboard | ✅ All auth events (success + failure) |
-| Brute force detection | ✅ > 20 failures from same IP in 5 min → alert |
-| Account lockout visibility | ✅ See locked accounts + remaining lockout time |
-| GeoIP enrichment on auth events | ✅ Country + ASN per login IP |
+| Brute force detection | ✅ > 20 failures from same IP in 5 min → alert/notification |
+| Account lockout visibility | ✅ See locked accounts + remaining lockout time + unlock action |
+| GeoIP enrichment on auth events | ✅ Country + ASN + ISP per login IP |
 | Login trend (7d/30d) | ✅ Daily auth chart with success rate |
 | Self-service login history | ✅ Users see last 20 of their own logins |
-| Export auth events | ✅ CSV export for security audit |
+| CSV export | ✅ Export auth events for security audit |
+| IP blocking | ✅ Block/unblock IPs from dashboard (Redis + DB) |
+| Brute force config | ✅ Configurable threshold, window, notification targets |
+| Hourly heatmap | ✅ Hourly distribution of auth events |
 
 ### Non-Goals
 
@@ -190,49 +197,65 @@ Admin can unlock a locked account directly from the dashboard (reuses existing `
 ### REST Endpoints
 
 ```
-GET    /api/auth/activity            — Auth events (paginated, filterable)
-GET    /api/auth/activity/mine       — Current user's own login history (last 20)
-GET    /api/auth/summary             — Dashboard summary cards
-GET    /api/auth/lockouts            — Currently locked accounts
-POST   /api/auth/unlock/:user_id     — Unlock account (admin)
-GET    /api/auth/trend               — Aggregated daily stats for charts
-GET    /api/auth/export              — CSV export for audit
-```
+GET    /api/v1/auth-activity/events             — Auth events (paginated, filterable)
+GET    /api/v1/auth-activity/events/mine        — Current user's own login history (last 20)
+GET    /api/v1/auth-activity/events/export      — CSV export for audit
+GET    /api/v1/auth-activity/summary             — Dashboard summary cards
+GET    /api/v1/auth-activity/lockouts            — Currently locked accounts
+GET    /api/v1/auth-activity/trend               — Aggregated daily stats for charts
+GET    /api/v1/auth-activity/brute-force         — Brute force detection results
+GET    /api/v1/auth-activity/top-ips             — IPs with most failures
+GET    /api/v1/auth-activity/top-users           — Users with most failures
+GET    /api/v1/auth-activity/heatmap             — Hourly auth event distribution
+POST   /api/v1/auth-activity/block-ip            — Block an IP address
+POST   /api/v1/auth-activity/unblock-ip          — Unblock an IP address
+GET    /api/v1/auth-activity/blocked-ips         — List blocked IPs
+GET    /api/v1/auth-activity/config              — Brute force notification config
+PUT    /api/v1/auth-activity/config              — Update brute force config
 
-### Response Shape (GET /auth/activity)
+### Response Shape (GET /auth-activity/events)
 
 ```json
 {
   "events": [
     {
       "id": "aev_01j2...",
-      "user_email": "admin@example.com",
+      "user_id": "usr_xxx",
+      "email": "admin@example.com",
       "event_type": "login_failure",
+      "status": "failure",
       "failure_reason": "invalid_password",
-      "ip": "185.220.101.23",
+      "ip_address": "185.220.101.23",
+      "ip_obfuscated": "185.220.***.***",
       "country": "RU",
       "asn": "AS12345",
+      "isp": "Example ISP",
       "user_agent": "Mozilla/5.0 ...",
       "auth_method": "password",
+      "metadata": {},
       "created_at": "2026-06-11T08:30:00Z"
     }
   ],
-  "total": 543,
-  "limit": 50,
-  "offset": 0
+  "_meta": {
+    "total": 543,
+    "page": 1,
+    "per_page": 50,
+    "total_pages": 11
+  }
 }
 ```
 
-### Response Shape (GET /auth/summary)
+### Response Shape (GET /auth-activity/summary)
 
 ```json
 {
   "today_logins": 128,
   "today_failures": 47,
   "today_success_rate": 63.3,
-  "locked_accounts": 3,
-  "unique_ips_today": 24,
-  "brute_force_alerts_active": 2,
+  "today_lockouts": 0,
+  "unique_ips": 24,
+  "blocked_ips_count": 2,
+  "active_brute_force_alerts": 2,
   "trend_7d": {
     "dates": ["2026-06-05", "2026-06-06", ...],
     "success": [95, 102, 88, ...],
@@ -275,11 +298,16 @@ CREATE INDEX idx_auth_events_user_email ON auth_events(user_email);
 ### Sidebar Placement
 
 ```
-Administration
-├── Users                    (existing)
-├── Login Activity           (new)
-├── Audit Log                (existing)
-└── Settings                 (existing)
+Security
+├── SSL Monitors              (existing)
+├── Compliance                (existing)
+├── Login Activity            (new — admin)
+├── Lockouts                  (new — admin)
+└── ...
+
+Account
+├── Login History             (new — self-service)
+└── ...
 ```
 
 ### Page: Login Activity (Admin)
@@ -325,33 +353,37 @@ Administration
 
 ## 7. Implementation Roadmap
 
-### Phase 1: Backend (2-3 days)
+### Phase 1: Backend ✅ Complete
 
 | Task | Effort | Depends On |
 |------|--------|-----------|
-| Create auth_events table + migration | 0.5d | — |
-| Auth Event Recorder — hook into login handler + Redis lockout | 1d | — |
-| REST endpoints (activity, summary, lockouts, trend) | 1d | Table + recorder |
-| GeoIP enrichment (MaxMind DB integration) | 0.5d | Endpoints |
+| Create auth_events table + migration | ✅ Done | — |
+| Auth Event Recorder — hook into login handler + Redis lockout | ✅ Done | — |
+| REST endpoints (events, summary, lockouts, trend, top-ips, top-users, heatmap) | ✅ Done | Table + recorder |
+| GeoIP enrichment (MaxMind DB integration) | ✅ Done | Endpoints |
+| Brute force detection config & cron | ✅ Done | Security Events PRD |
+| CSV export | ✅ Done | Events endpoint |
 
-### Phase 2: Frontend (1-2 days)
-
-| Task | Effort | Depends On |
-|------|--------|-----------|
-| Login Activity page — table + filters | 1d | API ready |
-| Summary cards | 0.5d | Activity page |
-| Trend chart (Chart.js or similar) | 0.5d | Summary cards |
-| Self-service "My Login History" | 0.5d | Activity page |
-
-### Phase 3: Alerting & Polish (1 day)
+### Phase 2: Frontend ✅ Complete
 
 | Task | Effort | Depends On |
 |------|--------|-----------|
-| Brute force detection cron + security events integration | 0.5d | Security Events PRD |
-| Notification triggers on brute force | 0.5d | Notification targets |
-| CSV export | 0.5d | Activity page |
+| Login Activity page — table + filters | ✅ Done | API ready |
+| Summary cards | ✅ Done | Activity page |
+| Trend chart + hourly heatmap | ✅ Done | Summary cards |
+| Self-service "My Login History" | ✅ Done | Activity page |
+| Lockouts page | ✅ Done | Lockouts API |
+| IP blocking UI (block/unblock/list) | ✅ Done | Block IP API |
 
-**Total:** ~4-6 days
+### Phase 3: Alerting & Polish ✅ Complete
+
+| Task | Effort | Depends On |
+|------|--------|-----------|
+| Brute force detection cron + security events integration | ✅ Done | Phase 1 |
+| Notification triggers on brute force | ✅ Done | Notification targets |
+| CSV export | ✅ Done | Activity page |
+
+**Total:** All phases implemented in v0.14.0
 
 ---
 
@@ -373,10 +405,10 @@ Administration
 |------------|------|---------|
 | **Login handler** (backend) | Existing | Hook point to record auth events |
 | **Redis lockout keys** | Existing | Detect lockout events + clear on unlock |
-| **MaxMind GeoLite2 DB** | External | IP → Country/ASN lookup |
-| **Security Events** (future) | PRD | Brute force alerts feed into PRD-security-events.md |
+| **MaxMind GeoLite2 DB** | External | IP → Country/ASN/ISP lookup |
+| **Security Events** | Implemented | Brute force alerts feed into auth_activity |
 | **Notification targets** | Existing | Alert admins on brute force detection |
-| **User management** | Existing | Unlock endpoint, user list for references |
+| **User management** | Existing | User list, unlock endpoint |
 
 ---
 
@@ -418,10 +450,10 @@ Administration
 
 | PRD | Relationship |
 |-----|-------------|
-| **PRD-security-events.md** | Brute force alerts from auth flow feed into Security Events |
-| **PRD-totp-2fa.md** | TOTP verification events tracked in auth_events |
+| **PRD-security-events.md** | Brute force alerts from auth flow feed into security_events table |
+| **PRD-totp-2fa.md** | TOTP verification events tracked in auth_events (login_success via TOTP) |
 | **PRD-compliance.md** | Auth security is part of overall compliance posture |
-| **PRD-users.md** | User model, lockout fields, unlock endpoint |
+| **PRD-bookmarks.md** | Bookmarks sidebar integration |
 
 ---
 

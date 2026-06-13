@@ -1,9 +1,9 @@
 # Anjungan — PRD: Bookmarks (Tool Shortcuts)
 
-> **Version:** 1.0
-> **Status:** 🔴 Not Implemented — Proposed for Phase 2
+> **Version:** 1.1
+> **Status:** ✅ Implemented — v0.14.0 (Bookmarks CRUD, Page, Dashboard Widget, Sidebar Quick Access, Search & Filter, Favicon, Pin/Reorder)
 > **Author:** Endang Suwarna
-> **Last Updated:** June 5, 2026
+> **Last Updated:** June 13, 2026
 
 ---
 
@@ -24,7 +24,7 @@ Anjungan as an IDP has become a single pane of glass for infra management (serve
 - **Dashboard widget** — 8 favorite tools visible right after login
 - **Dedicated page** — full management with categories
 - **Sidebar quick access** — access from any page
-- **Per-user** — each person has their own bookmarks
+- **Global scope** — all users see the same bookmarks (not per-user)
 - **Auto-favicon** — no need to upload images, fetch automatically from URL
 
 ### Target Audience
@@ -46,7 +46,11 @@ Anjungan as an IDP has become a single pane of glass for infra management (serve
 
 ### Current Status (June 2026)
 
-🔴 **Bookmarks feature is NOT yet implemented.** This PRD is a proposal for the new feature.
+**Bookmarks feature is implemented** — see `/bookmarks` page. Differences from original PRD:
+- **Global scope:** Bookmarks are shared across all users (not per-user). Each bookmark tracks a `user_id` for ownership, but listing shows all.
+- **Pinning:** Bookmarks can be pinned for sidebar quick access (supports up to 8 pinned).
+- **No drag-to-reorder:** Uses sort_order + pin toggle instead of drag.
+- **Description field:** Added `description` field for optional tool descriptions.
 
 ---
 
@@ -80,13 +84,13 @@ flowchart LR
 **Data flow:**
 ```
 User login → JWT → Backend verify → 
-  ├─ GET /api/v1/bookmarks → fetch by user_id → sorted by sort_order
+  ├─ GET /api/v1/bookmarks → fetch all (global), sorted by pinned DESC, sort_order ASC
   │   └─ Dashboard widget: limit 8
   │   └─ Bookmarks page: all, grouped by category
-  │   └─ Sidebar: top 5
-  ├─ POST /api/v1/bookmarks → create (title, url, category, icon)
+  │   └─ Sidebar: pinned bookmarks
+  ├─ POST /api/v1/bookmarks → create (title, url, category, icon, description, pinned)
   ├─ PUT /api/v1/bookmarks/{id} → update
-  ├─ PATCH /api/v1/bookmarks/reorder → bulk sort_order update
+  ├─ PUT /api/v1/bookmarks/{id}/pin → toggle pin
   └─ DELETE /api/v1/bookmarks/{id} → delete
 ```
 
@@ -126,10 +130,10 @@ User login → JWT → Backend verify →
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Status** | 🔴 **Planned** |
-| **Backend** | 5 endpoints: `GET /api/v1/bookmarks` — list by user_id, sorted by sort_order. `POST /api/v1/bookmarks` — create (title, url, category, icon_type, icon_value). `PUT /api/v1/bookmarks/{id}` — update (owner-only, verify user_id). `DELETE /api/v1/bookmarks/{id}` — delete (owner-only). `PATCH /api/v1/bookmarks/reorder` — bulk update sort_order (accepts `[{id, sort_order}, ...]`). All endpoints use existing `auth.Middleware` + extract `user.id` from JWT claims. Audit logging on create/update/delete via existing `audit.Log()`. |
+| **Status** | ✅ **Implemented** |
+| **Backend** | 5 endpoints: `GET /api/v1/bookmarks` — list all (global), sorted by pinned DESC, sort_order ASC. `POST /api/v1/bookmarks` — create (title, url, category, icon_type, icon_value, description, pinned). `PUT /api/v1/bookmarks/{id}` — update (anyone can edit, global scope). `PUT /api/v1/bookmarks/{id}/pin` — toggle pin. `DELETE /api/v1/bookmarks/{id}` — delete. All endpoints use existing `auth.Middleware`. Audit logging on create/update/delete via existing `audit.Log()`. |
 | **Frontend** | — |
-| **Data** | `bookmarks` table — see Section 4. |
+| **Data** | `bookmarks` table — see Section 4. Note: global scope (no user_id filter on list). |
 
 ### F2 — Bookmarks Management Page (/bookmarks)
 
@@ -146,9 +150,9 @@ User login → JWT → Backend verify →
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Status** | 🔴 **Planned** |
-| **Backend** | Reuses `GET /api/v1/bookmarks` — frontend limits to 8 on dashboard. Could add `?limit=8` param for optimization. |
-| **Frontend** | Widget on Dashboard page `/` — placed after stat cards, before recent activity. Title: "🔖 Your Tools" with "Manage Bookmarks →" link to `/bookmarks`. Grid of 8 bookmark items: icon (24×24) + name (13px). Compact design — no cards, just hoverable rows with border on hover. Click → open URL. **Empty state:** smaller version of empty state — "No tools yet" + "Add Bookmark" button inline. **Scrolling:** if > 8 bookmarks, show "View all →" link. |
+| **Status** | ✅ **Implemented** |
+| **Backend** | Reuses `GET /api/v1/bookmarks` — frontend limits to 8 on dashboard. |
+| **Frontend** | Widget on Dashboard page `/` — "🔖 Your Tools" with "Manage Bookmarks →". Grid of up to 8 bookmark items. |
 | **UX** | Widget should be visually lightweight — not competing with stat cards. Row layout with subtle hover border. The "Manage Bookmarks" link is right-aligned in the widget header. |
 
 ### F4 — Sidebar Quick Access
@@ -156,9 +160,9 @@ User login → JWT → Backend verify →
 | | |
 |---|---|
 | **Priority** | P1 |
-| **Status** | 🔴 **Planned** |
-| **Backend** | Reuses `GET /api/v1/bookmarks` — fetches first 5 bookmarks (lowest sort_order = most important). |
-| **Frontend** | Collapsible section in Sidebar (`Sidebar.svelte`) named "⚡ Quick Access". Shows 5 bookmarks as compact icon + label. Each item: favicon (16×16) + tool name (13px). Click → open URL in new tab. "Manage" link at bottom → `/bookmarks`. Section is collapsed by default on mobile, expanded on desktop. State persisted in `localStorage` (collapsed/expanded). Bookmarks data fetched reactively — updated when user adds/deletes. |
+| **Status** | ✅ **Implemented** |
+| **Backend** | Reuses `GET /api/v1/bookmarks` — fetches pinned bookmarks for sidebar quick access (up to 8 pinned). |
+| **Frontend** | Collapsible section in Sidebar (`Sidebar.svelte`) named "⚡ Quick Access". Shows pinned bookmarks (up to 8) as compact icon + label. Each item: favicon + tool name. Click → open URL in new tab. "Manage" link → `/bookmarks`. State persisted in localStorage. Fetched reactively via bookmarks-changed events. |
 | **UX** | Should NOT bloat the sidebar — compact, single-line items. Category labels NOT shown in sidebar (only tool name). If user has < 5 bookmarks, show only existing ones (no empty state). |
 
 ### F5 — Add/Edit Bookmark Modal
@@ -166,7 +170,7 @@ User login → JWT → Backend verify →
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Status** | 🔴 **Planned** |
+| **Status** | ✅ **Implemented** |
 | **Backend** | Uses F1 POST/PUT endpoints |
 | **Frontend** | Modal component (`BookmarkFormModal.svelte`) with fields: **Tool Name** (text input, required, max 100 chars), **URL** (text input, required, validates URL format, auto-prepend `https://` if missing protocol), **Category** (dropdown: Monitoring, CI/CD, Logging, Code & Registry, Internal Tools, Other — matches sidebar categories), **Icon** (auto-favicon preview + Iconify picker fallback — fetch favicon from URL on blur, show preview; if favicon unavailable, show emoji grid picker). **Edit mode:** pre-fill all fields from existing bookmark. **Create mode:** empty form. Submit button: "Add" (create) / "Update" (edit). Cancel button → close modal. |
 | **UX** | Modal centered, max-width 480px. Favicon auto-preview: on URL blur, show loading spinner → if favicon found, display it → if not, fallback to text-based icon (first letter of tool name). Form validation: URL required + valid format, name required. Error toast on API failure. Keyboard: Enter to submit, Esc to close. |
@@ -186,7 +190,7 @@ User login → JWT → Backend verify →
 | | |
 |---|---|
 | **Priority** | P0 |
-| **Status** | 🔴 **Planned** |
+| **Status** | ✅ **Implemented** |
 | **Backend** | Store `icon_type` (`auto`, `iconify`, `emoji`) and `icon_value` in DB. For `auto`, store the favicon URL after successful fetch. On create/update, backend attempts to fetch favicon from URL (`https://www.google.com/s2/favicons?domain=...` or direct `GET domain/favicon.ico`). If fetch succeeds, save `icon_type=auto` + `icon_value=<favicon_url>`. If fails, fall back to `icon_type=emoji` + `icon_value=🔗` (default). |
 | **Frontend** | Display icon based on `icon_type`: **auto** → `<img src={icon_value} alt="">` in card/icon circle. **iconify** → `<Icon icon={icon_value} />`. **emoji** → `<span>{icon_value}</span>`. Card icon container: 40×40px rounded-xl with subtle background (emerald-subtle). Fallback for broken favicon images: show first letter of tool name. |
 
@@ -195,7 +199,7 @@ User login → JWT → Backend verify →
 | | |
 |---|---|
 | **Priority** | P1 |
-| **Status** | 🔴 **Planned** |
+| **Status** | ✅ **Implemented** |
 | **Backend** | `GET /api/v1/bookmarks?q=search&category=...` — optional query params for server-side filtering (useful when bookmarks > 50). Otherwise, frontend-side filtering is sufficient for most users. |
 | **Frontend** | Search bar at top of `/bookmarks` page. Filters bookmarks in real-time by title and URL (case-insensitive). Category filter pills below search bar: "All", "Monitoring", "CI/CD", "Logging", "Code & Registry", "Internal Tools", "Other". Active pill highlighted with emerald-primary style. If search + filter combination returns 0 results: "No bookmarks match your search" + clear filter CTA. |
 
@@ -203,7 +207,7 @@ User login → JWT → Backend verify →
 
 ## 4. Database Schema
 
-### 000020_create_bookmarks.up.sql
+### Migration (actual schema)
 
 ```sql
 CREATE TABLE bookmarks (
@@ -211,32 +215,29 @@ CREATE TABLE bookmarks (
     user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title       TEXT NOT NULL,
     url         TEXT NOT NULL,
-    icon_type   TEXT NOT NULL DEFAULT 'auto'
-                CHECK (icon_type IN ('auto', 'iconify', 'emoji')),
+    icon_type   TEXT NOT NULL DEFAULT 'auto',
     icon_value  TEXT,
-    category    TEXT NOT NULL DEFAULT 'Other'
-                CHECK (category IN (
-                    'Monitoring', 'CI/CD', 'Logging',
-                    'Code & Registry', 'Internal Tools', 'Other'
-                )),
+    category    TEXT NOT NULL DEFAULT 'Other',
+    description TEXT NOT NULL DEFAULT '',
+    pinned      BOOLEAN NOT NULL DEFAULT false,
     sort_order  INTEGER NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_bookmarks_user_id ON bookmarks(user_id);
-CREATE INDEX idx_bookmarks_sort ON bookmarks(user_id, sort_order);
+CREATE INDEX idx_bookmarks_sort ON bookmarks(sort_order);
 ```
 
 ### Design Notes
 
 | Field | Notes |
 |-------|-------|
-| `user_id` | FK to `users(id)` — per-user bookmarks. Cascade delete: if user is deleted, their bookmarks are removed. |
+| `pinned` | Toggle pin for sidebar quick access (up to 8). Not per-user — global scope. |
+| `description` | Optional tool description shown in card. |
 | `icon_type` | `auto` = favicon from URL, `iconify` = Iconify SVG icon, `emoji` = emoji fallback |
 | `icon_value` | For `auto`: favicon URL. For `iconify`: icon name (e.g. `solar:chart-2-bold`). For `emoji`: emoji character. |
-| `sort_order` | 0-based. Drag reorder updates this field. GET returns sorted ascending. |
-| `category` | Enum constraint — if adding a new category, a new migration is needed. |
+| `sort_order` | 0-based. Reorder via updates. GET returns sorted by pinned DESC, sort_order ASC. |
+| `category` | Free-text — no enum constraint. Categories derived dynamically from data. |
 
 ---
 
@@ -246,11 +247,11 @@ CREATE INDEX idx_bookmarks_sort ON bookmarks(user_id, sort_order);
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/bookmarks` | JWT | List user's bookmarks, sorted by `sort_order`. Optional: `?limit=N&category=X&q=search` |
-| `POST` | `/api/v1/bookmarks` | JWT | Create bookmark — body: `{title, url, icon_type?, icon_value?, category?, sort_order?}` |
-| `PUT` | `/api/v1/bookmarks/{id}` | JWT | Update bookmark (owner only) |
-| `DELETE` | `/api/v1/bookmarks/{id}` | JWT | Delete bookmark (owner only) |
-| `PATCH` | `/api/v1/bookmarks/reorder` | JWT | Bulk reorder — body: `[{id, sort_order}, ...]` |
+| `GET` | `/api/v1/bookmarks` | JWT | List all bookmarks, sorted by `pinned DESC, sort_order ASC`. |
+| `POST` | `/api/v1/bookmarks` | JWT | Create bookmark — body: `{title, url, icon_type?, icon_value?, category?, description?, pinned?}` |
+| `PUT` | `/api/v1/bookmarks/{id}` | JWT | Update bookmark |
+| `PUT` | `/api/v1/bookmarks/{id}/pin` | JWT | Toggle pinned status |
+| `DELETE` | `/api/v1/bookmarks/{id}` | JWT | Delete bookmark |
 
 ### Response Format
 
@@ -298,11 +299,11 @@ All responses follow existing Anjungan convention:
 
 | Aspect | Target |
 |--------|--------|
-| **Performance** | GET bookmarks < 50ms (indexed by user_id) |
+| **Performance** | GET bookmarks < 50ms |
 | **Auto-favicon fetch** | Non-blocking — return bookmark immediately, fetch favicon async |
-| **Offline resilience** | Bookmark page shows cached data if API fails (last-known state) |
-| **Security** | User can only CRUD their own bookmarks (user_id from JWT) |
-| **Storage** | Negligible — each bookmark < 500 bytes. 100 bookmarks/user × 100 users = ~5MB |
+| **Offline resilience** | Bookmark page shows cached data if API fails |
+| **Security** | Authenticated users can CRUD all bookmarks (global scope) |
+| **Storage** | Negligible — each bookmark < 500 bytes |
 | **URL safety** | Sanitize URLs before storage — reject `javascript:`, `file:`, `data:` protocols |
 | **Mobile** | Responsive grid: 4→2→1 columns. Sidebar accessible via hamburger |
 | **Dark mode** | Full support — card backgrounds, text, borders adapt to theme |
@@ -382,32 +383,31 @@ All responses follow existing Anjungan convention:
 
 ## 8. Implementation Roadmap
 
-### Phase 1: Core Bookmarks (v1.0)
+### Phase 1: Core Bookmarks (v1.0) ✅ Complete
 
 | Order | Feature | Effort | Depends On |
 |-------|---------|--------|-----------|
-| 1 | DB migration `000020_create_bookmarks` | 0.5 day | — |
-| 2 | Backend CRUD handler + Repository methods | 1 day | #1 |
-| 3 | Frontend Bookmarks page `/bookmarks` | 1.5 days | #2 |
-| 4 | Dashboard widget "Your Tools" | 0.5 day | #2 |
-| 5 | Add/Edit modal + form validation | 0.5 day | #3 |
-| 6 | Auto-favicon (frontend fetch + display) | 0.5 day | #5 |
-| **Total** | | **4.5 days** | |
+| 1 | DB migration `bookmarks` table | ✅ Done | — |
+| 2 | Backend CRUD handler + Repository methods | ✅ Done | #1 |
+| 3 | Frontend Bookmarks page `/bookmarks` | ✅ Done | #2 |
+| 4 | Dashboard widget "Your Tools" | ✅ Done | #2 |
+| 5 | Add/Edit modal + form validation | ✅ Done | #3 |
+| 6 | Auto-favicon (frontend fetch + display) | ✅ Done | #5 |
+| 7 | Pin/unpin for sidebar quick access | ✅ Done | #2 |
 
-### Phase 2: Enhancement (v1.1)
+### Phase 2: Enhancement (v1.1) — Partially Complete
 
 | Order | Feature | Effort | Depends On |
 |-------|---------|--------|-----------|
-| 1 | Sidebar Quick Access | 0.5 day | Phase 1 |
-| 2 | Search + category filter (frontend) | 0.5 day | Phase 1 |
-| 3 | Drag-to-reorder | 1 day | Phase 1 |
+| 1 | Sidebar Quick Access | ✅ Done | Phase 1 |
+| 2 | Search + category filter (frontend) | ✅ Done | Phase 1 |
+| 3 | Drag-to-reorder | 🔴 Planned | Phase 1 |
 
 ### Phase 3: Future
 
 | Feature | Effort | Notes |
 |---------|--------|-------|
-| Server-side search (for 50+ bookmarks) | 0.5 day | Add query params to GET endpoint |
-| Admin global bookmarks | 1 day | New `is_global` column, admin UI |
+| Drag-to-reorder | 1 day | HTML5 Drag & Drop API |
 | Import from browser bookmarks HTML | 1-2 days | Parse Chrome/Firefox HTML export |
 | Export bookmarks | 0.5 day | JSON/CSV export endpoint |
 

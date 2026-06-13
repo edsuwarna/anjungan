@@ -19,7 +19,7 @@ Setiap user bisa punya satu atau kedua peran tergantung RBAC. Dashboard-nya beru
 
 ## 📦 Phase 1 — Foundation (Current)
 
-> **Status: 🟡 Partial** — Kerangka dashboard udah jadi, backend dasar udah jalan
+> **Status: ✅ Mostly Complete** — Core features implemented. See individual PRDs for detail.
 
 ### Backend (Go — ✅ Running)
 - [x] Auth: login, register, JWT + refresh token
@@ -29,25 +29,32 @@ Setiap user bisa punya satu atau kedua peran tergantung RBAC. Dashboard-nya beru
 - [x] User management CRUD
 - [x] Dashboard summary API
 - [x] PostgreSQL + Redis
+- [x] Modular monolith (internal/ packages per domain)
 
-### Frontend (SvelteKit — 🟡 Partial)
+### Frontend (SvelteKit — ✅ Complete)
 - [x] Layout: sidebar + topbar + main area
 - [x] Login page
 - [x] Dark/light mode toggle
 - [x] Responsive (mobile collapsible sidebar)
-- [ ] **Dashboard real** — connect to backend API, show live data
-- [ ] **Halaman Servers** — list, add, manage servers
-- [ ] **Halaman Containers** — list containers per server
-- [ ] **Halaman Registry** — Docker registry browser
-- [ ] **Halaman Repositories** — Git repo integration
-- [ ] **Halaman Deployments** — deployment history & status
-- [ ] **Admin panel** — user, role, permission management
+- [x] Dashboard overview — live stat cards, recent activity, bookmark widget
+- [x] Servers — list, add, manage servers
+- [x] Containers — list containers per server, detail, security scan
+- [x] Registry — Docker registry browser, user credentials
+- [x] SSL Monitors — certificate monitoring, check history, trend charts
+- [x] Uptime Monitors — HTTP/TCP ping, response time, status timeline
+- [x] Compliance — CIS L1/L2, Docker, Lynis scans
+- [x] Bookmarks — tool shortcuts, categories, pin/unpin
+- [x] Login Activity — auth event table, summary cards, trend, heatmap, IP blocking
+- [x] Lockouts — locked accounts view + unlock action
+- [x] Admin panel — user management, audit log
+- [x] Settings — compliance threshold configuration
+- [x] Notifications — shared notification targets (Telegram, Discord, Slack, Webhook)
 
 ### Theme & UI
 - [x] Emerald green primary palette (Tailwind config)
 - [x] CSS variable system for theming
-- [ ] **Emerald-green sidebar** — active state, header accent, hover effects biar ga putih doang
-- [ ] Consistent component design system
+- [x] Emerald-green sidebar — active state, header accent, hover effects
+- [x] Consistent card-based component design
 
 ---
 

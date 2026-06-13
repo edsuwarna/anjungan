@@ -1,9 +1,22 @@
 # Anjungan — PRD: Security Events & Threat Detection
 
-> **Version:** 1.0
-> **Status:** 🔴 Not Implemented — Proposed for Phase 3
+> **Version:** 1.1
+> **Status:** 🟡 Partially Implemented — Brute force detection for Anjungan login implemented in auth-activity (v0.14.0). CrowdSec integration, full Security Events dashboard, and threat intel still 🔴 Not Implemented.
 > **Author:** Endang Suwarna
-> **Last Updated:** June 11, 2026
+> **Last Updated:** June 13, 2026
+
+---
+
+## ⚡ Implemented: Brute Force Detection (auth-activity)
+
+**As of v0.14.0, the brute force detection for Anjungan login is implemented** via the `auth-activity` module. This covers:
+
+- **Brute force detection** — threshold-based (> 20 failures from same IP in 5 min) → security event + notification
+- **IP blocking** — block/unblock IPs from dashboard (Redis + DB persistent)
+- **Lockout monitoring** — see locked accounts + remaining lockout time
+- **Notification** — brute force alerts sent via notification targets
+
+The CrowdSec integration, full Security Events dashboard, and threat intelligence features remain as future work as described below.
 
 ---
 
@@ -40,12 +53,15 @@ Without security event visibility:
 
 | Aspect | Status |
 |--------|--------|
+| Brute force detection (Anjungan login) | ✅ Implemented — auth-activity module (v0.14.0) |
+| IP blocking (Anjungan login) | ✅ Implemented — Redis + DB persistent |
 | CrowdSec deployed on VPS | ❌ Not deployed |
 | CrowdSec Traefik bouncer | ❌ Not configured |
 | CrowdSec API integration | ❌ Not implemented |
 | Security Events dashboard | ❌ Not implemented |
 | Fail2ban log parsing | ❌ Not implemented |
-| Incident timeline (correlated events) | ❌ Planned — separate PRD |
+| Threat Intel / IP reputation | 🟡 Partial — blocked IPs via auth-activity |
+| Incident timeline | ❌ Not implemented |
 
 ### Target Audience
 
@@ -57,12 +73,13 @@ Without security event visibility:
 
 | Goal | Metric |
 |------|--------|
-| Real-time attack detection | < 30s from event to dashboard |
-| Centralized event dashboard | All CrowdSec alerts visible in Anjungan |
-| IP blocking with context | Blocked IP + reason + timestamp + frequency |
-| Attack trend visualization | Daily/weekly attack count, top attacker IPs |
-| Notification via existing targets | Alert on critical events (brute force spike, known attacker) |
-| Zero false positives | Only confirmed events (CrowdSec uses community consensus) |
+| Real-time attack detection (Anjungan login) | ✅ Implemented via auth-activity brute force detection |
+| IP blocking with context | ✅ Blocked IP + reason + timestamp (auth-activity) |
+| Notification on brute force | ✅ Via notification targets |
+| Centralized event dashboard (CrowdSec) | ❌ Not implemented |
+| Attack trend visualization (full) | 🟡 Partial — login trend only (auth-activity) |
+| Zero false positives | ✅ Only confirmed events |
+| CrowdSec integration | ❌ Not implemented |
 
 ### Non-Goals
 
@@ -513,11 +530,11 @@ Security                          (new category — or under existing Security)
 
 | PRD | Relationship |
 |-----|-------------|
+| **PRD-login-activity.md** | Brute force detection for Anjungan login implemented in auth-activity module (v0.14.0) |
 | **PRD-uptime-monitoring.md** | Uptime events + security events → shared timeline |
 | **PRD-ssl-monitoring.md** | SSL errors + security events → certificate attack detection |
 | **PRD-container-image-scanning.md** | CVE in containers + active attack → critical combo |
 | **PRD-compliance.md** | Compliance failures + security events → targeted attack surface |
-| **PRD-incidents-timeline.md** (future) | Security events feed into incident correlation |
 
 ---
 

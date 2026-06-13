@@ -1,8 +1,8 @@
 # Anjungan — Product Requirements Document
 
-> **Version:** 2.0
-> **Status:** 🟡 Partially Implemented — Phase 1 ✅, Phase 2 🟡, Phase 3–5 🔴
-> **Last Updated:** June 2026 — status sync with main branch
+> **Version:** 2.1
+> **Status:** 🟡 Partially Implemented — Phase 1 ✅, Phase 2 🟡 (Bookmarks, Auth Activity, Uptime, SSL Monitors done), Phase 3–5 🔴
+> **Last Updated:** June 13, 2026 — status sync with main branch
 
 ---
 

@@ -54,6 +54,11 @@ GET  /health
     ├── /repositories  — GitHub/Forgejo repository integration
     ├── /deployments   — Deployment lifecycle
     ├── /compliance    — Security scanning & checks
+    ├── /uptime-monitors — Uptime monitoring
+    ├── /ssl-monitors  — SSL certificate monitoring
+    ├── /notification-targets — Notification targets (Telegram, Discord, Slack)
+    ├── /bookmarks     — Tool shortcut bookmarks
+    ├── /auth-activity — Login activity, brute force detection, IP blocking
     ├── /admin         — User management & audit logs
     ├── /settings      — Application settings (thresholds)
     └── GET /dashboard — Aggregated summary
@@ -94,7 +99,11 @@ frontend/src/
     ├── registry/             — Image browser
     ├── compliance/           — Compliance dashboard & scans
     ├── deployment/           — Deployment tracking
-    ├── admin/                — Admin panel
+    ├── uptime/               — Uptime monitoring
+    ├── ssl-monitors/         — SSL certificate monitoring
+    ├── notifications/        — Notification management
+    ├── bookmarks/            — Tool shortcut bookmarks
+    ├── admin/                — Admin panel (users, audit-log, login-activity, lockouts)
     └── settings/             — Settings page
 ```
 
