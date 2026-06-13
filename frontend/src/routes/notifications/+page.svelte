@@ -134,7 +134,7 @@
 		<div>
 			<h1 class="text-2xl font-bold" style="color: var(--color-text);">Notification Targets</h1>
 			<p class="mt-1 text-sm" style="color: var(--color-text-secondary);">
-				Shared notification channels for SSL monitoring and uptime alerts
+				Notification channels for monitors and security alerts
 			</p>
 		</div>
 		<div class="flex items-center gap-3">
@@ -171,7 +171,7 @@
 			<Icon icon="solar:bell-bold" class="mx-auto h-12 w-12" style="color: var(--color-text-muted);" />
 			<p class="mt-4 text-lg font-medium" style="color: var(--color-text);">No notification targets</p>
 			<p class="mt-1 text-sm" style="color: var(--color-text-secondary);">
-				Add webhooks to receive alerts from SSL monitoring and uptime checks.
+				Add webhooks to receive alerts from monitors and security events.
 			</p>
 			<button class="btn-primary mt-4" onclick={openAdd}>Add Target</button>
 		</div>

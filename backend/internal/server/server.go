@@ -149,26 +149,30 @@ func New(cfg *config.Config) (*Server, error) {
 					}
 				}
 
-				// Send notifications to "security"-scoped targets
-				go func(alerts []model.BruteForceAlert) {
-					targets, err := repo.ListNotificationTargets(ctx, "security")
-					if err != nil || len(targets) == 0 {
-						return
-					}
-					for _, a := range alerts {
-						for _, t := range targets {
-							statusCode, respBody, err := notification.SendBruteForceAlert(
-								&t, a.IPAddress, a.Failures, a.WindowMinutes,
-								a.UserCount, a.FirstAttempt, a.LastAttempt,
-							)
-							if err != nil {
-								zlog.Warn().Err(err).Str("ip", a.IPAddress).Str("target", t.Name).Msg("failed to send brute force notification")
-							} else {
-								zlog.Debug().Str("ip", a.IPAddress).Str("target", t.Name).Int("status", statusCode).Str("resp", respBody).Msg("brute force notification sent")
-							}
+			// Send notifications to brute force config targets
+			go func(alerts []model.BruteForceAlert) {
+				cfg, err := repo.GetBruteForceConfig(ctx)
+				if err != nil || len(cfg.NotificationTargetIDs) == 0 {
+					return
+				}
+				for _, a := range alerts {
+					for _, targetID := range cfg.NotificationTargetIDs {
+						t, err := repo.GetNotificationTarget(ctx, targetID)
+						if err != nil || t == nil || !t.Enabled {
+							continue
+						}
+						statusCode, respBody, err := notification.SendBruteForceAlert(
+							t, a.IPAddress, a.Failures, a.WindowMinutes,
+							a.UserCount, a.FirstAttempt, a.LastAttempt,
+						)
+						if err != nil {
+							zlog.Warn().Err(err).Str("ip", a.IPAddress).Str("target", t.Name).Msg("failed to send brute force notification")
+						} else {
+							zlog.Debug().Str("ip", a.IPAddress).Str("target", t.Name).Int("status", statusCode).Str("resp", respBody).Msg("brute force notification sent")
 						}
 					}
-				}(alerts)
+				}
+			}(alerts)
 			}
 		}
 	}()

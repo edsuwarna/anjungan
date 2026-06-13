@@ -710,7 +710,7 @@ func (h *Handler) TestNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Load all notification targets (no scope filter)
-	targets, err := h.repo.ListNotificationTargets(r.Context(), "")
+	targets, err := h.repo.ListNotificationTargets(r.Context())
 	if err != nil {
 		common.Error(w, http.StatusInternalServerError, "failed to load notification targets")
 		return

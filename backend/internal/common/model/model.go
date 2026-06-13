@@ -958,7 +958,6 @@ type NotificationTarget struct {
 	BotToken      string    `json:"bot_token,omitempty"`
 	ChatID        string    `json:"chat_id,omitempty"`
 	Enabled       bool      `json:"enabled"`
-	Scopes        []string  `json:"scopes"`
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -972,7 +971,6 @@ type NotificationTargetRequest struct {
 	BotToken      string   `json:"bot_token,omitempty"`
 	ChatID        string   `json:"chat_id,omitempty"`
 	Enabled       *bool    `json:"enabled,omitempty"`
-	Scopes        []string `json:"scopes"`
 }
 
 func (r *NotificationTargetRequest) Validate() string {
@@ -995,12 +993,6 @@ func (r *NotificationTargetRequest) Validate() string {
 		}
 	} else if r.URL == "" {
 		return "URL is required for this platform"
-	}
-	for _, s := range r.Scopes {
-		validScopes := map[string]bool{"ssl": true, "uptime": true}
-		if !validScopes[s] {
-			return "scope must be ssl or uptime"
-		}
 	}
 	return ""
 }
@@ -1183,4 +1175,12 @@ type SecurityEvent struct {
 	Severity   string    `json:"severity"`
 	DetectedAt time.Time `json:"detected_at"`
 	CreatedAt  time.Time `json:"created_at"`
+}
+
+// BruteForceConfig stores notification target IDs for brute force alerts.
+type BruteForceConfig struct {
+	ID                   string    `json:"id"`
+	NotificationTargetIDs []string `json:"notification_target_ids"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }

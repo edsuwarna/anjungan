@@ -6,19 +6,30 @@
 	let lockouts = $state([]);
 	let loading = $state(true);
 	let error = $state('');
-	let unlocking = $state('');
-	let now = $state(Date.now());
 
+	// Config
+	let config = $state({ notification_target_ids: [] });
+	let allTargets = $state([]);
+	let configLoading = $state(true);
+	let configSaving = $state(false);
+	let configError = $state('');
+	let configSaved = $state(false);
+
+	// Unlock
+	let unlocking = $state('');
+
+	// Countdown tick
+	let now = $state(Date.now());
 	let interval;
 
 	onMount(() => {
 		loadLockouts();
-		// Update countdown every second
+		loadConfig();
+
 		interval = setInterval(() => {
 			now = Date.now();
 		}, 1000);
 
-		// Auto-refresh every 30s to catch new lockouts / expirations
 		const refreshInterval = setInterval(loadLockouts, 30000);
 		interval = { tick: interval, refresh: refreshInterval };
 	});
@@ -39,6 +50,48 @@
 			error = e.message;
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadConfig() {
+		configLoading = true;
+		try {
+			const [cfg, targets] = await Promise.all([
+				api.authActivity.config(),
+				api.notificationTargets.list(),
+			]);
+			config = { notification_target_ids: cfg?.notification_target_ids || [] };
+			allTargets = targets || [];
+		} catch (e) {
+			configError = e.message;
+		} finally {
+			configLoading = false;
+		}
+	}
+
+	async function saveConfig() {
+		configSaving = true;
+		configError = '';
+		configSaved = false;
+		try {
+			await api.authActivity.updateConfig({
+				notification_target_ids: config.notification_target_ids,
+			});
+			configSaved = true;
+			setTimeout(() => configSaved = false, 3000);
+		} catch (e) {
+			configError = e.message;
+		} finally {
+			configSaving = false;
+		}
+	}
+
+	function toggleTarget(id) {
+		const idx = config.notification_target_ids.indexOf(id);
+		if (idx >= 0) {
+			config.notification_target_ids = config.notification_target_ids.filter(x => x !== id);
+		} else {
+			config.notification_target_ids = [...config.notification_target_ids, id];
 		}
 	}
 
@@ -79,8 +132,8 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-6">
 		<div>
-			<h1 class="page-title">Active Lockouts</h1>
-			<p class="page-subtitle">Currently locked-out user accounts with remaining lockout time</p>
+			<h1 class="page-title">Brute Force Lockouts</h1>
+			<p class="page-subtitle">Active lockouts and brute force notification configuration</p>
 		</div>
 		<button onclick={loadLockouts} class="btn-ghost flex items-center gap-1.5 text-sm">
 			<Icon icon="solar:refresh-bold" class="h-4 w-4" />
@@ -88,11 +141,78 @@
 		</button>
 	</div>
 
+	<!-- ─── Notification Config ──────────────────────────────────── -->
+	<div class="card mb-6">
+		<div class="mb-3 flex items-center justify-between">
+			<h3 class="text-sm font-semibold" style="color: var(--color-text);">
+				<Icon icon="solar:bell-bold" class="inline h-4 w-4 mr-1.5" style="color: var(--color-primary);" />
+				Brute Force Notifications
+			</h3>
+			{#if configSaved}
+				<span class="text-xs font-medium" style="color: var(--color-success);">✓ Saved</span>
+			{/if}
+		</div>
+		<p class="mb-4 text-xs" style="color: var(--color-text-muted);">
+			Select notification targets to receive alerts when brute force attacks are detected.
+		</p>
+
+		{#if configLoading}
+			<div class="flex items-center gap-2 py-3">
+				<Icon icon="svg-spinners:180-ring" class="h-4 w-4" style="color: var(--color-primary);" />
+				<span class="text-xs" style="color: var(--color-text-muted);">Loading config...</span>
+			</div>
+		{:else}
+			<div class="flex flex-wrap gap-2 mb-4">
+				{#if allTargets.length === 0}
+					<p class="text-xs" style="color: var(--color-text-muted);">
+						No notification targets configured.
+						<a href="/notifications" class="underline" style="color: var(--color-primary);">Add one first</a>.
+					</p>
+				{:else}
+					{#each allTargets as t (t.id)}
+						<button
+							class="config-chip"
+							class:selected={config.notification_target_ids.includes(t.id)}
+							onclick={() => toggleTarget(t.id)}
+						>
+							<Icon
+								icon={config.notification_target_ids.includes(t.id)
+									? 'solar:check-circle-bold'
+									: 'solar:add-circle-bold'}
+								class="h-3.5 w-3.5"
+							/>
+							{t.name}
+						</button>
+					{/each}
+				{/if}
+			</div>
+
+			{#if configError}
+				<p class="mb-3 text-xs" style="color: #ef4444;">{configError}</p>
+			{/if}
+
+			<button
+				class="btn-primary text-xs"
+				onclick={saveConfig}
+				disabled={configSaving}
+			>
+				<Icon icon={configSaving ? 'svg-spinners:180-ring' : 'solar:diskette-bold'} class="h-3.5 w-3.5" />
+				{configSaving ? 'Saving...' : 'Save Configuration'}
+			</button>
+		{/if}
+	</div>
+
+	<!-- ─── Active Lockouts ──────────────────────────────────────── -->
+	<h2 class="mb-3 text-sm font-semibold" style="color: var(--color-text);">
+		<Icon icon="solar:lock-bold" class="inline h-4 w-4 mr-1.5" />
+		Active Lockouts
+	</h2>
+
 	<!-- Loading -->
 	{#if loading}
-		<div class="flex items-center justify-center py-20">
+		<div class="flex items-center justify-center py-16">
 			<div class="flex flex-col items-center gap-3">
-				<Icon icon="solar:spinner-bold" class="h-8 w-8 animate-spin" style="color: var(--color-primary);" />
+				<Icon icon="svg-spinners:180-ring" class="h-8 w-8" style="color: var(--color-primary);" />
 				<p class="text-sm" style="color: var(--color-text-muted);">Loading lockouts...</p>
 			</div>
 		</div>
@@ -104,7 +224,7 @@
 			<button onclick={loadLockouts} class="btn-secondary mt-2">Retry</button>
 		</div>
 	{:else if lockouts.length === 0}
-		<div class="card flex flex-col items-center py-16 text-center" style="border-left: 3px solid var(--color-success);">
+		<div class="card flex flex-col items-center py-12 text-center" style="border-left: 3px solid var(--color-success);">
 			<Icon icon="solar:lock-unlocked-bold" class="mb-3 h-12 w-12" style="color: var(--color-success);" />
 			<h3 class="mb-1 text-base font-semibold" style="color: var(--color-text);">No active lockouts</h3>
 			<p class="text-sm" style="color: var(--color-text-secondary);">
@@ -144,7 +264,7 @@
 									class="btn-ghost flex items-center gap-1.5 text-xs whitespace-nowrap"
 									style="color: var(--color-success);"
 									title={!l.user_id ? 'User not found' : 'Unlock this account'}>
-									<Icon icon={unlocking === l.email ? 'solar:spinner-bold' : 'solar:lock-unlocked-bold'} class="h-3.5 w-3.5" />
+									<Icon icon={unlocking === l.email ? 'svg-spinners:180-ring' : 'solar:lock-unlocked-bold'} class="h-3.5 w-3.5" />
 									{unlocking === l.email ? 'Unlocking...' : 'Unlock'}
 								</button>
 							</td>
@@ -163,3 +283,111 @@
 		{/if}
 	{/if}
 </div>
+
+<style>
+	.page-container {
+		max-width: 900px;
+		margin: 0 auto;
+		padding: 1.5rem;
+	}
+	.card {
+		border-radius: 12px;
+		padding: 1.25rem;
+		background: var(--color-card);
+		border: 1px solid var(--color-border);
+	}
+	.data-table {
+		border-radius: 12px;
+		border: 1px solid var(--color-border);
+		overflow: hidden;
+		background: var(--color-card);
+	}
+	.data-table th {
+		padding: 0.625rem 1rem;
+		text-align: left;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		background: var(--color-surface);
+		color: var(--color-text-muted);
+		border-bottom: 1px solid var(--color-border);
+	}
+	.data-table td {
+		padding: 0.625rem 1rem;
+		font-size: 0.875rem;
+		border-bottom: 1px solid var(--color-border);
+	}
+	.data-table tr:last-child td {
+		border-bottom: none;
+	}
+	.config-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.375rem 0.75rem;
+		border-radius: 8px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		border: 1px solid var(--color-border);
+		background: var(--color-card);
+		color: var(--color-text-secondary);
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.config-chip:hover {
+		border-color: var(--color-primary);
+		color: var(--color-text);
+	}
+	.config-chip.selected {
+		border-color: var(--color-primary);
+		background: var(--color-primary-subtle);
+		color: var(--color-primary);
+	}
+	.btn-primary {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		border-radius: 8px;
+		padding: 0.5rem 1rem;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #fff;
+		background: var(--color-primary);
+		border: none;
+		cursor: pointer;
+		transition: opacity 0.15s;
+	}
+	.btn-primary:hover { opacity: 0.9; }
+	.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+	.btn-secondary {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		border-radius: 8px;
+		padding: 0.5rem 1rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text);
+		background: var(--color-card);
+		border: 1px solid var(--color-border);
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+	.btn-secondary:hover { background: var(--color-hover); }
+	.btn-ghost {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		border: none;
+		background: none;
+		cursor: pointer;
+		color: var(--color-text-secondary);
+		padding: 0.375rem 0.5rem;
+		border-radius: 6px;
+	}
+	.btn-ghost:hover { background: var(--color-hover); }
+	:global(body.dark) .card { background: #1a1d23; border-color: rgba(148,163,184,0.08); }
+	:global(body.dark) .data-table { background: #1a1d23; }
+	:global(body.dark) .config-chip.selected { background: rgba(16,185,129,0.15); }
+</style>

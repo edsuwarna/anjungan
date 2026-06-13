@@ -32,6 +32,8 @@ type Repository interface {
 	ListBlockedIPs(ctx context.Context) ([]model.BlockedIP, error)
 	PurgeAuthEvents(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetUserIDByEmail(ctx context.Context, email string) (string, error)
+	GetBruteForceConfig(ctx context.Context) (*model.BruteForceConfig, error)
+	UpsertBruteForceConfig(ctx context.Context, targetIDs []string) (*model.BruteForceConfig, error)
 }
 
 type Handler struct {
@@ -410,6 +412,35 @@ func (h *Handler) ListLockouts(w http.ResponseWriter, r *http.Request) {
 	common.JSON(w, http.StatusOK, lockouts)
 }
 
+// GET /config — returns brute force notification config
+func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
+	cfg, err := h.repo.GetBruteForceConfig(r.Context())
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to get brute force config")
+		return
+	}
+	common.JSON(w, http.StatusOK, cfg)
+}
+
+// PUT /config — updates brute force notification target IDs
+func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		NotificationTargetIDs []string `json:"notification_target_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	cfg, err := h.repo.UpsertBruteForceConfig(r.Context(), req.NotificationTargetIDs)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to update brute force config")
+		return
+	}
+
+	common.JSON(w, http.StatusOK, cfg)
+}
+
 // Routes returns the chi router for auth activity endpoints
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
@@ -426,6 +457,8 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/unblock-ip", h.UnblockIP)
 	r.Get("/blocked-ips", h.ListBlockedIPs)
 	r.Get("/lockouts", h.ListLockouts)
+	r.Get("/config", h.GetConfig)
+	r.Put("/config", h.UpdateConfig)
 	return r
 }
 

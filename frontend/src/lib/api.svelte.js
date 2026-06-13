@@ -141,6 +141,11 @@ export const api = {
 		blockedIPs: () => request('/auth-activity/blocked-ips'),
 		myEvents: () => request('/auth-activity/events/mine'),
 		lockouts: () => request('/auth-activity/lockouts'),
+		config: () => request('/auth-activity/config'),
+		updateConfig: (data) => request('/auth-activity/config', {
+			method: 'PUT',
+			body: JSON.stringify(data),
+		}),
 	},
 
 	// ── Dashboard ─────────────────────────────────────────────────
@@ -440,17 +445,12 @@ export const api = {
 
 	// ── Notification Targets ──────────────────────────────────────
 	notificationTargets: {
-		list: (scope = '') => {
-			const qs = new URLSearchParams();
-			if (scope) qs.set('scope', scope);
-			const q = qs.toString();
-			return request(`/notification-targets${q ? '?' + q : ''}`);
-		},
+		list: () => request('/notification-targets'),
 		get: (id) => request(`/notification-targets/${id}`),
 		create: (data) => request('/notification-targets', { method: 'POST', body: JSON.stringify(data) }),
 		update: (id, data) => request(`/notification-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 		delete: (id) => request(`/notification-targets/${id}`, { method: 'DELETE' }),
-		test: (id, scope) => request(`/notification-targets/${id}/test${scope ? '?scope=' + scope : ''}`, { method: 'POST' }),
+		test: (id) => request(`/notification-targets/${id}/test`, { method: 'POST' }),
 		types: () => request('/notification-targets/types'),
 	},
 
