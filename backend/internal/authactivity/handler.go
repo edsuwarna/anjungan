@@ -196,8 +196,13 @@ func RecordEvent(repo Repository, userID, email, eventType, status, failureReaso
 		CreatedAt:     time.Now(),
 	}
 
-	// Best-effort async
+	// Best-effort async with geolocation lookup
 	go func() {
+		// Populate country/ASN/ISP via geolocation (best-effort)
+		country, asn, isp := lookupGeo(ipAddress)
+		event.Country = country
+		event.ASN = parseASN(asn)
+		event.ISP = isp
 		_ = repo.CreateAuthEvent(context.Background(), event)
 	}()
 }
