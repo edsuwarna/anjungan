@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -30,6 +31,7 @@ type Repository interface {
 	RemoveBlockedIP(ctx context.Context, ipAddress string) error
 	ListBlockedIPs(ctx context.Context) ([]model.BlockedIP, error)
 	PurgeAuthEvents(ctx context.Context, olderThan time.Duration) (int64, error)
+	GetUserIDByEmail(ctx context.Context, email string) (string, error)
 }
 
 type Handler struct {
@@ -372,6 +374,42 @@ func (h *Handler) ListBlockedIPs(w http.ResponseWriter, r *http.Request) {
 	common.JSON(w, http.StatusOK, result)
 }
 
+// GET /lockouts — list currently locked-out accounts with remaining time
+func (h *Handler) ListLockouts(w http.ResponseWriter, r *http.Request) {
+	if h.rdb == nil {
+		common.JSON(w, http.StatusOK, []map[string]interface{}{})
+		return
+	}
+
+	var lockouts []map[string]interface{}
+	iter := h.rdb.Scan(r.Context(), 0, "lockout:*", 100).Iterator()
+	for iter.Next(r.Context()) {
+		key := iter.Val()
+		email := strings.TrimPrefix(key, "lockout:")
+
+		ttl, err := h.rdb.TTL(r.Context(), key).Result()
+		if err != nil || ttl <= 0 {
+			continue
+		}
+
+		// Look up user_id for the unlock action
+		userID, _ := h.repo.GetUserIDByEmail(r.Context(), email)
+
+		lockouts = append(lockouts, map[string]interface{}{
+			"email":         email,
+			"user_id":       userID,
+			"remaining_sec": int(ttl.Seconds()),
+			"locked_until":  time.Now().Add(ttl).Format(time.RFC3339),
+		})
+	}
+
+	if lockouts == nil {
+		lockouts = []map[string]interface{}{}
+	}
+
+	common.JSON(w, http.StatusOK, lockouts)
+}
+
 // Routes returns the chi router for auth activity endpoints
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
@@ -387,6 +425,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/block-ip", h.BlockIP)
 	r.Post("/unblock-ip", h.UnblockIP)
 	r.Get("/blocked-ips", h.ListBlockedIPs)
+	r.Get("/lockouts", h.ListLockouts)
 	return r
 }
 

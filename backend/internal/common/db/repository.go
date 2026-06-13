@@ -4464,6 +4464,18 @@ func (r *Repository) ListBlockedIPs(ctx context.Context) ([]model.BlockedIP, err
 	return ips, nil
 }
 
+// GetUserIDByEmail returns a user's ID by their email address.
+func (r *Repository) GetUserIDByEmail(ctx context.Context, email string) (string, error) {
+	var userID string
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id::TEXT FROM users WHERE email = $1`, email,
+	).Scan(&userID)
+	if err != nil {
+		return "", err
+	}
+	return userID, nil
+}
+
 // ─── Auth Events Purge ─────────────────────────────────────────────────────────
 
 func (r *Repository) PurgeAuthEvents(ctx context.Context, olderThan time.Duration) (int64, error) {
