@@ -116,6 +116,7 @@
 	}
 
 	function actionIcon(action) {
+		if (action.startsWith('bookmark.')) return 'solar:bookmark-square-bold';
 		if (action.startsWith('user.')) return 'solar:user-bold';
 		if (action.startsWith('server.')) return 'solar:server-square-bold';
 		if (action.startsWith('ssh-key.')) return 'solar:key-minimalistic-bold';
@@ -217,8 +218,15 @@
 			case 'user.update':
 				const changed = meta.changed_fields ? `changed:${meta.changed_fields.join(',')}` : '';
 				return meta.user_email ? `${meta.user_email}${changed ? ' · ' + changed : ''}` : null;
-			case 'user.delete':
+		case 'user.delete':
 				return meta.user_email ? `email:${meta.user_email}` : null;
+			case 'bookmark.create':
+			case 'bookmark.update':
+				return meta.title ? `"${meta.title}"` : null;
+			case 'bookmark.delete':
+				return meta.title ? `"${meta.title}"` : null;
+			case 'bookmark.reorder':
+				return null;
 			default:
 				// For any action with metadata, show first useful field
 				if (meta) {

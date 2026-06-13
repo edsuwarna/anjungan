@@ -427,4 +427,12 @@ export const api = {
 	registryWebhooks: {
 		list: () => request('/registry/webhooks'),
 	},
+
+	bookmarks: {
+		list: () => request('/bookmarks'),
+		create: (data) => request('/bookmarks', { method: 'POST', body: JSON.stringify(data) }),
+		update: (id, data) => request(`/bookmarks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+		delete: (id) => request(`/bookmarks/${id}`, { method: 'DELETE' }),
+		reorder: (items) => request('/bookmarks/reorder', { method: 'PATCH', body: JSON.stringify(items) }),
+	},
 };

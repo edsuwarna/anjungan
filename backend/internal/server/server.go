@@ -14,6 +14,7 @@ import (
 
 	"github.com/edsuwarna/anjungan/internal/admin"
 	"github.com/edsuwarna/anjungan/internal/auth"
+	"github.com/edsuwarna/anjungan/internal/bookmark"
 	"github.com/edsuwarna/anjungan/internal/common/db"
 	"github.com/edsuwarna/anjungan/internal/compliance"
 	"github.com/edsuwarna/anjungan/internal/config"
@@ -129,6 +130,10 @@ func (s *Server) setupRouter(authH *auth.Handler, authSvc *auth.Service, repo *d
 			// Notification Targets
 			notifH := notification.NewHandler(repo)
 			r.Mount("/notification-targets", notifH.Routes())
+
+			// Bookmarks
+			bookmarkH := bookmark.NewHandler(repo)
+			r.Mount("/bookmarks", bookmarkH.Routes())
 
 			// Start uptime scheduler
 			uptimeSched := uptime.NewScheduler(repo, uptimeH)

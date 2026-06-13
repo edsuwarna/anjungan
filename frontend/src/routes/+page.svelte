@@ -14,6 +14,10 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 	let showActivity = $state(false);
 	let hoveredServer = $state(null);
 
+	// Bookmarks widget
+	let bookmarkWidget = $state([]);
+	let bookmarkWidgetLoading = $state(true);
+
 	let sslSummary = $derived(stats.ssl_summary || { total: 0, valid: 0, expiring_soon: 0, expired: 0, error: 0 });
 	let sslExpiringCount = $derived(sslSummary.expiring_soon + sslSummary.expired);
 	let uptimeSummary = $derived(stats.uptime_summary || { total: 0, up: 0, down: 0, paused: 0 });
@@ -46,7 +50,7 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 	]);
 
 	onMount(async () => {
-		await Promise.all([loadDashboard(), loadServers(), loadThresholds()]);
+		await Promise.all([loadDashboard(), loadServers(), loadThresholds(), loadWidgetBookmarks()]);
 		const interval = setInterval(() => { loadDashboard(); loadServers(); }, 30000);
 		return () => clearInterval(interval);
 	});
@@ -59,6 +63,25 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 			error = e.message;
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadWidgetBookmarks() {
+		try {
+			bookmarkWidget = (await api.bookmarks.list() || []).slice(0, 8);
+		} catch (_) {
+			bookmarkWidget = [];
+		} finally {
+			bookmarkWidgetLoading = false;
+		}
+	}
+
+	function widgetFaviconUrl(url) {
+		try {
+			const u = new URL(url);
+			return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=24`;
+		} catch {
+			return '';
 		}
 	}
 
@@ -404,6 +427,60 @@ import { loadThresholds, getThresholds, scoreColor, scoreLabel } from '$lib/thre
 					</div>
 				{/if}
 			</div>
+		</div>
+
+		<!-- Your Tools Widget -->
+		<div class="card mt-4">
+			<div class="flex items-center justify-between mb-3">
+				<h3 class="text-base font-semibold" style="color: var(--color-text);">
+					<Icon icon="solar:bookmark-square-bold" class="inline-block h-4 w-4 -mt-0.5" style="color: var(--color-primary);" /> Your Tools
+				</h3>
+				<a href="/bookmarks" class="text-xs font-medium hover:underline" style="color: var(--color-primary);">
+					Manage &rarr;
+				</a>
+			</div>
+			{#if bookmarkWidgetLoading}
+				<div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+					{#each { length: 4 } as _}
+						<div class="h-12 animate-pulse rounded-lg" style="background: var(--color-border-light);"></div>
+					{/each}
+				</div>
+			{:else if bookmarkWidget.length === 0}
+				<div class="flex items-center justify-between rounded-lg px-3 py-3" style="background: var(--color-surface);">
+					<p class="text-xs" style="color: var(--color-text-muted);">No tools yet — add your first bookmark</p>
+					<a href="/bookmarks" class="text-xs font-medium hover:underline" style="color: var(--color-primary);">Add Bookmark</a>
+				</div>
+			{:else}
+				<div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+					{#each bookmarkWidget as b}
+						<a
+							href={b.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="flex items-center gap-2 rounded-lg px-3 py-2.5 transition-colors hover:bg-opacity-50"
+							style="background: var(--color-surface);"
+						>
+							<div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style="background: var(--color-primary-light);">
+								<img
+									src={widgetFaviconUrl(b.url)}
+									alt=""
+									class="h-4 w-4 rounded"
+									onerror={(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }}
+								/>
+								<span class="hidden h-4 w-4 items-center justify-center text-[10px] font-bold" style="color: var(--color-primary);">
+									{b.title.charAt(0).toUpperCase()}
+								</span>
+							</div>
+							<span class="truncate text-xs font-medium" style="color: var(--color-text);">{b.title}</span>
+						</a>
+					{/each}
+				</div>
+				{#if bookmarkWidget.length >= 8}
+					<div class="mt-2 text-right">
+						<a href="/bookmarks" class="text-xs font-medium hover:underline" style="color: var(--color-primary);">View all &rarr;</a>
+					</div>
+				{/if}
+			{/if}
 		</div>
 
 		<!-- Recent Activity -->
