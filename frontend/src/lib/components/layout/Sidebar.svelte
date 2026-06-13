@@ -7,18 +7,74 @@
 
 	let containerCount = $state(null);
 
+	// Quick Access bookmarks
+	let quickAccessBookmarks = $state([]);
+	let quickAccessLoading = $state(true);
+	let quickAccessCollapsed = $state(false);
+
 	onMount(async () => {
 		try {
 			const stats = await api.containers.stats();
 			containerCount = stats?.total ?? null;
 		} catch (_) {}
+
+		// Load sidebar bookmarks
+		await loadQuickAccess();
+
+		// Listen for bookmark changes (create/update/delete/pin)
+		const handler = () => loadQuickAccess();
+		window.addEventListener('bookmarks-changed', handler);
+
+		// Restore collapse state from localStorage
+		try {
+			const saved = localStorage.getItem('sidebar_quick_access_collapsed');
+			if (saved !== null) quickAccessCollapsed = saved === 'true';
+		} catch (_) {}
+		// Collapsed on mobile by default
+		if (window.innerWidth < 1024) {
+			quickAccessCollapsed = true;
+		}
+
+		return () => {
+			window.removeEventListener('bookmarks-changed', handler);
+		};
 	});
+
+	async function loadQuickAccess() {
+		quickAccessLoading = true;
+		try {
+			const all = await api.bookmarks.list() || [];
+			// Only show pinned bookmarks — empty if nothing pinned
+			quickAccessBookmarks = all.filter(b => b.pinned).slice(0, 8);
+		} catch (_) {
+			quickAccessBookmarks = [];
+		} finally {
+			quickAccessLoading = false;
+		}
+	}
+
+	function toggleQuickAccess() {
+		quickAccessCollapsed = !quickAccessCollapsed;
+		try {
+			localStorage.setItem('sidebar_quick_access_collapsed', String(quickAccessCollapsed));
+		} catch (_) {}
+	}
+
+	function qaFaviconUrl(url) {
+		try {
+			const u = new URL(url);
+			return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=16`;
+		} catch {
+			return '';
+		}
+	}
 
 	const allCategories = [
 		{
 			name: 'Dashboard',
 			items: [
 				{ href: '/', icon: 'solar:chart-2-bold', label: 'Overview' },
+				{ href: '/bookmarks', icon: 'solar:bookmark-square-bold', label: 'Bookmarks' },
 			],
 		},
 		{
@@ -111,6 +167,49 @@
 
 	<!-- navigation with categories -->
 	<nav class="flex-1 space-y-4 overflow-y-auto px-3 py-4">
+		<!-- Quick Access -->
+		{#if !quickAccessLoading && quickAccessBookmarks.length > 0}
+			<div>
+				<button
+					onclick={toggleQuickAccess}
+					class="mb-1 flex w-full items-center justify-between px-3 text-xs font-semibold uppercase tracking-wider hover:opacity-80"
+					style="color: var(--color-text-muted); opacity: 0.6;"
+				>
+					<span>⚡ Quick Access</span>
+					<Icon
+						icon={quickAccessCollapsed ? 'solar:alt-arrow-down-bold' : 'solar:alt-arrow-up-bold'}
+						class="h-3 w-3"
+					/>
+				</button>
+				{#if !quickAccessCollapsed}
+					<div class="space-y-0.5">
+						{#each quickAccessBookmarks as b}
+							<a
+								href={b.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="nav-link"
+							>
+								<img
+									src={qaFaviconUrl(b.url)}
+									alt=""
+									class="h-4 w-4 shrink-0 rounded-sm"
+									onerror={(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }}
+								/>
+								<span class="hidden h-4 w-4 shrink-0 items-center justify-center text-[10px] font-bold" style="color: var(--color-primary);">
+									{b.title.charAt(0).toUpperCase()}
+								</span>
+								<span class="truncate text-[13px]">{b.title}</span>
+							</a>
+						{/each}
+						<a href="/bookmarks" class="nav-link text-xs opacity-60 hover:opacity-100">
+							Manage &rarr;
+						</a>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
 		{#each categories as cat}
 			<div>
 				<div class="mb-1 px-3 text-xs font-semibold uppercase tracking-wider"

@@ -3959,3 +3959,89 @@ type UptimeIncident struct {
 	FailureCount int       `json:"failure_count"`
 	ErrorMessage string    `json:"error_message"`
 }
+
+// ─── Bookmarks ────────────────────────────────────────────────────────────────
+
+func (r *Repository) ListBookmarks(ctx context.Context) ([]model.Bookmark, error) {
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, user_id, title, url, icon_type, icon_value, category, description, pinned, sort_order, created_at, updated_at
+		 FROM bookmarks ORDER BY pinned DESC, sort_order ASC, created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var bookmarks []model.Bookmark
+	for rows.Next() {
+		var b model.Bookmark
+		if err := rows.Scan(&b.ID, &b.UserID, &b.Title, &b.URL, &b.IconType, &b.IconValue, &b.Category, &b.Description, &b.Pinned, &b.SortOrder, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			return nil, err
+		}
+		bookmarks = append(bookmarks, b)
+	}
+	if bookmarks == nil {
+		bookmarks = []model.Bookmark{}
+	}
+	return bookmarks, rows.Err()
+}
+
+func (r *Repository) GetBookmark(ctx context.Context, id string) (*model.Bookmark, error) {
+	b := &model.Bookmark{}
+	err := r.db.Pool.QueryRow(ctx,
+		`SELECT id, user_id, title, url, icon_type, icon_value, category, description, pinned, sort_order, created_at, updated_at
+		 FROM bookmarks WHERE id = $1`, id,
+	).Scan(&b.ID, &b.UserID, &b.Title, &b.URL, &b.IconType, &b.IconValue, &b.Category, &b.Description, &b.Pinned, &b.SortOrder, &b.CreatedAt, &b.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (r *Repository) CreateBookmark(ctx context.Context, b *model.Bookmark) error {
+	b.ID = uuid.New().String()
+	now := time.Now()
+	b.CreatedAt = now
+	b.UpdatedAt = now
+	if b.IconType == "" {
+		b.IconType = "auto"
+	}
+	if b.Category == "" {
+		b.Category = "Other"
+	}
+	_, err := r.db.Pool.Exec(ctx,
+		`INSERT INTO bookmarks (id, user_id, title, url, icon_type, icon_value, category, description, pinned, sort_order, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		b.ID, b.UserID, b.Title, b.URL, b.IconType, b.IconValue, b.Category, b.Description, b.Pinned, b.SortOrder, b.CreatedAt, b.UpdatedAt,
+	)
+	return err
+}
+
+func (r *Repository) UpdateBookmark(ctx context.Context, b *model.Bookmark) error {
+	b.UpdatedAt = time.Now()
+	_, err := r.db.Pool.Exec(ctx,
+		`UPDATE bookmarks SET title=$1, url=$2, icon_type=$3, icon_value=$4, category=$5, description=$6, pinned=$7, sort_order=$8, updated_at=$9
+		 WHERE id=$10`,
+		b.Title, b.URL, b.IconType, b.IconValue, b.Category, b.Description, b.Pinned, b.SortOrder, b.UpdatedAt, b.ID,
+	)
+	return err
+}
+
+func (r *Repository) DeleteBookmark(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM bookmarks WHERE id = $1`, id)
+	return err
+}
+
+func (r *Repository) ReorderBookmarks(ctx context.Context, items []model.BookmarkReorderItem) error {
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, item := range items {
+		if _, err := tx.Exec(ctx, `UPDATE bookmarks SET sort_order=$1, updated_at=NOW() WHERE id=$2`, item.SortOrder, item.ID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}

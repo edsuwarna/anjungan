@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -1002,4 +1003,63 @@ func (r *NotificationTargetRequest) Validate() string {
 		}
 	}
 	return ""
+}
+
+// ─── Bookmarks ────────────────────────────────────────────────────────────────
+
+type Bookmark struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Title     string    `json:"title"`
+	URL       string    `json:"url"`
+	IconType  string    `json:"icon_type"`
+	IconValue string    `json:"icon_value"`
+	Category    string    `json:"category"`
+	Description string    `json:"description"`
+	Pinned      bool      `json:"pinned"`
+	SortOrder   int       `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type BookmarkRequest struct {
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	IconType    string `json:"icon_type,omitempty"`
+	IconValue   string `json:"icon_value,omitempty"`
+	Category    string `json:"category,omitempty"`
+	Description string `json:"description,omitempty"`
+	Pinned      *bool  `json:"pinned,omitempty"`
+	SortOrder   *int   `json:"sort_order,omitempty"`
+}
+
+func (r *BookmarkRequest) Validate() string {
+	if r.Title == "" {
+		return "title is required"
+	}
+	if len(r.Title) > 100 {
+		return "title must be 100 characters or less"
+	}
+	if r.URL == "" {
+		return "url is required"
+	}
+	// Reject dangerous protocols
+	lower := strings.ToLower(r.URL)
+	if strings.HasPrefix(lower, "javascript:") || strings.HasPrefix(lower, "file:") || strings.HasPrefix(lower, "data:") {
+		return "url uses an unsupported protocol"
+	}
+	// Auto-prepend https:// if no protocol
+	if !strings.Contains(lower, "://") {
+		r.URL = "https://" + r.URL
+	}
+	// No category validation — custom categories supported
+	if r.IconType != "" && r.IconType != "auto" && r.IconType != "iconify" && r.IconType != "emoji" {
+		return "icon_type must be auto, iconify, or emoji"
+	}
+	return ""
+}
+
+type BookmarkReorderItem struct {
+	ID        string `json:"id"`
+	SortOrder int    `json:"sort_order"`
 }
