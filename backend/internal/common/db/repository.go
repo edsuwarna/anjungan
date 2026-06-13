@@ -4463,3 +4463,16 @@ func (r *Repository) ListBlockedIPs(ctx context.Context) ([]model.BlockedIP, err
 	}
 	return ips, nil
 }
+
+// ─── Auth Events Purge ─────────────────────────────────────────────────────────
+
+func (r *Repository) PurgeAuthEvents(ctx context.Context, olderThan time.Duration) (int64, error) {
+	result, err := r.db.Pool.Exec(ctx,
+		`DELETE FROM auth_events WHERE created_at < NOW() - ($1 || ' days')::INTERVAL`,
+		fmt.Sprintf("%d", int(olderThan.Hours()/24)),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

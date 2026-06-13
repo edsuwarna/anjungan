@@ -29,6 +29,7 @@ type Repository interface {
 	CreateBlockedIP(ctx context.Context, b *model.BlockedIP) error
 	RemoveBlockedIP(ctx context.Context, ipAddress string) error
 	ListBlockedIPs(ctx context.Context) ([]model.BlockedIP, error)
+	PurgeAuthEvents(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
 type Handler struct {

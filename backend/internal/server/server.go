@@ -153,6 +153,9 @@ func New(cfg *config.Config) (*Server, error) {
 	}()
 	zlog.Info().Msg("brute force detection scheduler started (every 60s)")
 
+	// ─── Auth events purge scheduler ──────────────────────────────────────
+	authactivity.StartPurgeScheduler(context.Background(), repo)
+
 	// ─── Self-server auto-registration ────────────────────────────────────
 	if cfg.SelfServer.Enabled {
 		detector := self.NewDetector(repo, &cfg.SelfServer)
