@@ -4273,3 +4273,138 @@ func (r *Repository) DetectBruteForce(ctx context.Context) ([]model.BruteForceAl
 	}
 	return alerts, nil
 }
+
+// ListMyAuthEvents returns recent auth events for a specific user.
+func (r *Repository) ListMyAuthEvents(ctx context.Context, userID string, limit int) ([]*model.AuthEvent, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT id, COALESCE(user_id::TEXT,''), email, event_type, status, COALESCE(failure_reason,''),
+		        ip_address, user_agent, country, asn, isp, created_at
+		 FROM auth_events WHERE user_id = $1
+		 ORDER BY created_at DESC LIMIT $2`,
+		userID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*model.AuthEvent
+	for rows.Next() {
+		e := &model.AuthEvent{}
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Email, &e.EventType, &e.Status, &e.FailureReason,
+			&e.IPAddress, &e.UserAgent, &e.Country, &e.ASN, &e.ISP, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		e.IPAddress = maskIP(e.IPAddress)
+		events = append(events, e)
+	}
+	return events, nil
+}
+
+// GetTopIPs returns IPs with the most failed auth events in the given period.
+func (r *Repository) GetTopIPs(ctx context.Context, days int) ([]model.TopIPEntry, error) {
+	if days < 1 || days > 90 {
+		days = 7
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT ip_address, COUNT(*) AS failures, COUNT(DISTINCT user_id) AS users,
+		        COALESCE(MIN(country), '') AS country
+		 FROM auth_events
+		 WHERE status = 'failure' AND created_at >= NOW() - ($1 || ' days')::INTERVAL AND ip_address != ''
+		 GROUP BY ip_address
+		 ORDER BY failures DESC LIMIT 10`,
+		fmt.Sprintf("%d", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.TopIPEntry
+	for rows.Next() {
+		var e model.TopIPEntry
+		if err := rows.Scan(&e.IPAddress, &e.Failures, &e.Users, &e.Country); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
+// GetTopUsers returns users with the most failed auth events in the given period.
+func (r *Repository) GetTopUsers(ctx context.Context, days int) ([]model.TopUserEntry, error) {
+	if days < 1 || days > 90 {
+		days = 7
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT email, COUNT(*) AS failures, COALESCE(user_id::TEXT, '') AS user_id
+		 FROM auth_events
+		 WHERE status = 'failure' AND created_at >= NOW() - ($1 || ' days')::INTERVAL
+		  AND email != ''
+		 GROUP BY email, user_id
+		 ORDER BY failures DESC LIMIT 10`,
+		fmt.Sprintf("%d", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.TopUserEntry
+	for rows.Next() {
+		var e model.TopUserEntry
+		if err := rows.Scan(&e.Email, &e.Failures, &e.UserID); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
+// GetHourlyHeatmap returns hourly aggregated auth events for the given period.
+func (r *Repository) GetHourlyHeatmap(ctx context.Context, days int) ([]model.HourlyHeatmapEntry, error) {
+	if days < 1 || days > 90 {
+		days = 7
+	}
+	rows, err := r.db.Pool.Query(ctx,
+		`SELECT EXTRACT(HOUR FROM created_at)::int AS hour,
+		        COUNT(*) FILTER (WHERE status = 'success') AS success,
+		        COUNT(*) FILTER (WHERE status = 'failure') AS failure
+		 FROM auth_events
+		 WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+		 GROUP BY hour
+		 ORDER BY hour`,
+		fmt.Sprintf("%d", days),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []model.HourlyHeatmapEntry
+	for rows.Next() {
+		var e model.HourlyHeatmapEntry
+		if err := rows.Scan(&e.Hour, &e.Success, &e.Failure); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
+// maskIP obscures the last octet(s) of an IP for user-facing views.
+func maskIP(ip string) string {
+	if ip == "" {
+		return ip
+	}
+	// Simple IPv4 masking
+	for i := len(ip) - 1; i >= 0; i-- {
+		if ip[i] == '.' {
+			return ip[:i+1] + "***"
+		}
+	}
+	return ip
+}

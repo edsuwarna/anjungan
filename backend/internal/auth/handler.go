@@ -50,6 +50,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if errors.Is(err, ErrRateLimited) {
+			h.recordAuthEvent("", req.Email, model.EventTypeLoginFailure, model.EventStatusFailure, "rate_limited", ip, userAgent)
+			common.Error(w, http.StatusTooManyRequests, "too many attempts. please wait before trying again")
+			return
+		}
+
 		if errors.Is(err, ErrInvalidCredentials) {
 			h.recordAuthEvent("", req.Email, model.EventTypeLoginFailure, model.EventStatusFailure, "invalid_password", ip, userAgent)
 			if locked, _ := h.svc.IsLocked(r.Context(), req.Email); locked {

@@ -7,15 +7,21 @@
 	let events = $state([]);
 	let alerts = $state([]);
 	let trend = $state([]);
+	let heatmapData = $state([]);
+	let topIPs = $state([]);
+	let topUsers = $state([]);
+	let blockedIPs = $state([]);
 	let loading = $state(true);
 	let error = $state('');
 	let expandedRow = $state(null);
+	let blockingIP = $state('');
 
 	// Filters
 	let eventTypeFilter = $state('');
 	let statusFilter = $state('');
 	let emailFilter = $state('');
 	let ipFilter = $state('');
+	let countryFilter = $state('');
 	let searchQuery = $state('');
 	let startDate = $state('');
 	let endDate = $state('');
@@ -33,7 +39,7 @@
 	let totalPages = $state(1);
 	const limit = 50;
 
-	let isFiltered = $derived(eventTypeFilter || statusFilter || emailFilter || ipFilter || searchQuery || startDate || endDate);
+	let isFiltered = $derived(eventTypeFilter || statusFilter || emailFilter || ipFilter || countryFilter || searchQuery || startDate || endDate);
 
 	const EVENT_TYPES = [
 		{ value: '', label: 'All Events' },
@@ -42,6 +48,7 @@
 		{ value: 'login_attempt', label: 'Login Attempt' },
 		{ value: 'logout', label: 'Logout' },
 		{ value: 'lockout', label: 'Lockout' },
+		{ value: 'rate_limited', label: 'Rate Limited' },
 		{ value: 'register', label: 'Register' },
 		{ value: 'password_change', label: 'Password Change' },
 		{ value: 'totp_setup', label: 'TOTP Setup' },
@@ -57,11 +64,15 @@
 		loading = true;
 		error = '';
 		try {
-			const [summaryData, eventsData, alertsData, trendData] = await Promise.all([
+			const [summaryData, eventsData, alertsData, trendData, heatData, ipsData, usersData, blkData] = await Promise.all([
 				api.authActivity.summary().catch(() => null),
 				loadEventsRaw(),
 				api.authActivity.bruteForce().catch(() => []),
 				api.authActivity.trend(trendDays).catch(() => []),
+				api.authActivity.heatmap(trendDays).catch(() => []),
+				api.authActivity.topIPs(trendDays).catch(() => []),
+				api.authActivity.topUsers(trendDays).catch(() => []),
+				api.authActivity.blockedIPs().catch(() => []),
 			]);
 			summary = summaryData;
 			events = eventsData?.data || eventsData || [];
@@ -71,6 +82,10 @@
 			}
 			alerts = alertsData || [];
 			trend = trendData || [];
+			heatmapData = heatData || [];
+			topIPs = ipsData || [];
+			topUsers = usersData || [];
+			blockedIPs = blkData || [];
 		} catch (e) {
 			error = e.message;
 		} finally {
@@ -108,6 +123,9 @@
 
 	function loadTrend() {
 		api.authActivity.trend(trendDays).then(d => { trend = d || []; }).catch(() => {});
+		api.authActivity.heatmap(trendDays).then(d => { heatmapData = d || []; }).catch(() => {});
+		api.authActivity.topIPs(trendDays).then(d => { topIPs = d || []; }).catch(() => {});
+		api.authActivity.topUsers(trendDays).then(d => { topUsers = d || []; }).catch(() => {});
 	}
 
 	function search() {
@@ -120,6 +138,7 @@
 		statusFilter = '';
 		emailFilter = '';
 		ipFilter = '';
+		countryFilter = '';
 		searchQuery = '';
 		startDate = '';
 		endDate = '';
@@ -160,6 +179,7 @@
 			login_attempt: { label: 'Login Attempt', icon: 'solar:login-2-bold', color: 'var(--color-warning)' },
 			logout: { label: 'Logout', icon: 'solar:logout-2-bold', color: 'var(--color-text-secondary)' },
 			lockout: { label: 'Lockout', icon: 'solar:lock-bold', color: 'var(--color-danger)' },
+			rate_limited: { label: 'Rate Limited', icon: 'solar:clock-bold', color: '#f59e0b' },
 			register: { label: 'Register', icon: 'solar:user-plus-bold', color: 'var(--color-success)' },
 			password_change: { label: 'Password Change', icon: 'solar:key-minimalistic-bold', color: 'var(--color-warning)' },
 			totp_setup: { label: 'TOTP Setup', icon: 'solar:password-minimalistic-bold', color: 'var(--color-primary)' },
@@ -188,22 +208,11 @@
 	function geoFlag(country) {
 		if (!country) return '';
 		const code = country.toUpperCase();
-		if (code === 'ID') return '🇮🇩';
-		if (code === 'US') return '🇺🇸';
-		if (code === 'CN') return '🇨🇳';
-		if (code === 'SG') return '🇸🇬';
-		if (code === 'JP') return '🇯🇵';
-		if (code === 'KR') return '🇰🇷';
-		if (code === 'GB') return '🇬🇧';
-		if (code === 'DE') return '🇩🇪';
-		if (code === 'FR') return '🇫🇷';
-		if (code === 'NL') return '🇳🇱';
-		if (code === 'RU') return '🇷🇺';
-		if (code === 'IN') return '🇮🇳';
-		if (code === 'BR') return '🇧🇷';
-		if (code === 'AU') return '🇦🇺';
-		if (code === 'CA') return '🇨🇦';
-		return '';
+		const flags = { ID:'🇮🇩', US:'🇺🇸', CN:'🇨🇳', SG:'🇸🇬', JP:'🇯🇵', KR:'🇰🇷',
+			GB:'🇬🇧', DE:'🇩🇪', FR:'🇫🇷', NL:'🇳🇱', RU:'🇷🇺', IN:'🇮🇳',
+			BR:'🇧🇷', AU:'🇦🇺', CA:'🇨🇦', MY:'🇲🇾', PH:'🇵🇭', TH:'🇹🇭',
+			VN:'🇻🇳', HK:'🇭🇰', TW:'🇹🇼', AE:'🇦🇪', SA:'🇸🇦' };
+		return flags[code] || '';
 	}
 
 	function maxTrendVal() {
@@ -214,6 +223,50 @@
 		}
 		return max || 1;
 	}
+
+	function maxHeatmapVal() {
+		let max = 0;
+		for (const h of heatmapData) {
+			const total = h.success + h.failure;
+			if (total > max) max = total;
+		}
+		return max || 1;
+	}
+
+	async function handleBlockIP(ip) {
+		blockingIP = ip;
+		try {
+			await api.authActivity.blockIP(ip, 'brute force');
+			blockedIPs = await api.authActivity.blockedIPs().catch(() => []) || [];
+		} catch (e) {
+			console.error('Failed to block IP:', e);
+		} finally {
+			blockingIP = '';
+		}
+	}
+
+	async function handleUnblockIP(ip) {
+		try {
+			await api.authActivity.unblockIP(ip);
+			blockedIPs = await api.authActivity.blockedIPs().catch(() => []) || [];
+		} catch (e) {
+			console.error('Failed to unblock IP:', e);
+		}
+	}
+
+	async function loadBlockedIPs() {
+		blockedIPs = await api.authActivity.blockedIPs().catch(() => []) || [];
+	}
+
+	function isIPBlocked(ip) {
+		return blockedIPs.some(b => b.ip_address === ip);
+	}
+
+	const COUNTRY_CODES = [
+		'', 'ID', 'US', 'CN', 'SG', 'JP', 'KR', 'GB', 'DE', 'FR',
+		'NL', 'RU', 'IN', 'BR', 'AU', 'CA', 'MY', 'PH', 'TH', 'VN',
+		'HK', 'TW', 'AE', 'SA'
+	];
 </script>
 
 <div class="page-container">
@@ -288,63 +341,159 @@
 		</div>
 	{/if}
 
-	<!-- Brute Force Alert -->
-	{#if alerts.length > 0}
-		<div class="mb-6 flex flex-col gap-3">
+	<!-- Brute Force / Blocked IPs Alert -->
+	<div class="mb-6 flex flex-col gap-3">
+		{#if alerts.length > 0}
+			<h3 class="text-sm font-semibold" style="color: var(--color-text);">🚨 Active Alerts</h3>
 			{#each alerts as alert}
 				<div class="card flex items-start gap-4" style="border-left: 4px solid #ef4444; background-color: #ef444405;">
 					<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style="background-color: #ef444415;">
-						<Icon icon="solar:danger-triangle-bold" class="h-5 w-5" style="color: #ef4444;" />
+						<Icon icon={alert.user_count > 5 ? 'solar:users-group-rounded-bold' : 'solar:danger-triangle-bold'} class="h-5 w-5" style="color: #ef4444;" />
 					</div>
 					<div class="flex-1 min-w-0">
 						<div class="flex items-center gap-2">
-							<h3 class="text-sm font-bold" style="color: #ef4444;">🚨 Brute Force Detected</h3>
+							<h3 class="text-sm font-bold" style="color: #ef4444;">
+								{alert.user_count > 5 ? '🚨 Credential Stuffing' : '🚨 Brute Force'}
+							</h3>
 							<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold" style="background-color: #ef444415; color: #ef4444;">
-								{alert.failures} failures / {alert.window_minutes}min
+								{alert.failures} failures / {alert.window_minutes}min ({alert.user_count} user{alert.user_count > 1 ? 's' : ''})
 							</span>
 						</div>
 						<p class="mt-1 text-sm" style="color: var(--color-text);">
 							IP: <code class="rounded bg-red-50 px-1.5 py-0.5 text-xs font-mono dark:bg-red-900/20">{alert.ip_address}</code>
 							(affecting {alert.user_count} user{alert.user_count > 1 ? 's' : ''})
+							{#if isIPBlocked(alert.ip_address)}
+								<span class="ml-2 text-xs" style="color: #22c55e;">✓ Blocked</span>
+							{/if}
 						</p>
 						<p class="text-xs mt-0.5" style="color: var(--color-text-muted);">
 							{alert.first_attempt} &ndash; {alert.last_attempt}
 						</p>
 					</div>
-					<button class="btn-danger flex items-center gap-1.5 text-xs whitespace-nowrap shrink-0">
-						<Icon icon="solar:shield-cross-bold" class="h-3.5 w-3.5" />
-						Block IP
+					<button onclick={() => handleBlockIP(alert.ip_address)} disabled={blockingIP === alert.ip_address || isIPBlocked(alert.ip_address)}
+						class="{isIPBlocked(alert.ip_address) ? 'btn-ghost' : 'btn-danger'} flex items-center gap-1.5 text-xs whitespace-nowrap shrink-0">
+						<Icon icon={isIPBlocked(alert.ip_address) ? 'solar:shield-check-bold' : 'solar:shield-cross-bold'} class="h-3.5 w-3.5" />
+						{isIPBlocked(alert.ip_address) ? 'Blocked' : blockingIP === alert.ip_address ? 'Blocking...' : 'Block IP'}
 					</button>
 				</div>
 			{/each}
-		</div>
-	{/if}
+		{/if}
 
-	<!-- Trend Chart -->
-	{#if trend.length > 0}
-		<div class="card mb-6">
-			<h3 class="mb-3 text-sm font-semibold" style="color: var(--color-text);">
-				Trend &mdash; Login {trendDays}-Day
-			</h3>
-			<div class="flex h-32 items-end gap-1">
-				{#each trend as t}
-					<div class="flex flex-1 flex-col items-center justify-end gap-0.5" title="{t.date}: {t.success} success, {t.failure} failed">
-						<div class="w-full rounded-t" style="height: {(t.failure / maxTrendVal()) * 100}%; background-color: #ef4444; min-height: {t.failure > 0 ? '2px' : '0'};"></div>
-						<div class="w-full rounded-t" style="height: {(t.success / maxTrendVal()) * 100}%; background-color: #22c55e; min-height: {t.success > 0 ? '2px' : '0'};"></div>
-						<span class="mt-1 text-[10px]" style="color: var(--color-text-muted);">{new Date(t.date + 'T00:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
-					</div>
-				{/each}
+		<!-- Blocked IPs List -->
+		{#if blockedIPs.length > 0}
+			<div class="card" style="border-left: 3px solid #8b5cf6;">
+				<div class="flex items-center justify-between mb-2">
+					<h3 class="text-sm font-semibold" style="color: var(--color-text);">
+						<Icon icon="solar:shield-check-bold" class="inline h-4 w-4 mr-1" style="color: #8b5cf6;" />
+						Blocked IPs ({blockedIPs.length})
+					</h3>
+				</div>
+				<div class="flex flex-wrap gap-2">
+					{#each blockedIPs as b}
+						<div class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs" style="background-color: #8b5cf615; color: #8b5cf6;">
+							<code class="font-mono">{b.ip_address}</code>
+							<button onclick={() => handleUnblockIP(b.ip_address)} class="hover:opacity-70" title="Unblock">
+								<Icon icon="solar:close-circle-bold" class="h-3.5 w-3.5" />
+							</button>
+						</div>
+					{/each}
+				</div>
 			</div>
-			<div class="mt-2 flex items-center gap-4 text-xs" style="color: var(--color-text-secondary);">
-				<span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background-color:#22c55e;"></span> Success</span>
-				<span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background-color:#ef4444;"></span> Failed</span>
+		{/if}
+	</div>
+
+	<!-- Trend Chart + Heatmap Row -->
+	<div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+		{#if trend.length > 0}
+			<div class="card">
+				<h3 class="mb-3 text-sm font-semibold" style="color: var(--color-text);">
+					Trend &mdash; Login {trendDays}-Day
+				</h3>
+				<div class="flex h-32 items-end gap-1">
+					{#each trend as t}
+						<div class="flex flex-1 flex-col items-center justify-end gap-0.5" title="{t.date}: {t.success} success, {t.failure} failed">
+							<div class="w-full rounded-t" style="height: {(t.failure / maxTrendVal()) * 100}%; background-color: #ef4444; min-height: {t.failure > 0 ? '2px' : '0'};"></div>
+							<div class="w-full rounded-t" style="height: {(t.success / maxTrendVal()) * 100}%; background-color: #22c55e; min-height: {t.success > 0 ? '2px' : '0'};"></div>
+							<span class="mt-1 text-[10px]" style="color: var(--color-text-muted);">{new Date(t.date + 'T00:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
+						</div>
+					{/each}
+				</div>
+				<div class="mt-2 flex items-center gap-4 text-xs" style="color: var(--color-text-secondary);">
+					<span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background-color:#22c55e;"></span> Success</span>
+					<span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background-color:#ef4444;"></span> Failed</span>
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
+
+		<!-- Hourly Heatmap -->
+		{#if heatmapData.length > 0}
+			<div class="card">
+				<h3 class="mb-3 text-sm font-semibold" style="color: var(--color-text);">
+					Hourly Distribution &mdash; {trendDays}-Day
+				</h3>
+				<div class="flex h-32 items-end gap-1">
+					{#each heatmapData as h}
+						<div class="flex flex-1 flex-col items-center justify-end" title="Hour {h.hour}:00 &mdash; {h.success} success, {h.failure} failed">
+							<div class="w-full" style="height: {((h.failure + h.success) / maxHeatmapVal()) * 100}%; background-color: hsl({(h.failure / Math.max(h.success + h.failure, 1)) * 10}, 70%, {(1 - (h.success + h.failure) / maxHeatmapVal()) * 40 + 30}%); min-height: {h.failure + h.success > 0 ? '2px' : '0'};"></div>
+							<span class="mt-1 text-[10px]" style="color: var(--color-text-muted);">{h.hour}h</span>
+						</div>
+					{/each}
+				</div>
+				<div class="mt-2 flex items-center gap-4 text-xs" style="color: var(--color-text-secondary);">
+					<span>Color intensity = attempt volume, Hue = failure ratio</span>
+				</div>
+			</div>
+		{/if}
+	</div>
+
+	<!-- Top IPs + Top Users Row -->
+	<div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+		{#if topIPs.length > 0}
+			<div class="card">
+				<h3 class="mb-3 text-sm font-semibold" style="color: var(--color-text);">
+					<Icon icon="solar:global-bold" class="inline h-4 w-4 mr-1" style="color: var(--color-danger);" />
+					Top IPs &mdash; Most Failures ({trendDays}d)
+				</h3>
+				<div class="space-y-2">
+					{#each topIPs as ip, i}
+						<div class="flex items-center gap-2 text-xs">
+							<span class="w-5 text-center font-bold" style="color: var(--color-text-muted);">{i + 1}.</span>
+							<span class="font-mono">{ip.ip_address}</span>
+							<span class="text-base">{geoFlag(ip.country)}</span>
+							<span class="ml-auto font-semibold" style="color: var(--color-danger);">{ip.failures} failures</span>
+							<span class="text-xs" style="color: var(--color-text-muted);">({ip.users} user{ip.users > 1 ? 's' : ''})</span>
+							<button onclick={() => handleBlockIP(ip.ip_address)} disabled={blockingIP === ip.ip_address || isIPBlocked(ip.ip_address)}
+								class="{isIPBlocked(ip.ip_address) ? 'text-green-500' : 'text-red-500'} hover:opacity-70">
+								<Icon icon={isIPBlocked(ip.ip_address) ? 'solar:shield-check-bold' : 'solar:shield-cross-bold'} class="h-3.5 w-3.5" />
+							</button>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		{#if topUsers.length > 0}
+			<div class="card">
+				<h3 class="mb-3 text-sm font-semibold" style="color: var(--color-text);">
+					<Icon icon="solar:users-group-rounded-bold" class="inline h-4 w-4 mr-1" style="color: var(--color-warning);" />
+					Top Users &mdash; Most Failures ({trendDays}d)
+				</h3>
+				<div class="space-y-2">
+					{#each topUsers as u, i}
+						<div class="flex items-center gap-2 text-xs">
+							<span class="w-5 text-center font-bold" style="color: var(--color-text-muted);">{i + 1}.</span>
+							<span class="font-mono">{u.email}</span>
+							<span class="ml-auto font-semibold" style="color: var(--color-warning);">{u.failures} failures</span>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
 
 	<!-- Filters -->
 	<div class="card mb-6" style="border-left: 3px solid var(--color-primary);">
-		<div class="grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-6">
+		<div class="grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-7">
 			<div>
 				<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Event Type</label>
 				<select bind:value={eventTypeFilter} class="input text-sm">
@@ -370,6 +519,17 @@
 				<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">IP Address</label>
 				<input bind:value={ipFilter} class="input text-sm" placeholder="e.g. 192.168.1.1"
 					onkeydown={(e) => { if (e.key === 'Enter') search(); }} />
+			</div>
+			<div>
+				<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Country</label>
+				<select bind:value={countryFilter} class="input text-sm">
+					<option value="">All Countries</option>
+					{#each COUNTRY_CODES as cc}
+						{#if cc}
+							<option value={cc}>{geoFlag(cc)} {cc}</option>
+						{/if}
+					{/each}
+				</select>
 			</div>
 			<div>
 				<label class="mb-1 block text-xs font-medium" style="color: var(--color-text-secondary);">Start Date</label>

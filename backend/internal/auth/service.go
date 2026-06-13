@@ -65,7 +65,10 @@ func (s *Service) Login(ctx context.Context, email, password, totpCode, ip strin
 		return nil, err
 	}
 	if !status.Allowed {
-		return nil, ErrAccountLocked
+		if status.LockedUntil != nil {
+			return nil, ErrAccountLocked
+		}
+		return nil, ErrRateLimited
 	}
 
 	user, err := s.users.GetUserByEmail(ctx, email)
@@ -375,5 +378,6 @@ var (
 	ErrInvalidToken       = errors.New("invalid or expired token")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrAccountLocked      = errors.New("account locked due to too many failed attempts")
+	ErrRateLimited        = errors.New("rate limited — too many attempts from this IP")
 	ErrPasswordTooShort   = errors.New("password does not meet minimum length requirement")
 )

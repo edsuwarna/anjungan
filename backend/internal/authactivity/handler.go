@@ -2,11 +2,13 @@ package authactivity
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/edsuwarna/anjungan/internal/common"
 	"github.com/edsuwarna/anjungan/internal/common/model"
 )
@@ -18,14 +20,24 @@ type Repository interface {
 	GetAuthEventSummary(ctx context.Context) (*model.AuthEventSummary, error)
 	GetAuthEventTrend(ctx context.Context, days int) ([]model.AuthEventTrend, error)
 	DetectBruteForce(ctx context.Context) ([]model.BruteForceAlert, error)
+	ListMyAuthEvents(ctx context.Context, userID string, limit int) ([]*model.AuthEvent, error)
+	GetTopIPs(ctx context.Context, days int) ([]model.TopIPEntry, error)
+	GetTopUsers(ctx context.Context, days int) ([]model.TopUserEntry, error)
+	GetHourlyHeatmap(ctx context.Context, days int) ([]model.HourlyHeatmapEntry, error)
 }
 
 type Handler struct {
 	repo Repository
+	rdb  *redis.Client
 }
 
 func NewHandler(repo Repository) *Handler {
 	return &Handler{repo: repo}
+}
+
+// SetRedis sets the Redis client for IP blocking operations.
+func (h *Handler) SetRedis(rdb *redis.Client) {
+	h.rdb = rdb
 }
 
 // GET /summary — summary counts (today)
@@ -170,14 +182,172 @@ func escapeQuotes(s string) string {
 	return string(result)
 }
 
+// GET /events/mine — current user's login history (last 20)
+func (h *Handler) MyEvents(w http.ResponseWriter, r *http.Request) {
+	claims := common.GetUserClaims(r.Context())
+	if claims == nil {
+		common.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	events, err := h.repo.ListMyAuthEvents(r.Context(), claims.UserID, 20)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to get login history")
+		return
+	}
+	if events == nil {
+		events = []*model.AuthEvent{}
+	}
+	common.JSON(w, http.StatusOK, events)
+}
+
+// GET /top-ips — IPs with most failures
+func (h *Handler) TopIPs(w http.ResponseWriter, r *http.Request) {
+	days := common.ParseQueryInt(r, "days", 7)
+	entries, err := h.repo.GetTopIPs(r.Context(), days)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to get top IPs")
+		return
+	}
+	common.JSON(w, http.StatusOK, entries)
+}
+
+// GET /top-users — users with most failures
+func (h *Handler) TopUsers(w http.ResponseWriter, r *http.Request) {
+	days := common.ParseQueryInt(r, "days", 7)
+	entries, err := h.repo.GetTopUsers(r.Context(), days)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to get top users")
+		return
+	}
+	common.JSON(w, http.StatusOK, entries)
+}
+
+// GET /heatmap — hourly auth event distribution
+func (h *Handler) HourlyHeatmap(w http.ResponseWriter, r *http.Request) {
+	days := common.ParseQueryInt(r, "days", 7)
+	entries, err := h.repo.GetHourlyHeatmap(r.Context(), days)
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to get heatmap")
+		return
+	}
+	common.JSON(w, http.StatusOK, entries)
+}
+
+// POST /block-ip — block an IP address
+func (h *Handler) BlockIP(w http.ResponseWriter, r *http.Request) {
+	if h.rdb == nil {
+		common.Error(w, http.StatusServiceUnavailable, "Redis not configured")
+		return
+	}
+	var req struct {
+		IPAddress string `json:"ip_address"`
+		Reason    string `json:"reason,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.IPAddress == "" {
+		common.Error(w, http.StatusBadRequest, "ip_address is required")
+		return
+	}
+
+	claims := common.GetUserClaims(r.Context())
+	createdBy := ""
+	if claims != nil {
+		createdBy = claims.Email
+	}
+
+	data, _ := json.Marshal(map[string]interface{}{
+		"ip_address": req.IPAddress,
+		"created_by": createdBy,
+		"reason":     req.Reason,
+		"created_at": time.Now(),
+	})
+
+	key := "blocked_ip:" + req.IPAddress
+	if err := h.rdb.Set(r.Context(), key, string(data), 0).Err(); err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to block IP")
+		return
+	}
+
+	// Also add to blocked_ips set for listing
+	h.rdb.SAdd(r.Context(), "blocked_ips", req.IPAddress)
+
+	common.JSON(w, http.StatusOK, map[string]string{"status": "blocked", "ip": req.IPAddress})
+}
+
+// POST /unblock-ip — unblock an IP address
+func (h *Handler) UnblockIP(w http.ResponseWriter, r *http.Request) {
+	if h.rdb == nil {
+		common.Error(w, http.StatusServiceUnavailable, "Redis not configured")
+		return
+	}
+	var req struct {
+		IPAddress string `json:"ip_address"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	key := "blocked_ip:" + req.IPAddress
+	h.rdb.Del(r.Context(), key)
+	h.rdb.SRem(r.Context(), "blocked_ips", req.IPAddress)
+
+	common.JSON(w, http.StatusOK, map[string]string{"status": "unblocked", "ip": req.IPAddress})
+}
+
+// GET /blocked-ips — list all blocked IPs
+func (h *Handler) ListBlockedIPs(w http.ResponseWriter, r *http.Request) {
+	if h.rdb == nil {
+		common.JSON(w, http.StatusOK, []model.BlockedIP{})
+		return
+	}
+
+	ips, err := h.rdb.SMembers(r.Context(), "blocked_ips").Result()
+	if err != nil {
+		common.Error(w, http.StatusInternalServerError, "failed to list blocked IPs")
+		return
+	}
+
+	var result []model.BlockedIP
+	for _, ip := range ips {
+		key := "blocked_ip:" + ip
+		data, err := h.rdb.Get(r.Context(), key).Result()
+		if err != nil {
+			result = append(result, model.BlockedIP{IPAddress: ip})
+			continue
+		}
+		var b model.BlockedIP
+		if json.Unmarshal([]byte(data), &b) == nil {
+			result = append(result, b)
+		} else {
+			result = append(result, model.BlockedIP{IPAddress: ip})
+		}
+	}
+	if result == nil {
+		result = []model.BlockedIP{}
+	}
+	common.JSON(w, http.StatusOK, result)
+}
+
 // Routes returns the chi router for auth activity endpoints
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/summary", h.Summary)
 	r.Get("/events", h.ListEvents)
 	r.Get("/events/export", h.ExportCSV)
+	r.Get("/events/mine", h.MyEvents)
 	r.Get("/trend", h.Trend)
 	r.Get("/brute-force", h.BruteForce)
+	r.Get("/top-ips", h.TopIPs)
+	r.Get("/top-users", h.TopUsers)
+	r.Get("/heatmap", h.HourlyHeatmap)
+	r.Post("/block-ip", h.BlockIP)
+	r.Post("/unblock-ip", h.UnblockIP)
+	r.Get("/blocked-ips", h.ListBlockedIPs)
 	return r
 }
 

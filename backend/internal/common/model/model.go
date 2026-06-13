@@ -1077,6 +1077,8 @@ const (
 	EventTypeTOTPDisable  = "totp_disable"
 	EventTypeRegister     = "register"
 	EventTypeRefreshToken = "refresh_token"
+	EventTypeRateLimited  = "rate_limited"
+	EventTypeIPBlocked    = "ip_blocked"
 
 	EventStatusSuccess = "success"
 	EventStatusFailure = "failure"
@@ -1141,4 +1143,30 @@ type BruteForceAlert struct {
 	FirstAttempt  string `json:"first_attempt"`
 	LastAttempt   string `json:"last_attempt"`
 	UserCount     int    `json:"user_count"`
+}
+
+type TopIPEntry struct {
+	IPAddress string `json:"ip_address"`
+	Failures  int    `json:"failures"`
+	Users     int    `json:"users"`
+	Country   string `json:"country,omitempty"`
+}
+
+type TopUserEntry struct {
+	Email    string `json:"email"`
+	Failures int    `json:"failures"`
+	UserID   string `json:"user_id,omitempty"`
+}
+
+type HourlyHeatmapEntry struct {
+	Hour    int `json:"hour"`
+	Success int `json:"success"`
+	Failure int `json:"failure"`
+}
+
+type BlockedIP struct {
+	IPAddress string    `json:"ip_address"`
+	CreatedAt time.Time `json:"created_at"`
+	CreatedBy string    `json:"created_by,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
 }

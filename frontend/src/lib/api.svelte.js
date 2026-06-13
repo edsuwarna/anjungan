@@ -127,6 +127,19 @@ export const api = {
 			a.click();
 			URL.revokeObjectURL(a.href);
 		},
+		topIPs: (days = 7) => request(`/auth-activity/top-ips?days=${days}`),
+		topUsers: (days = 7) => request(`/auth-activity/top-users?days=${days}`),
+		heatmap: (days = 7) => request(`/auth-activity/heatmap?days=${days}`),
+		blockIP: (ip, reason) => request('/auth-activity/block-ip', {
+			method: 'POST',
+			body: JSON.stringify({ ip_address: ip, reason }),
+		}),
+		unblockIP: (ip) => request('/auth-activity/unblock-ip', {
+			method: 'POST',
+			body: JSON.stringify({ ip_address: ip }),
+		}),
+		blockedIPs: () => request('/auth-activity/blocked-ips'),
+		myEvents: () => request('/auth-activity/events/mine'),
 	},
 
 	// ── Dashboard ─────────────────────────────────────────────────
