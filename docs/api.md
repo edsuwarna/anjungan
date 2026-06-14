@@ -184,41 +184,6 @@ GET /api/v1/compliance/{serverID}/containers/{containerName}/history  — Contai
 
 ---
 
-## Deployments
-
-```
-GET    /api/v1/deployments                     — List deployments (?environment_id=)
-POST   /api/v1/deployments                     — Create deployment
-GET    /api/v1/deployments/{id}                — Get deployment details
-POST   /api/v1/deployments/{id}/restart        — Restart deployment
-POST   /api/v1/deployments/{id}/redeploy       — Redeploy
-POST   /api/v1/deployments/{id}/rollback       — Rollback
-GET    /api/v1/deployments/{id}/history        — Deployment history
-GET    /api/v1/deployments/history             — Global history
-```
-
-### Environments
-```
-GET    /api/v1/deployments/environments        — List environments
-POST   /api/v1/deployments/environments        — Create environment
-PUT    /api/v1/deployments/environments/{id}   — Update environment
-DELETE /api/v1/deployments/environments/{id}   — Delete environment
-```
-
----
-
-## Repositories
-
-```
-GET    /api/v1/repositories                    — List repositories
-GET    /api/v1/repositories/connections        — List provider connections
-POST   /api/v1/repositories/connections        — Create connection (validate token first)
-DELETE /api/v1/repositories/connections/{id}   — Delete connection
-GET    /api/v1/repositories/selections         — List selections
-```
-
----
-
 ## Admin
 
 ```

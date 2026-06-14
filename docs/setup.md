@@ -80,7 +80,7 @@ Key variables (see `.env.example` for all):
 | `POSTGRES_PASSWORD` | `anjungan` | Database password |
 | `POSTGRES_DB` | `anjungan` | Database name |
 | `JWT_SECRET` | `change-me-in-production` | JWT signing key |
-| `GITHUB_TOKEN` | — | GitHub PAT for repository features |
+| `GITHUB_TOKEN` | — | GitHub PAT (legacy — CI/CD token validation) |
 | `REGISTRY_URL` | `http://zot:5000` | Internal Zot URL |
 | `REGISTRY_EXTERNAL_URL` | `registry.anjungan.io` | External Zot URL |
 | `LOG_LEVEL` | `info` | Log level: debug, info, warn, error |

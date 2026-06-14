@@ -51,8 +51,6 @@ GET  /health
     ├── /ssh-keys      — SSH key management
     ├── /containers    — Docker container listing & stats
     ├── /registry      — Zot registry integration
-    ├── /repositories  — GitHub/Forgejo repository integration
-    ├── /deployments   — Deployment lifecycle
     ├── /compliance    — Security scanning & checks
     ├── /uptime-monitors — Uptime monitoring
     ├── /ssl-monitors  — SSL certificate monitoring
@@ -98,7 +96,6 @@ frontend/src/
     ├── containers/           — Container list & detail
     ├── registry/             — Image browser
     ├── compliance/           — Compliance dashboard & scans
-    ├── deployment/           — Deployment tracking
     ├── uptime/               — Uptime monitoring
     ├── ssl-monitors/         — SSL certificate monitoring
     ├── notifications/        — Notification management
