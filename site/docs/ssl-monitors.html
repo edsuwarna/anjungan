@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SSL Monitoring — Anjungan IDP</title>
+  <meta name="description" content="Certificate monitoring, TLS checks, notifications, server-side discovery.">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2310b981'/></svg>">
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo"><span class="logo-dot"></span>Anjungan</a>
+    <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle menu">
+      <i data-lucide="menu" style="width:24px;height:24px"></i>
+    </button>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#architecture">Architecture</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/docs/getting-started.html" class="nav-cta">Get Started</a></li>
+    </ul>
+  </div>
+</nav>
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <h4>Getting Started</h4>
+    <ul class="docs-nav">
+      <li><a href="getting-started.html">Quick Start</a></li>
+      <li><a href="setup.html">Dev Setup</a></li>
+      <li><a href="deployment.html">Deployment Guide</a></li>
+    </ul>
+    <h4>Architecture &amp; API</h4>
+    <ul class="docs-nav">
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="docker.html">Docker &amp; CI/CD</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul class="docs-nav">
+      <li><a href="compliance.html">Compliance</a></li>
+      <li><a href="registry.html">Registry</a></li>
+      <li><a href="ssl-monitors.html" class="active">SSL Monitoring</a></li>
+      <li><a href="self-server.html">Self-Server</a></li>
+    </ul>
+    <h4>Planning</h4>
+    <ul class="docs-nav">
+      <li><a href="roadmap.html">Roadmap</a></li>
+    </ul>
+  </aside>
+  <main class="docs-content">
+    <h1>SSL Monitoring</h1>
+
+    <p>Anjungan provides comprehensive SSL/TLS certificate monitoring for any domain. Monitor certificate expiry, TLS configuration, and get notified before certificates expire.</p>
+
+    <h2>Monitors CRUD</h2>
+
+    <pre><code>GET    /api/v1/ssl-monitors                          — List (?page=&amp;limit=&amp;search=&amp;status=&amp;sort=&amp;order=&amp;all=)
+POST   /api/v1/ssl-monitors                          — Create monitor
+GET    /api/v1/ssl-monitors/summary                  — KPI counts (total, valid, expiring_soon, expired, error)
+GET    /api/v1/ssl-monitors/export/csv                — Export as CSV
+POST   /api/v1/ssl-monitors/import                   — Batch import [{domain, port, display_name}]
+POST   /api/v1/ssl-monitors/check-all                — Check all enabled monitors
+POST   /api/v1/ssl-monitors/discover                 — Server-side discovery {server_id, provider}
+POST   /api/v1/ssl-monitors/discover/import           — Import discovered domains
+GET    /api/v1/ssl-monitors/{id}                     — Get detail
+PUT    /api/v1/ssl-monitors/{id}                     — Update
+DELETE /api/v1/ssl-monitors/{id}                     — Delete
+POST   /api/v1/ssl-monitors/{id}/check               — Manual TLS check
+GET    /api/v1/ssl-monitors/{id}/history             — Paginated check history (?limit=&amp;offset=)
+GET    /api/v1/ssl-monitors/{id}/trend               — Trend chart data (?limit=90, default 90)</code></pre>
+
+    <h3>Create Monitor Payload</h3>
+    <pre><code>{
+  "domain": "app1.edsuwarna.id",
+  "port": 443,
+  "display_name": "App 1 Production",
+  "check_interval": "1h",
+  "notify_before": "14d",
+  "webhook_ids": ["target-uuid"],
+  "enabled": true
+}</code></pre>
+
+    <h3>Summary Response</h3>
+    <pre><code>{
+  "total": 8,
+  "valid": 5,
+  "expiring_soon": 2,
+  "expired": 0,
+  "error": 1
+}</code></pre>
+
+    <h2>Notification Targets</h2>
+    <pre><code>GET    /api/v1/ssl-monitors/notification-targets             — List all
+POST   /api/v1/ssl-monitors/notification-targets             — Create
+GET    /api/v1/ssl-monitors/notification-targets/{id}        — Get
+PUT    /api/v1/ssl-monitors/notification-targets/{id}        — Update
+DELETE /api/v1/ssl-monitors/notification-targets/{id}        — Delete
+POST   /api/v1/ssl-monitors/notification-targets/{id}/test   — Send test notification</code></pre>
+
+    <p>Platforms: <code>telegram</code>, <code>discord</code>, <code>slack</code>, <code>generic</code>. Formatting is auto-applied per platform.</p>
+
+    <h2>Server-Side Discovery</h2>
+    <pre><code>POST /api/v1/ssl-monitors/discover</code></pre>
+    <pre><code>{
+  "server_id": "server-uuid",
+  "provider": "auto"
+}</code></pre>
+    <p>Providers: <code>auto</code>, <code>traefik</code>, <code>nginx</code>, <code>caddy</code>, <code>letsencrypt</code>, <code>filesystem</code>.</p>
+
+    <pre><code>POST /api/v1/ssl-monitors/discover/import</code></pre>
+    <pre><code>{
+  "domains": [
+    {"domain": "app1.edsuwarna.id", "port": 443, "display_name": "App 1", "source_provider": "traefik", "server_id": "server-uuid"}
+  ],
+  "enabled": true
+}</code></pre>
+
+  </main>
+</div>
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3><span class="logo-dot"></span>Anjungan</h3>
+        <p>A modular internal developer platform (IDP) for managing servers, containers, and compliance.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul><li><a href="/">Home</a></li><li><a href="/docs/">Documentation</a></li></ul>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Anjungan.</span>
+      <span>Built with Go &amp; SvelteKit</span>
+    </div>
+  </div>
+</footer>
+<script>lucide.createIcons();</script>
+</body>
+</html>

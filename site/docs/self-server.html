@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Self-Server — Anjungan IDP</title>
+  <meta name="description" content="Host auto-registration, Docker socket, configuration.">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2310b981'/></svg>">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="logo-dot"></span>
+      Anjungan
+    </a>
+    <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle menu">
+      <i data-lucide="menu" style="width:24px;height:24px"></i>
+    </button>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#architecture">Architecture</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/docs/getting-started.html" class="nav-cta">Get Started</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <h4>Getting Started</h4>
+    <ul class="docs-nav">
+      <li><a href="getting-started.html">Quick Start</a></li>
+      <li><a href="setup.html">Dev Setup</a></li>
+      <li><a href="deployment.html">Deployment Guide</a></li>
+    </ul>
+    <h4>Architecture &amp; API</h4>
+    <ul class="docs-nav">
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="docker.html">Docker &amp; CI/CD</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul class="docs-nav">
+      <li><a href="compliance.html">Compliance</a></li>
+      <li><a href="registry.html">Registry</a></li>
+      <li><a href="ssl-monitors.html">SSL Monitoring</a></li>
+      <li><a href="self-server.html" class="active">Self-Server</a></li>
+    </ul>
+    <h4>Planning</h4>
+    <ul class="docs-nav">
+      <li><a href="roadmap.html">Roadmap</a></li>
+    </ul>
+  </aside>
+  <main class="docs-content">
+    <h1>Self-Server</h1>
+<p>Anjungan can automatically detect and register the <strong>host server</strong> where it's deployed — no manual server entry needed. This gives you visibility into the Docker host's containers, metrics, and compliance directly from the Anjungan dashboard.</p>
+
+<h2>How It Works</h2>
+
+<p>On startup, the backend runs a self-detection routine:</p>
+
+<p>1. <strong>Check</strong> <code>SELF_SERVER_ENABLED=true</code> — skips if false/unset</p>
+<p>2. <strong>Access</strong> the Docker socket (<code>/var/run/docker.sock</code>)</p>
+<p>3. <strong>Detect</strong> host info — hostname, OS, kernel, CPU model, core count</p>
+<p>4. <strong>Find or Create</strong> a server record in the database (matched by hostname)</p>
+<p>5. <strong>Register</strong> with <code>connection_type: docker-socket</code> and <code>is_self: true</code></p>
+
+<p>The registered server appears as <strong>"anjungan-host"</strong> by default, visible in:</p>
+
+<li><strong>Servers list</strong> — shows CPU/OS info</li>
+<li><strong>Container page</strong> — lists all containers on the host (including Anjungan's own services)</li>
+<li><strong>Dashboard</strong> — host metrics (CPU, memory, disk)</li>
+<li><strong>SSH Terminal</strong> — if SSH credentials are configured (falls back to Docker nsenter otherwise)</li>
+<li><strong>Compliance scanning</strong> — CIS Docker and Lynis scans run on the host</li>
+
+<h2>Configuration</h2>
+
+<table><thead><tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>SELF_SERVER_ENABLED</code></td>
+<td><code>false</code></td>
+<td>Set to <code>"true"</code> to enable auto-registration</td>
+</tr>
+<tr>
+<td><code>SELF_SERVER_NAME</code></td>
+<td><code>"anjungan-host"</code></td>
+<td>Display name for the self-server</td>
+</tr>
+<tr>
+<td><code>DOCKER_SOCKET_PATH</code></td>
+<td><code>/var/run/docker.sock</code></td>
+<td>Path to the Docker socket</td>
+</tr>
+<tr>
+<td><code>SELF_HOST_NETWORK</code></td>
+<td>—</td>
+<td>Host IP from inside the container (e.g. <code>172.22.0.1</code> for Docker Compose networks, or <code>host.docker.internal</code>)</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Requirements</h2>
+
+<h3>Docker Socket Access</h3>
+
+<p>The backend container needs the Docker socket mounted and the Docker CLI installed:</p>
+
+<pre><code>backend:
+  environment:
+    SELF_SERVER_ENABLED: "true"
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:rw
+  group_add:
+    - "988"  # Docker group GID on the host — run `getent group docker` to verify</code></pre>
+
+<p>> <strong>Note:</strong> The Docker group GID (<code>988</code> in the example) varies by OS. Check with:</p>
+<p>> ```bash</p>
+<p>> getent group docker | cut -d: -f3</p>
+<p>> ```</p>
+
+<h3>Docker CLI</h3>
+
+<p>The Docker CLI must be available inside the backend container. The multi-stage Dockerfile includes it by default. If using a custom image, ensure <code>docker</code> is installed.</p>
+
+<h2>Connection Type: `docker-socket`</h2>
+
+<p>The self-server uses <code>connection_type: docker-socket</code> instead of SSH. This means:</p>
+
+<li>Container listing and management → via <strong>Docker socket</strong> directly</li>
+<li>Host metrics → via <strong>docker run --pid=host --privileged alpine nsenter</strong></li>
+<li>SSH Terminal → via <strong>Docker nsenter</strong> by default, or <strong>SSH</strong> if SSH credentials are configured</li>
+
+<h3>Adding SSH Access (Optional)</h3>
+
+<p>If you want to SSH into the self-server (e.g. for file editing, package management), generate an SSH key pair and add it to the server:</p>
+
+<p>1. <strong>Generate a key pair</strong> on the host (outside the container)</p>
+<p>2. <strong>Add the public key</strong> to <code>~/.ssh/authorized_keys</code> on the host</p>
+<p>3. <strong>Store the private key</strong> in Anjungan via <strong>Settings → SSH Keys</strong></p>
+<p>4. <strong>Assign the key</strong> to the self-server in <strong>Server Settings</strong> with SSH user <code>root</code></p>
+
+<p>Once configured, the SSH Terminal will use SSH instead of Docker nsenter.</p>
+
+<h2>Deployment</h2>
+
+<h3>Fresh Install</h3>
+
+<p>When deploying Anjungan on a new server:</p>
+
+<p>1. Include the self-server config in your <code>docker-compose.yml</code> (see <a href="deployment.md">deployment.md</a>)</p>
+<p>2. Set <code>SELF_SERVER_ENABLED: "true"</code> in the backend environment</p>
+<p>3. Mount the Docker socket</p>
+<p>4. Start the stack</p>
+
+<p>The self-server registers automatically on first startup.</p>
+
+<h3>Re-deployment / DB Restore</h3>
+
+<li><strong>Same host, same hostname</strong> → updates the existing record</li>
+<li><strong>Different host</strong> → creates a new record (matched by hostname)</li>
+<li><strong>Same DB, different hostname</strong> → creates a new record alongside the old one (old one stays as offline)</li>
+
+<h2>Troubleshooting</h2>
+
+<h3>Self-server not appearing</h3>
+
+<p>Check the backend logs:</p>
+
+<pre><code>docker compose logs backend | grep "\[self\]"</code></pre>
+
+<p>Expected output:</p>
+<pre><code>[self] Docker host detected: my-server
+[self] self-server updated: anjungan-host (abc-123...)</code></pre>
+
+<p>If you see <code>[self] Docker socket not accessible</code> or <code>[self] self-server detection disabled</code>:</p>
+
+<li>Verify <code>SELF_SERVER_ENABLED: "true"</code> is set</li>
+<li>Verify the Docker socket is mounted (<code>/var/run/docker.sock</code>)</li>
+<li>Verify the container user is in the docker group (check <code>group_add</code> GID)</li>
+
+<h3>Self-server shows 0 containers</h3>
+
+<p>This was a known issue where shell-quoted <code>--format</code> arguments were improperly parsed. Fixed in <code>container/handler.go</code> with a shell-aware argument splitter (<code>shellSplit</code>). Ensure you're running the latest build.</p>
+
+<h3>Container actions fail (start/stop/restart)</h3>
+
+<p>Docker socket operations run directly via the socket. Check that:</p>
+<li>The socket is mounted with <code>:rw</code> (read-write)</li>
+<li>The container has docker group access</li>
+<li>The <code>docker</code> CLI is installed in the backend container</li>  </main>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3><span class="logo-dot"></span>Anjungan</h3>
+        <p>A modular internal developer platform (IDP) for managing servers, containers, and compliance.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/docs/">Documentation</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+        <ul>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Anjungan.</span>
+      <span>Built with Go &amp; SvelteKit</span>
+    </div>
+  </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

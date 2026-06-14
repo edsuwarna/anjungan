@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture — Anjungan IDP</title>
+  <meta name="description" content="System architecture, router structure, and frontend architecture.">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2310b981'/></svg>">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="logo-dot"></span>
+      Anjungan
+    </a>
+    <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle menu">
+      <i data-lucide="menu" style="width:24px;height:24px"></i>
+    </button>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#architecture">Architecture</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/docs/getting-started.html" class="nav-cta">Get Started</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <h4>Getting Started</h4>
+    <ul class="docs-nav">
+      <li><a href="getting-started.html">Quick Start</a></li>
+      <li><a href="setup.html">Dev Setup</a></li>
+      <li><a href="deployment.html">Deployment Guide</a></li>
+    </ul>
+    <h4>Architecture &amp; API</h4>
+    <ul class="docs-nav">
+      <li><a href="architecture.html" class="active">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="docker.html">Docker &amp; CI/CD</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul class="docs-nav">
+      <li><a href="compliance.html">Compliance</a></li>
+      <li><a href="registry.html">Registry</a></li>
+      <li><a href="ssl-monitors.html">SSL Monitoring</a></li>
+      <li><a href="self-server.html">Self-Server</a></li>
+    </ul>
+    <h4>Planning</h4>
+    <ul class="docs-nav">
+      <li><a href="roadmap.html">Roadmap</a></li>
+    </ul>
+  </aside>
+  <main class="docs-content">
+    <h1>Architecture</h1>
+<h2>High-Level Overview</h2>
+
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                    Frontend (SvelteKit)                       │
+│                  Emerald theme · Dark/Light                   │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ HTTP /api/*
+┌──────────────────────▼──────────────────────────────────────┐
+│                   Backend (Go / Chi)                          │
+│                                                               │
+│  ┌──────┐ ┌────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐   │
+│  │ Auth │ │ Infra  │ │ Container│ │ Deploy   │ │ Repo   │   │
+│  └──────┘ └────────┘ └──────────┘ └──────────┘ └────────┘   │
+│  ┌────────┐ ┌────────┐ ┌──────────┐ ┌──────────┐            │
+│  │Admin   │ │Comply  │ │ Registry │ │Settings  │            │
+│  └────────┘ └────────┘ └──────────┘ └──────────┘            │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  Infrastructure Layer: Docker · SSH · Zot Registry     │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│  PostgreSQL 17                    Redis 7                     │
+│  (persistent data, migrations)    (sessions, cache, rate)     │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+
+<h2>Backend (Go)</h2>
+
+<p><strong>Pattern:</strong> Modular monolith — each domain is a self-contained package inside <code>internal/</code>.</p>
+
+<h3>Router Structure (Chi)</h3>
+
+<pre><code>GET  /health
+
+/api/v1/
+├── /auth              (no auth required)
+│   ├── POST /login
+│   ├── POST /register
+│   ├── POST /refresh
+│   ├── POST /verify-2fa
+│   ├── GET  /me
+│   └── POST /logout
+└── (auth middleware ↓)
+    ├── /servers       — Server CRUD + SSH terminal WebSocket
+    ├── /ssh-keys      — SSH key management
+    ├── /containers    — Docker container listing & stats
+    ├── /registry      — Zot registry integration
+    ├── /repositories  — GitHub/Forgejo repository integration
+    ├── /deployments   — Deployment lifecycle
+    ├── /compliance    — Security scanning & checks
+    ├── /uptime-monitors — Uptime monitoring
+    ├── /ssl-monitors  — SSL certificate monitoring
+    ├── /notification-targets — Notification targets (Telegram, Discord, Slack)
+    ├── /bookmarks     — Tool shortcut bookmarks
+    ├── /auth-activity — Login activity, brute force detection, IP blocking
+    ├── /admin         — User management & audit logs
+    ├── /settings      — Application settings (thresholds)
+    └── GET /dashboard — Aggregated summary</code></pre>
+
+<h3>Middleware</h3>
+
+<li>Request ID, Real IP, Logger, Recoverer (Chi defaults)</li>
+<li>30s request timeout</li>
+<li>JWT authentication (required for all <code>/api/v1/*</code> except <code>/auth</code>)</li>
+<li>Admin role gate on <code>/admin</code> routes</li>
+<li>Rate limiting on <code>/auth/login</code> and <code>/auth/register</code></li>
+
+<h2>Frontend (SvelteKit)</h2>
+
+<li><strong>SSR:</strong> Disabled — runs as pure SPA (static adapter)</li>
+<li><strong>Build output:</strong> Static files served by nginx</li>
+<li><strong>Routing:</strong> Client-side, nginx fallback to <code>index.html</code></li>
+<li><strong>Styling:</strong> Tailwind CSS with Emerald (<code>#10b981</code>) color scheme</li>
+<li><strong>Icons:</strong> Iconify (unified icon framework)</li>
+
+<h3>Frontend Architecture</h3>
+
+<pre><code>frontend/src/
+├── lib/
+│   ├── api.svelte.js         — API client (fetch wrapper)
+│   ├── auth.svelte.js        — Auth store (JWT, login state)
+│   ├── thresholds.svelte.js  — Compliance thresholds store
+│   └── components/
+│       ├── ui/               — Reusable UI primitives
+│       └── ...               — Feature components
+└── routes/
+    ├── +layout.svelte        — App shell (sidebar, theme)
+    ├── +page.svelte          — Dashboard overview
+    ├── servers/              — Server management
+    ├── containers/           — Container list & detail
+    ├── registry/             — Image browser
+    ├── compliance/           — Compliance dashboard & scans
+    ├── deployment/           — Deployment tracking
+    ├── uptime/               — Uptime monitoring
+    ├── ssl-monitors/         — SSL certificate monitoring
+    ├── notifications/        — Notification management
+    ├── bookmarks/            — Tool shortcut bookmarks
+    ├── admin/                — Admin panel (users, audit-log, login-activity, lockouts)
+    └── settings/             — Settings page</code></pre>
+
+<p>The frontend proxies <code>/api/*</code> requests to the backend via nginx (<code>proxy_pass http://backend:8080</code>). Static assets (<code>/_app/</code>) are cached with 1-year immutable headers.</p>
+
+<h2>Container Registry (Zot)</h2>
+
+<p>Zot runs as a Docker container with:</p>
+<li><strong>htpasswd authentication</strong> (users managed by Anjungan)</li>
+<li><strong>Access control</strong> with roles: <code>readonly</code>, <code>deploy</code>, <code>admin</code></li>
+<li><strong>Auto-sync:</strong> When registry users are created/deleted in Anjungan, htpasswd is regenerated and Zot restarted</li>
+<li><strong>Self-service:</strong> Every Anjungan user auto-gets a personal registry account</li>  </main>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3><span class="logo-dot"></span>Anjungan</h3>
+        <p>A modular internal developer platform (IDP) for managing servers, containers, and compliance.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/docs/">Documentation</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+        <ul>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Anjungan.</span>
+      <span>Built with Go &amp; SvelteKit</span>
+    </div>
+  </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

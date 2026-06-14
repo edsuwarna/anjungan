@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Docker Build &amp; CI/CD — Anjungan IDP</title>
+  <meta name="description" content="Build process, tagging convention, and GitHub Actions pipeline.">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2310b981'/></svg>">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="logo-dot"></span>
+      Anjungan
+    </a>
+    <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle menu">
+      <i data-lucide="menu" style="width:24px;height:24px"></i>
+    </button>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#architecture">Architecture</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/docs/getting-started.html" class="nav-cta">Get Started</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <h4>Getting Started</h4>
+    <ul class="docs-nav">
+      <li><a href="getting-started.html">Quick Start</a></li>
+      <li><a href="setup.html">Dev Setup</a></li>
+      <li><a href="deployment.html">Deployment Guide</a></li>
+    </ul>
+    <h4>Architecture &amp; API</h4>
+    <ul class="docs-nav">
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="docker.html" class="active">Docker &amp; CI/CD</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul class="docs-nav">
+      <li><a href="compliance.html">Compliance</a></li>
+      <li><a href="registry.html">Registry</a></li>
+      <li><a href="ssl-monitors.html">SSL Monitoring</a></li>
+      <li><a href="self-server.html">Self-Server</a></li>
+    </ul>
+    <h4>Planning</h4>
+    <ul class="docs-nav">
+      <li><a href="roadmap.html">Roadmap</a></li>
+    </ul>
+  </aside>
+  <main class="docs-content">
+    <h1>Docker Build &amp; CI/CD</h1>
+<h2>Building Images</h2>
+
+<h3>Backend (Go multi-stage build)</h3>
+
+<pre><code># Using Dockerfile.backend (context: ./backend)
+docker compose build backend
+
+# Or manually:
+docker build -t anjungan-backend -f Dockerfile.backend ./backend</code></pre>
+
+<p>The backend Dockerfile:</p>
+<p>1. <strong>Build stage</strong> — <code>golang:1.25-alpine</code> compiles with <code>-ldflags="-s -w"</code> for smaller binary</p>
+<p>2. <strong>Runtime stage</strong> — <code>alpine:3.20</code> includes <code>ca-certificates</code>, <code>openssh-client</code>, <code>docker-cli</code>, <code>curl</code></p>
+<p>3. Runs as non-root user <code>anjungan</code> (UID 1000)</p>
+
+<h3>Frontend (npm build + nginx)</h3>
+
+<pre><code># Using Dockerfile.frontend (context: project root)
+docker compose build frontend
+
+# Or manually:
+docker build -t anjungan-frontend -f Dockerfile.frontend .</code></pre>
+
+<p>The frontend Dockerfile:</p>
+<p>1. <strong>Build stage</strong> — <code>node:22-alpine</code> runs <code>npm install --legacy-peer-deps</code> then <code>npm run build</code></p>
+<p>2. <strong>Runtime stage</strong> — <code>nginx:1.27-alpine</code> serves the static build output</p>
+<p>3. Nginx config: SPA fallback (<code>try_files $uri /index.html</code>), immutable cache for <code>/_app/</code> assets, proxy <code>/api/*</code> to backend</p>
+
+<h2>Tagging Convention</h2>
+
+<p>Images are tagged for the private Zot registry at <code>reg.edsuwarna.xyz</code>.</p>
+
+<table><thead><tr>
+<th>Tag Pattern</th>
+<th>When</th>
+<th>Example</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>release-latest</code></td>
+<td>Tag push <code>v*</code></td>
+<td><code>reg.edsuwarna.xyz/anjungan-backend:release-latest</code></td>
+</tr>
+<tr>
+<td><code>v0.3.0</code></td>
+<td>Tag push <code>v*</code></td>
+<td><code>reg.edsuwarna.xyz/anjungan-backend:v0.3.0</code></td>
+</tr>
+<tr>
+<td><code>v0.3.0+release</code></td>
+<td>Tag push <code>v*</code></td>
+<td><code>reg.edsuwarna.xyz/anjungan-backend:v0.3.0+release</code></td>
+</tr>
+<tr>
+<td><code>main-latest</code></td>
+<td>Push to <code>main</code></td>
+<td><code>reg.edsuwarna.xyz/anjungan-frontend:main-latest</code></td>
+</tr>
+<tr>
+<td><code>main-{sha}</code></td>
+<td>Push to <code>main</code></td>
+<td><code>reg.edsuwarna.xyz/anjungan-frontend:main-a1b2c3d</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>CI/CD Pipeline (GitHub Actions)</h2>
+
+<p>The workflow <code>.github/workflows/docker-build-push.yml</code>:</p>
+
+<p>1. <strong>On push to <code>main</code></strong> — builds both images, pushes with <code>main-latest</code> + <code>main-{sha}</code> tags</p>
+<p>2. <strong>On tag push <code>v*</code></strong> — builds both images, pushes with <code>release-latest</code> + <code>v{version}</code> + <code>v{version}+release</code> tags</p>
+
+<h3>Prerequisites for CI</h3>
+
+<p>Set these GitHub Actions secrets:</p>
+
+<table><thead><tr>
+<th>Secret</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>REGISTRY_URL</code></td>
+<td>Zot registry URL (e.g. <code>reg.edsuwarna.xyz</code>)</td>
+</tr>
+<tr>
+<td><code>REGISTRY_USER</code></td>
+<td>Registry deploy user</td>
+</tr>
+<tr>
+<td><code>REGISTRY_PASSWORD</code></td>
+<td>Registry deploy password</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Rebuild & Deploy on Server</h2>
+
+<pre><code># Pull latest code
+git pull origin main
+
+# Rebuild and restart
+docker compose build
+docker compose up -d --force-recreate
+
+# Verify
+docker compose ps
+docker compose logs --tail=20 backend</code></pre>  </main>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3><span class="logo-dot"></span>Anjungan</h3>
+        <p>A modular internal developer platform (IDP) for managing servers, containers, and compliance.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/docs/">Documentation</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+        <ul>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Anjungan.</span>
+      <span>Built with Go &amp; SvelteKit</span>
+    </div>
+  </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

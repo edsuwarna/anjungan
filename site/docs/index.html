@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation — Anjungan IDP</title>
+  <meta name="description" content="Anjungan documentation — setup, architecture, API reference, deployment guide, and more.">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2310b981'/></svg>">
+</head>
+<body>
+
+<!-- ─── Navigation ─── -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="logo-dot"></span>
+      Anjungan
+    </a>
+    <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle menu">
+      <i data-lucide="menu" style="width:24px;height:24px"></i>
+    </button>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#architecture">Architecture</a></li>
+      <li><a href="/docs/" class="active">Docs</a></li>
+      <li><a href="/docs/getting-started.html" class="nav-cta">Get Started</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ─── Page Header ─── -->
+<section class="page-header">
+  <div class="container">
+    <h1>Documentation</h1>
+    <p>Everything you need to get started with Anjungan — from setup to advanced configuration.</p>
+  </div>
+</section>
+
+<!-- ─── Docs Grid ─── -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <h2 style="margin-bottom:var(--space-xl)">Getting Started</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--space-lg);margin-bottom:var(--space-3xl)">
+
+      <a href="getting-started.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="zap" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Quick Start</h4>
+          <p>Clone, configure, and run Anjungan in under 5 minutes.</p>
+        </div>
+      </a>
+
+      <a href="setup.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="wrench" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Development Setup</h4>
+          <p>Prerequisites, environment variables, and dev commands.</p>
+        </div>
+      </a>
+
+      <a href="deployment.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="rocket" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Deployment Guide</h4>
+          <p>Docker Compose, production considerations, and CI/CD.</p>
+        </div>
+      </a>
+
+    </div>
+
+    <h2 style="margin-bottom:var(--space-xl)">Architecture &amp; Reference</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--space-lg);margin-bottom:var(--space-3xl)">
+
+      <a href="architecture.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="layers" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Architecture</h4>
+          <p>System design, router structure, middleware, and frontend architecture.</p>
+        </div>
+      </a>
+
+      <a href="api.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="code" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>API Reference</h4>
+          <p>Complete API endpoint documentation with request/response examples.</p>
+        </div>
+      </a>
+
+      <a href="docker.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="container" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Docker Build &amp; CI/CD</h4>
+          <p>Build process, tagging convention, and GitHub Actions pipeline.</p>
+        </div>
+      </a>
+
+    </div>
+
+    <h2 style="margin-bottom:var(--space-xl)">Features</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--space-lg);margin-bottom:var(--space-3xl)">
+
+      <a href="compliance.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="shield" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Compliance &amp; Security</h4>
+          <p>CIS scanning, Lynis audits, container image scanning, scoring system.</p>
+        </div>
+      </a>
+
+      <a href="registry.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="archive" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Container Registry</h4>
+          <p>Zot integration, self-service credentials, role-based access control.</p>
+        </div>
+      </a>
+
+      <a href="ssl-monitors.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="activity" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>SSL Monitoring</h4>
+          <p>Certificate monitoring, TLS checks, notifications, server-side discovery.</p>
+        </div>
+      </a>
+
+      <a href="self-server.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="hard-drive" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Self-Server</h4>
+          <p>Host auto-registration, Docker socket access, configuration.</p>
+        </div>
+      </a>
+
+    </div>
+
+    <h2 style="margin-bottom:var(--space-xl)">Dashboard Preview</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--space-lg);margin-bottom:var(--space-3xl)">
+      <div class="doc-card" style="padding:0;overflow:hidden;flex-direction:column">
+        <div style="padding:10px 14px;font-size:.85rem;font-weight:600;border-bottom:1px solid var(--hairline);background:var(--surface-1)">Overview Dashboard</div>
+        <img src="../screenshots/overview.png" alt="Anjungan Overview Dashboard" style="width:100%;display:block" loading="lazy">
+        <div style="padding:8px 14px;font-size:.75rem;color:var(--ink-tertiary)">KPI cards · Server health · SSL status · Compliance score</div>
+      </div>
+      <div class="doc-card" style="padding:0;overflow:hidden;flex-direction:column">
+        <div style="padding:10px 14px;font-size:.85rem;font-weight:600;border-bottom:1px solid var(--hairline);background:var(--surface-1)">Server Management</div>
+        <img src="../screenshots/servers.png" alt="Servers page" style="width:100%;display:block" loading="lazy">
+        <div style="padding:8px 14px;font-size:.75rem;color:var(--ink-tertiary)">Search · Filter · Status badges · SSH access</div>
+      </div>
+      <div class="doc-card" style="padding:0;overflow:hidden;flex-direction:column">
+        <div style="padding:10px 14px;font-size:.85rem;font-weight:600;border-bottom:1px solid var(--hairline);background:var(--surface-1)">Container Management</div>
+        <img src="../screenshots/containers.png" alt="Containers page" style="width:100%;display:block" loading="lazy">
+        <div style="padding:8px 14px;font-size:.75rem;color:var(--ink-tertiary)">Stats · Security scanning · Per-server grouping</div>
+      </div>
+      <div class="doc-card" style="padding:0;overflow:hidden;flex-direction:column">
+        <div style="padding:10px 14px;font-size:.85rem;font-weight:600;border-bottom:1px solid var(--hairline);background:var(--surface-1)">Container Registry</div>
+        <img src="../screenshots/registry.png" alt="Registry page" style="width:100%;display:block" loading="lazy">
+        <div style="padding:8px 14px;font-size:.75rem;color:var(--ink-tertiary)">Repositories · Credentials · CVE scanning</div>
+      </div>
+    </div>
+
+    <h2 style="margin-bottom:var(--space-xl)">Planning</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--space-lg)">
+      <a href="roadmap.html" class="doc-card">
+        <div class="doc-icon"><i data-lucide="map" style="width:18px;height:18px;stroke:var(--primary);stroke-width:1.5"></i></div>
+        <div class="doc-card-body">
+          <h4>Roadmap</h4>
+          <p>Platform philosophy, completed features, and planned phases.</p>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Footer ─── -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3><span class="logo-dot"></span>Anjungan</h3>
+        <p>A modular internal developer platform (IDP) for managing servers, containers, and compliance — all through a unified dashboard.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/#features">Features</a></li>
+          <li><a href="/#architecture">Architecture</a></li>
+          <li><a href="/docs/">Documentation</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Docs</h4>
+        <ul>
+          <li><a href="getting-started.html">Getting Started</a></li>
+          <li><a href="architecture.html">Architecture</a></li>
+          <li><a href="api.html">API Reference</a></li>
+          <li><a href="deployment.html">Deployment</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+        <ul>
+          <li><a href="mailto:endang@edsuwarna.id">Email</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Anjungan.</span>
+      <span>Built with Go &amp; SvelteKit</span>
+    </div>
+  </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+
+</body>
+</html>

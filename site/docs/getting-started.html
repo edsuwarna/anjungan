@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Start — Anjungan IDP</title>
+  <meta name="description" content="Get started with Anjungan in under 5 minutes.">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2310b981'/></svg>">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="logo-dot"></span>
+      Anjungan
+    </a>
+    <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle menu">
+      <i data-lucide="menu" style="width:24px;height:24px"></i>
+    </button>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#architecture">Architecture</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/docs/getting-started.html" class="nav-cta">Get Started</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <h4>Getting Started</h4>
+    <ul class="docs-nav">
+      <li><a href="getting-started.html" class="active">Quick Start</a></li>
+      <li><a href="setup.html">Dev Setup</a></li>
+      <li><a href="deployment.html">Deployment Guide</a></li>
+    </ul>
+    <h4>Architecture &amp; API</h4>
+    <ul class="docs-nav">
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="docker.html">Docker &amp; CI/CD</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul class="docs-nav">
+      <li><a href="compliance.html">Compliance</a></li>
+      <li><a href="registry.html">Registry</a></li>
+      <li><a href="ssl-monitors.html">SSL Monitoring</a></li>
+      <li><a href="self-server.html">Self-Server</a></li>
+    </ul>
+    <h4>Planning</h4>
+    <ul class="docs-nav">
+      <li><a href="roadmap.html">Roadmap</a></li>
+    </ul>
+  </aside>
+  <main class="docs-content">
+    <h1>Quick Start</h1>
+<p>> <strong>Anjungan</strong> (Indonesian: <em>platform</em>) — A modular internal developer platform (IDP) for managing servers, containers, container registries, and infrastructure compliance through a unified dashboard.</p>
+
+<h2>Overview</h2>
+
+<p>Anjungan provides a single-pane-of-glass for DevOps teams:</p>
+
+<div class="docs-screenshot">
+  <div class="docs-screenshot-header">
+    <span class="dot dot-green"></span>
+    <span>Dashboard Overview</span>
+  </div>
+  <a href="../screenshots/overview.png" target="_blank">
+    <img src="../screenshots/overview.png" alt="Anjungan Dashboard Overview" loading="lazy">
+  </a>
+  <div class="docs-screenshot-footer">
+    KPI cards, server health, compliance score, and quick access tools — all in one place
+  </div>
+</div>
+
+<li><strong>Server management</strong> — SSH-key-based connection to remote servers, terminal access via WebSocket</li>
+<li><strong>Container management</strong> — view containers across all servers, inspect details, monitor status</li>
+<li><strong>Compliance scanning</strong> — CIS-based security audits, Lynis hardening scans, container image vulnerability scanning</li>
+<li><strong>Container registry</strong> — integrated Zot private registry with self-service user credentials</li>
+<li><strong>Deployments</strong> — track and manage deployments across environments</li>
+<li><strong>Repository management</strong> — GitHub & Forgejo repository integration</li>
+<li><strong>SSL Certificate Monitoring</strong> — monitor SSL/TLS certificate expiry for any domain, with automated TLS checks, cipher grading, chain validation, OCSP status, check history with trend chart, and deduped notifications via Telegram/Discord/Slack</li>
+<li><strong>Server-side certificate discovery</strong> — auto-detect SSL certs from connected servers (Traefik, Nginx, Caddy, Let's Encrypt, filesystem scan)</li>
+<li><strong>Admin console</strong> — user management, audit logging</li>
+
+<h2>Tech Stack</h2>
+
+<table><thead><tr>
+<th>Layer</th>
+<th>Technology</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Frontend</strong></td>
+<td>SvelteKit 5, Svelte 5 (runes), Tailwind CSS 3, Iconify</td>
+</tr>
+<tr>
+<td><strong>Backend</strong></td>
+<td>Go 1.25, Chi router, pgx (PostgreSQL driver)</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td>PostgreSQL 17, Redis 7</td>
+</tr>
+<tr>
+<td><strong>Container Registry</strong></td>
+<td>Zot (OCI-distribution compliant)</td>
+</tr>
+<tr>
+<td><strong>Auth</strong></td>
+<td>JWT (access + refresh tokens), TOTP 2FA</td>
+</tr>
+<tr>
+<td><strong>Infrastructure</strong></td>
+<td>Docker Compose, multi-stage Dockerfiles</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Services</h2>
+
+<table><thead><tr>
+<th>Service</th>
+<th>Container</th>
+<th>Port</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>backend</code></td>
+<td><code>anjungan-backend</code></td>
+<td>8080</td>
+<td>Go API server</td>
+</tr>
+<tr>
+<td><code>frontend</code></td>
+<td><code>anjungan-frontend</code></td>
+<td>80</td>
+<td>SvelteKit SPA (nginx)</td>
+</tr>
+<tr>
+<td><code>postgres</code></td>
+<td><code>anjungan-postgres</code></td>
+<td>5433</td>
+<td>Database</td>
+</tr>
+<tr>
+<td><code>redis</code></td>
+<td><code>anjungan-redis</code></td>
+<td>6379</td>
+<td>Cache + rate limiter</td>
+</tr>
+<tr>
+<td><code>zot</code></td>
+<td><code>anjungan-zot</code></td>
+<td>5000</td>
+<td>OCI registry (internal)</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Project Structure</h2>
+
+<pre><code>anjungan/
+├── backend/                  # Go modular monolith
+│   ├── cmd/server/           # Entry point
+│   ├── internal/
+│   │   ├── server/           # HTTP server, router, middleware
+│   │   ├── config/           # Environment configuration
+│   │   ├── common/           # Shared types, DB, helpers
+│   │   ├── auth/             # Authentication & authorization
+│   │   ├── authactivity/     # Login activity & brute force detection
+│   │   ├── bookmark/         # Tool shortcut bookmarks
+│   │   ├── infra/            # Server/infrastructure management
+│   │   ├── container/        # Docker container management
+│   │   ├── registry/         # Container registry integration
+│   │   ├── repository/       # Git repository integration
+│   │   ├── deployment/       # Deployment pipeline
+│   │   ├── dashboard/        # Dashboard aggregation
+│   │   ├── compliance/       # Security compliance checks
+│   │   ├── sslmonitor/       # SSL certificate monitoring
+│   │   ├── uptime/           # Uptime monitoring
+│   │   ├── notification/     # Notification targets & delivery
+│   │   ├── settings/         # Application settings (thresholds)
+│   │   ├── admin/            # User & permission management
+│   │   └── audit/            # Audit logging
+│   └── migrations/           # PostgreSQL migrations
+├── frontend/                 # SvelteKit SPA
+│   └── src/
+│       ├── lib/              # Components, stores, API client
+│       └── routes/           # Pages
+├── docs/                     # Documentation
+├── zot/                      # Zot configuration
+│   ├── config.json           # Zot config with htpasswd auth
+│   ├── htpasswd.example      # Example htpasswd format (auto-generated at runtime)
+├── docker-compose.yml        # All services
+├── Dockerfile.backend        # Multi-stage Go build
+├── Dockerfile.frontend       # Nginx static SPA (npm build)
+├── Makefile                  # Developer commands
+└── .env.example              # Environment variables template</code></pre>
+
+<h2>Quick Start</h2>
+
+<pre><code># Clone
+git clone git@github.com:edsuwarna/anjungan.git
+cd anjungan
+
+# Copy env vars
+cp .env.example .env
+
+# Start all services
+docker compose up -d
+
+# Access the dashboard
+open http://localhost</code></pre>
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3><span class="logo-dot"></span>Anjungan</h3>
+        <p>A modular internal developer platform (IDP) for managing servers, containers, and compliance.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/docs/">Documentation</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+        <ul>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Anjungan.</span>
+      <span>Built with Go &amp; SvelteKit</span>
+    </div>
+  </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

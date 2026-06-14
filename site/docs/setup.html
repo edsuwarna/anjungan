@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Development Setup — Anjungan IDP</title>
+  <meta name="description" content="Prerequisites, environment variables, and dev commands.">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2310b981'/></svg>">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="logo-dot"></span>
+      Anjungan
+    </a>
+    <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle menu">
+      <i data-lucide="menu" style="width:24px;height:24px"></i>
+    </button>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#architecture">Architecture</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/docs/getting-started.html" class="nav-cta">Get Started</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <h4>Getting Started</h4>
+    <ul class="docs-nav">
+      <li><a href="getting-started.html">Quick Start</a></li>
+      <li><a href="setup.html" class="active">Dev Setup</a></li>
+      <li><a href="deployment.html">Deployment Guide</a></li>
+    </ul>
+    <h4>Architecture &amp; API</h4>
+    <ul class="docs-nav">
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="docker.html">Docker &amp; CI/CD</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul class="docs-nav">
+      <li><a href="compliance.html">Compliance</a></li>
+      <li><a href="registry.html">Registry</a></li>
+      <li><a href="ssl-monitors.html">SSL Monitoring</a></li>
+      <li><a href="self-server.html">Self-Server</a></li>
+    </ul>
+    <h4>Planning</h4>
+    <ul class="docs-nav">
+      <li><a href="roadmap.html">Roadmap</a></li>
+    </ul>
+  </aside>
+  <main class="docs-content">
+    <h1>Development Setup</h1>
+<h2>Prerequisites</h2>
+
+<li><strong>Go</strong> 1.25+</li>
+<li><strong>Node.js</strong> 22+ (with npm)</li>
+<li><strong>Docker</strong> & <strong>Docker Compose</strong></li>
+<li><strong>Air</strong> (for backend hot-reload): <code>go install github.com/air-verse/air@latest</code></li>
+
+<h2>1. Clone & Configure</h2>
+
+<pre><code>git clone git@github.com:edsuwarna/anjungan.git
+cd anjungan
+cp .env.example .env</code></pre>
+
+<p>Edit <code>.env</code> if needed (defaults work for local dev).</p>
+
+<h2>2. Start Dependencies (PostgreSQL + Redis)</h2>
+
+<pre><code>make dev-db
+# or: docker compose up -d postgres redis</code></pre>
+
+<h2>3. Run Backend (with hot-reload)</h2>
+
+<pre><code>make dev-backend</code></pre>
+
+<p>The server starts on <code>localhost:8080</code> and auto-runs database migrations on startup.</p>
+
+<h2>4. Run Frontend (dev server)</h2>
+
+<pre><code>make dev-frontend</code></pre>
+
+<p>Opens on <code>localhost:5173</code> with HMR. Proxies <code>/api/*</code> to the backend.</p>
+
+<h2>5. Full Stack (Docker only)</h2>
+
+<pre><code>make dev
+# or: docker compose up -d</code></pre>
+
+<p>Runs everything in containers. Frontend at <code>http://localhost</code>, backend at <code>http://localhost:8080</code>.</p>
+
+<h2>Makefile Commands</h2>
+
+<table><thead><tr>
+<th>Command</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>make dev</code></td>
+<td>Start all services</td>
+</tr>
+<tr>
+<td><code>make dev-backend</code></td>
+<td>Backend with hot-reload</td>
+</tr>
+<tr>
+<td><code>make dev-frontend</code></td>
+<td>Frontend dev server</td>
+</tr>
+<tr>
+<td><code>make dev-db</code></td>
+<td>Start databases only</td>
+</tr>
+<tr>
+<td><code>make build</code></td>
+<td>Build Docker images</td>
+</tr>
+<tr>
+<td><code>make up</code></td>
+<td>Start Docker services</td>
+</tr>
+<tr>
+<td><code>make down</code></td>
+<td>Stop Docker services</td>
+</tr>
+<tr>
+<td><code>make restart</code></td>
+<td>Restart Docker services</td>
+</tr>
+<tr>
+<td><code>make logs</code></td>
+<td>Tail all service logs</td>
+</tr>
+<tr>
+<td><code>make migrate-up</code></td>
+<td>Restart backend to run pending migrations</td>
+</tr>
+<tr>
+<td><code>make migrate-create</code></td>
+<td>Create new migration files</td>
+</tr>
+<tr>
+<td><code>make build-backend</code></td>
+<td>Build Go binary locally</td>
+</tr>
+<tr>
+<td><code>make build-frontend</code></td>
+<td>Build frontend SPA locally</td>
+</tr>
+<tr>
+<td><code>make go-test</code></td>
+<td>Run Go tests</td>
+</tr>
+<tr>
+<td><code>make go-lint</code></td>
+<td>Run <code>go vet</code></td>
+</tr>
+<tr>
+<td><code>make go-tidy</code></td>
+<td>Tidy Go modules</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Environment Variables</h2>
+
+<p>Key variables (see <code>.env.example</code> for all):</p>
+
+<table><thead><tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>POSTGRES_USER</code></td>
+<td><code>anjungan</code></td>
+<td>Database user</td>
+</tr>
+<tr>
+<td><code>POSTGRES_PASSWORD</code></td>
+<td><code>anjungan</code></td>
+<td>Database password</td>
+</tr>
+<tr>
+<td><code>POSTGRES_DB</code></td>
+<td><code>anjungan</code></td>
+<td>Database name</td>
+</tr>
+<tr>
+<td><code>JWT_SECRET</code></td>
+<td><code>change-me-in-production</code></td>
+<td>JWT signing key</td>
+</tr>
+<tr>
+<td><code>GITHUB_TOKEN</code></td>
+<td>—</td>
+<td>GitHub PAT for repository features</td>
+</tr>
+<tr>
+<td><code>REGISTRY_URL</code></td>
+<td><code>http://zot:5000</code></td>
+<td>Internal Zot URL</td>
+</tr>
+<tr>
+<td><code>REGISTRY_EXTERNAL_URL</code></td>
+<td><code>registry.anjungan.io</code></td>
+<td>External Zot URL</td>
+</tr>
+<tr>
+<td><code>LOG_LEVEL</code></td>
+<td><code>info</code></td>
+<td>Log level: debug, info, warn, error</td>
+</tr>
+<tr>
+<td><code>SELF_SERVER_ENABLED</code></td>
+<td><code>false</code></td>
+<td>Auto-register host server (set <code>"true"</code> to enable)</td>
+</tr>
+<tr>
+<td><code>SELF_SERVER_NAME</code></td>
+<td><code>anjungan-host</code></td>
+<td>Display name for the self-server</td>
+</tr>
+<tr>
+<td><code>SELF_HOST_NETWORK</code></td>
+<td>—</td>
+<td>Host IP from inside container (e.g. <code>host.docker.internal</code>)</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Connecting to the Database</h2>
+
+<pre><code>make db
+# or: docker compose exec postgres psql -U anjungan -d anjungan</code></pre>  </main>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3><span class="logo-dot"></span>Anjungan</h3>
+        <p>A modular internal developer platform (IDP) for managing servers, containers, and compliance.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/docs/">Documentation</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+        <ul>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Anjungan.</span>
+      <span>Built with Go &amp; SvelteKit</span>
+    </div>
+  </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

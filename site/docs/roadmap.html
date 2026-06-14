@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roadmap — Anjungan IDP</title>
+  <meta name="description" content="Platform philosophy, completed features, and planned phases.">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%2310b981'/></svg>">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="logo-dot"></span>
+      Anjungan
+    </a>
+    <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle menu">
+      <i data-lucide="menu" style="width:24px;height:24px"></i>
+    </button>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#architecture">Architecture</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/docs/getting-started.html" class="nav-cta">Get Started</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <h4>Getting Started</h4>
+    <ul class="docs-nav">
+      <li><a href="getting-started.html">Quick Start</a></li>
+      <li><a href="setup.html">Dev Setup</a></li>
+      <li><a href="deployment.html">Deployment Guide</a></li>
+    </ul>
+    <h4>Architecture &amp; API</h4>
+    <ul class="docs-nav">
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="docker.html">Docker &amp; CI/CD</a></li>
+    </ul>
+    <h4>Features</h4>
+    <ul class="docs-nav">
+      <li><a href="compliance.html">Compliance</a></li>
+      <li><a href="registry.html">Registry</a></li>
+      <li><a href="ssl-monitors.html">SSL Monitoring</a></li>
+      <li><a href="self-server.html">Self-Server</a></li>
+    </ul>
+    <h4>Planning</h4>
+    <ul class="docs-nav">
+      <li><a href="roadmap.html" class="active">Roadmap</a></li>
+    </ul>
+  </aside>
+  <main class="docs-content">
+    <h1>Roadmap</h1>
+<p>> <strong>Vision:</strong> A dual-role platform that serves both <strong>Infrastructure Engineers</strong> (managing servers, containers, networking) and <strong>Application Developers</strong> (deploying services, managing releases, observing health) — all through a unified dashboard with role-based access.</p>
+
+<hr>
+
+<h2>🎯 Platform Philosophy</h2>
+
+<p>Anjungan is designed to bridge two worlds:</p>
+
+<table><thead><tr>
+<th>Peran</th>
+<th>Fokus</th>
+<th>Contoh Tugas</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Infra Engineer</strong></td>
+<td>Server & infrastructure management</td>
+<td>Add VPS, monitor resources, manage Docker, SSH access, audit logs</td>
+</tr>
+<tr>
+<td><strong>Developer</strong></td>
+<td>Application lifecycle management</td>
+<td>Deploy service, view logs, rollback, check health, manage secrets</td>
+</tr>
+</tbody>
+</table>
+
+<p>Setiap user bisa punya satu atau kedua peran tergantung RBAC. Dashboard-nya berubah sesuai role — infra engineer liat server metrics, developer liat service health.</p>
+
+<hr>
+
+<h2>📦 Phase 1 — Foundation (Current)</h2>
+
+<p>> <strong>Status: ✅ Mostly Complete</strong> — Core features implemented. See individual PRDs for detail.</p>
+
+<h3>Backend (Go — ✅ Running)</h3>
+<li>[x] Auth: login, register, JWT + refresh token</li>
+<li>[x] TOTP 2FA</li>
+<li>[x] OIDC / SSO provider</li>
+<li>[x] RBAC (roles & permissions)</li>
+<li>[x] User management CRUD</li>
+<li>[x] Dashboard summary API</li>
+<li>[x] PostgreSQL + Redis</li>
+<li>[x] Modular monolith (internal/ packages per domain)</li>
+
+<h3>Frontend (SvelteKit — ✅ Complete)</h3>
+<li>[x] Layout: sidebar + topbar + main area</li>
+<li>[x] Login page</li>
+<li>[x] Dark/light mode toggle</li>
+<li>[x] Responsive (mobile collapsible sidebar)</li>
+<li>[x] Dashboard overview — live stat cards, recent activity, bookmark widget</li>
+<li>[x] Servers — list, add, manage servers</li>
+<li>[x] Containers — list containers per server, detail, security scan</li>
+<li>[x] Registry — Docker registry browser, user credentials</li>
+<li>[x] SSL Monitors — certificate monitoring, check history, trend charts</li>
+<li>[x] Uptime Monitors — HTTP/TCP ping, response time, status timeline</li>
+<li>[x] Compliance — CIS L1/L2, Docker, Lynis scans</li>
+<li>[x] Bookmarks — tool shortcuts, categories, pin/unpin</li>
+<li>[x] Login Activity — auth event table, summary cards, trend, heatmap, IP blocking</li>
+<li>[x] Lockouts — locked accounts view + unlock action</li>
+<li>[x] Admin panel — user management, audit log</li>
+<li>[x] Settings — compliance threshold configuration</li>
+<li>[x] Notifications — shared notification targets (Telegram, Discord, Slack, Webhook)</li>
+
+<h3>Theme & UI</h3>
+<li>[x] Emerald green primary palette (Tailwind config)</li>
+<li>[x] CSS variable system for theming</li>
+<li>[x] Emerald-green sidebar — active state, header accent, hover effects</li>
+<li>[x] Consistent card-based component design</li>
+
+<hr>
+
+<h2>🏗️ Phase 2 — Platform Engineering (IDP Core)</h2>
+
+<p>> <strong>Goal:</strong> Transform dari server management tool jadi Internal Developer Platform</p>
+
+<h3>Service Catalog & Developer Portal</h3>
+<li>[ ] <strong>Service Registry</strong> — setiap aplikasi punya halaman sendiri: health, owner, tech stack, dependencies</li>
+<li>[ ] <strong>Environment Management</strong> — Dev → Staging → Production, beda config per env</li>
+<li>[ ] <strong>Self-Service Actions</strong> — deploy, restart, rollback dari dashboard (no SSH)</li>
+<li>[ ] <strong>Deployment History</strong> — timeline: siapa deploy, versi apa, commit, rollback</li>
+<li>[ ] <strong>Ownership & Team Mapping</strong> — setiap service punya owner/team, filter by team</li>
+
+<h3>Deployment Pipeline</h3>
+<li>[ ] <strong>GitHub/GitLab Webhook</strong> — auto-trigger deployment pas push</li>
+<li>[ ] <strong>Pipeline Visualization</strong> — stages: build → test → deploy staging → approve → production</li>
+<li>[ ] <strong>Manual Approval Gates</strong> — staging auto, production butuh approve</li>
+<li>[ ] <strong>Rollback Button</strong> — one-click rollback ke versi sebelumnya</li>
+<li>[ ] <strong>Deployment Templates</strong> — Docker Compose, Docker Swarm, direct SSH pull</li>
+
+<h3>Scaffolding</h3>
+<li>[ ] <strong>Service Scaffolder</strong> — "Create new service" → pilih template (FastAPI, Go, Node.js) → langsung dapet repo + CI + deployment config</li>
+<li>[ ] <strong>Config Generator</strong> — generate docker-compose, nginx config, env vars sesuai environment</li>
+
+<hr>
+
+<h2>🔐 Phase 3 — Security & Governance</h2>
+
+<li>[ ] <strong>Centralized Vault</strong> — simpan secrets (API keys, DB passwords), inject ke env pas deploy</li>
+<li>[ ] <strong>Secret Rotation</strong> — jadwal rotasi otomatis + audit akses</li>
+<li>[ ] <strong>Environment-specific Configs</strong> — beda config per env tanpa hardcode</li>
+<li>[ ] <strong>Policy Engine</strong> — enforce aturan: "all services must have healthcheck", "staging DB must be smaller than production"</li>
+<li>[ ] <strong>Change Management</strong> — developer submit change request → approval → deploy</li>
+<li>[ ] <strong>Deployment Freeze</strong> — set periode freeze, system reject deployment</li>
+
+<hr>
+
+<h2>📊 Phase 4 — Observability & Intelligence</h2>
+
+<li>[ ] <strong>Service Dependency Graph</strong> — visual map: Service A → DB → Redis → Service B</li>
+<li>[x] <strong>Health Dashboard</strong> — per-service: uptime, response time charts, error rate via uptime monitoring (F1-F10)</li>
+<li>[x] <strong>Alert Routing</strong> — service down → notify via Telegram/Discord/Slack/Webhook (F5)</li>
+<li>[x] <strong>Response Time Stats</strong> — min/avg/max/p95 per 24h/7d/30d (F9)</li>
+<li>[x] <strong>Incident Timeline</strong> — auto-group consecutive down/error, paginated timeline (F10)</li>
+<li>[ ] <strong>SLO / SLI Tracking</strong> — apakah service memenuhi target uptime/response time</li>
+<li>[ ] <strong>Centralized Logs per Service</strong> — filter log by service name, bukan per-system</li>
+<li>[ ] <strong>Postmortem Template</strong> — standard template untuk blameless postmortem</li>
+
+<hr>
+
+<h2>🧩 Phase 5 — Ecosystem & Extensibility</h2>
+
+<li>[ ] <strong>Developer API</strong> — deploy via <code>curl</code>, integrasi CI/CD external</li>
+<li>[ ] <strong>CLI Tool</strong> — <code>anjungan deploy my-service --env production</code></li>
+<li>[ ] <strong>Webhook Outgoing</strong> — kirim event ke external system pas deployment berhasil/gagal</li>
+<li>[ ] <strong>Plugin System</strong> — biar team bisa extend sendiri</li>
+<li>[ ] <strong>Terraform/OpenTofu Integration</strong> — manage IaC dari dashboard</li>
+
+<hr>
+
+<h2>🧠 Design Principles</h2>
+
+<p>1. <strong>Emerald-first</strong> — <code>#10b981</code> bukan cuma aksen, tapi jadi identitas visual yang dominan</p>
+<p>2. <strong>Developer experience</strong> — setiap action harus ≤2 klik, ga perlu buka terminal</p>
+<p>3. <strong>Role-aware</strong> — UI berubah sesuai role: infra engineer liat hardware, developer liat service</p>
+<p>4. <strong>Self-service</strong> — developer bisa deploy sendiri tanpa minta tolong infra team</p>
+<p>5. <strong>Observable by default</strong> — setiap deployment, setiap action, harus ada log + metric</p>
+
+<hr>
+
+<h2>Cara Berkontribusi ke Roadmap Ini</h2>
+
+<p>Roadmap ini live document — bisa berubah sesuai prioritas. Diskusi dan update dilakukan lewat:</p>
+<li>Issue GitHub</li>
+<li>Diskusi di grup</li>
+<li>Pull request langsung ke file ini</li>
+
+<hr>
+
+<p><em>Last updated: June 2026</em></p>  </main>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3><span class="logo-dot"></span>Anjungan</h3>
+        <p>A modular internal developer platform (IDP) for managing servers, containers, and compliance.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/docs/">Documentation</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+        <ul>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Anjungan.</span>
+      <span>Built with Go &amp; SvelteKit</span>
+    </div>
+  </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>
