@@ -95,19 +95,43 @@ body {
   background-color: var(--vp-c-bg) !important;
   border-right: 1px solid var(--vp-c-border) !important;
 }
+
+/* Sidebar item text */
 .VPSidebarItem .text {
   color: var(--vp-c-text-2) !important;
   font-size: 14px !important;
+  transition: color 0.2s ease;
 }
-.VPSidebarItem.is-active .text {
+
+/* Active item — green text only, no green indicator bar */
+.VPSidebarItem.is-active > .item .link > .text {
   color: var(--vp-c-accent) !important;
 }
-.VPSidebarItem .indicator {
+
+/* Green indicator bar — active items only (level 1+), not section headers */
+.VPSidebarItem.level-2.is-active > .item > .indicator,
+.VPSidebarItem.level-3.is-active > .item > .indicator,
+.VPSidebarItem.level-4.is-active > .item > .indicator,
+.VPSidebarItem.level-5.is-active > .item > .indicator {
   background-color: var(--vp-c-accent) !important;
 }
+
+/* Hidden indicator for section headers and non-active items */
+.VPSidebarItem .indicator {
+  background-color: transparent !important;
+}
+
+/* Hover state */
 .VPSidebarItem:hover .text {
   color: var(--vp-c-text-1) !important;
 }
+.VPSidebarItem.level-2:hover > .item,
+.VPSidebarItem.level-3:hover > .item {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+/* Section divider */
 .VPSidebar .group + .group {
   border-top: 1px solid var(--vp-c-border);
   padding-top: 16px;
