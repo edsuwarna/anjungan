@@ -10,7 +10,7 @@ export default defineConfig({
   lastUpdated: true,
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><circle cx=%2216%22 cy=%2216%22 r=%2214%22 fill=%22%2357c1ff%22/></svg>' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/anjungan-icon.svg' }],
     ['script', {}, `
 document.addEventListener('DOMContentLoaded', function() {
   var track = document.getElementById('carouselTrack');
