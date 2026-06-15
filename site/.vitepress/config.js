@@ -64,7 +64,10 @@ document.addEventListener('DOMContentLoaded', function() {
           items: [
             { text: 'Deployment', link: '/guide/deployment' },
             { text: 'Container Registry', link: '/guide/registry' },
+            { text: 'Uptime Monitoring', link: '/guide/uptime' },
             { text: 'Compliance', link: '/guide/compliance' },
+            { text: 'Notification Targets', link: '/guide/notifications' },
+            { text: 'Auth Activity & Brute Force', link: '/guide/auth-activity' },
             { text: 'Self-Server Registration', link: '/guide/self-server' },
           ],
         },

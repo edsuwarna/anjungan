@@ -528,20 +528,7 @@ body {
   color: var(--vp-c-accent);
   margin-bottom: 8px;
 }
-.anj-arch-title {
-  font-size: 30px;
-  font-weight: 700;
-  color: var(--vp-c-text-1);
-  margin-bottom: 12px;
-  border: none;
-  padding: 0;
-}
-.anj-arch-sub {
-  color: var(--vp-c-text-3);
-  font-size: 15px;
-  margin-bottom: 40px;
-  max-width: 600px;
-}
+
 
 /* ─── Architecture SVG Diagram ─── */
 .anj-arch-container {
