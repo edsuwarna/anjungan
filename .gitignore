@@ -13,6 +13,10 @@ frontend/.svelte-kit/
 backend/build/
 backend/server
 
+# ─── VitePress site build output ──────────────────────────────────────────
+site/.vitepress/cache/
+site/.vitepress/dist/
+
 # ─── Environment ──────────────────────────────────────────────────────────
 .env
 .env.local
