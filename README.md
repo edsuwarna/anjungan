@@ -92,4 +92,6 @@ anjungan/
 
 ## License
 
-MIT
+[![License](https://img.shields.io/badge/License-Apache%202.0-10b981.svg)](LICENSE)
+
+Apache License 2.0 — see [LICENSE](LICENSE).
