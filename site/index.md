@@ -155,124 +155,21 @@ class: home-page
 <div class="anj-dots"><span></span><span></span><span></span></div>
 
 <section class="anj-section" id="architecture">
-  <div class="anj-arch-label">Architecture</div>
-  <h2 class="anj-arch-title">Platform Architecture</h2>
-  <p class="anj-arch-sub">A modular internal developer platform with a SvelteKit frontend, Go backend, and pluggable module system — all containerized with Docker.</p>
-
-  <!-- Metrics row -->
-  <div class="anj-arch-metrics">
-    <div class="anj-arch-metric">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-      <div class="am-label">SvelteKit Frontend</div>
-    </div>
-    <div class="anj-arch-metric">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-      <div class="am-label">Go Backend — Chi Router</div>
-    </div>
-    <div class="anj-arch-metric">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-      <div class="am-label">10+ Pluggable Modules</div>
-    </div>
-    <div class="anj-arch-metric">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-      <div class="am-label">PostgreSQL + Redis</div>
-    </div>
+  <div class="anj-section-header">
+    <span class="anj-arch-label">Architecture</span>
+    <h2>Modular monolith, <span class="highlight">designed for scale</span></h2>
+    <p>Each domain is a self-contained package inside the backend. The frontend communicates via REST API with WebSocket for real-time features.</p>
   </div>
 
-  <!-- Flow diagram -->
-  <div class="anj-flow">
-    <!-- Browser -->
-    <div class="anj-flow-row">
-      <div class="anj-flow-node">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="2.83" y2="8"/><line x1="21.17" y1="16" x2="2.83" y2="16"/></svg>
-        <div class="fn-label">Web Browser</div>
-        <div class="fn-desc">SvelteKit UI</div>
-      </div>
+  <div class="anj-arch-container">
+    <div class="anj-arch-header">
+      <span class="anj-arch-dot" style="background:#ef4444"></span>
+      <span class="anj-arch-dot" style="background:#f59e0b"></span>
+      <span class="anj-arch-dot" style="background:#10b981"></span>
+      <span>architecture</span>
     </div>
-    <!-- Arrow -->
-    <div class="anj-flow-arrow vert">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
-    </div>
-    <!-- Platform -->
-    <div class="anj-flow-row">
-      <div class="anj-flow-platform">
-        <div class="afp-header">Anjungan Platform</div>
-        <div class="afp-body">
-          <div class="afp-col">
-            <div class="afp-col-label">Frontend</div>
-            <span class="afp-tag accent">SvelteKit</span>
-          </div>
-          <div class="afp-divider"></div>
-          <div class="afp-col">
-            <div class="afp-col-label">Backend</div>
-            <span class="afp-tag green">Go — Chi Router</span>
-          </div>
-        </div>
-        <div class="afp-modules">
-          <span class="afp-pill">Auth</span>
-          <span class="afp-pill">Servers</span>
-          <span class="afp-pill">Containers</span>
-          <span class="afp-pill">Registry</span>
-          <span class="afp-pill">SSL</span>
-          <span class="afp-pill">Uptime</span>
-          <span class="afp-pill">Compliance</span>
-          <span class="afp-pill">Audit Log</span>
-          <span class="afp-pill">Notifications</span>
-          <span class="afp-pill">Settings</span>
-        </div>
-      </div>
-    </div>
-    <!-- Arrow -->
-    <div class="anj-flow-arrow vert">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
-    </div>
-    <!-- Data Stores -->
-    <div class="anj-flow-row">
-      <div class="anj-flow-stores">
-        <div class="anj-flow-store">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6c0 1.1 1.6 2 4 2s4-.9 4-2"/><path d="M4 12c0 1.1 1.6 2 4 2s4-.9 4-2"/><path d="M4 6v12c0 1.1 1.6 2 4 2s4-.9 4-2V6"/><path d="M16 6c0 1.1 1.6 2 4 2s4-.9 4-2"/><path d="M16 12c0 1.1 1.6 2 4 2s4-.9 4-2"/><path d="M16 6v12c0 1.1 1.6 2 4 2s4-.9 4-2V6"/></svg>
-          <div class="afs-label">Database</div>
-          <div class="afs-desc">PostgreSQL</div>
-        </div>
-        <div class="anj-flow-store">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M5 12h14"/></svg>
-          <div class="afs-label">Cache</div>
-          <div class="afs-desc">Redis</div>
-        </div>
-        <div class="anj-flow-store">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-          <div class="afs-label">Runtime</div>
-          <div class="afs-desc">Docker</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Detail columns -->
-  <div class="anj-arch-detail">
-    <div class="anj-arch-detail-card">
-      <h4>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-        Frontend
-      </h4>
-      <ol>
-        <li><strong>SvelteKit</strong> app served via Nginx as reverse proxy.</li>
-        <li>Role-aware UI — adapts views based on user role (admin, developer, viewer).</li>
-        <li>Real-time updates via Server-Sent Events for container and server status.</li>
-        <li>Responsive dark-mode design with <strong>Tailwind CSS</strong>.</li>
-      </ol>
-    </div>
-    <div class="anj-arch-detail-card">
-      <h4>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-        Backend
-      </h4>
-      <ol>
-        <li><strong>Go API</strong> with Chi router — modular by design with pluggable modules.</li>
-        <li>Each module registers its own <strong>routes</strong>, middleware, and database migrations.</li>
-        <li>Background jobs for uptime monitoring, SSL expiry checks, and compliance audits.</li>
-        <li>Data stored in <strong>PostgreSQL</strong> with <strong>Redis</strong> for session caching and rate limiting.</li>
-      </ol>
+    <div class="anj-arch-diagram">
+      <img src="/architecture.svg" alt="Anjungan Architecture Diagram" style="width:100%;max-width:800px;height:auto;display:block">
     </div>
   </div>
 </section>
