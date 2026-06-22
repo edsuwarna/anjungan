@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/edsuwarna/anjungan/internal/admin"
 	"github.com/edsuwarna/anjungan/internal/auth"
@@ -70,11 +69,6 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	repo := db.NewRepository(database)
-
-	// ─── Seed admin user from env ─────────────────────────────────────────
-	if cfg.Admin.Email != "" && cfg.Admin.Password != "" {
-		seedAdminUser(context.Background(), repo, cfg.Admin.Email, cfg.Admin.Password)
-	}
 
 	// ─── Build handlers ────────────────────────────────────────────────────
 	rl := ratelimit.New(rdb, cfg.Security.RateLimitMaxAttempts, cfg.Security.RateLimitWindow, cfg.Security.RateLimitLockout)
@@ -340,42 +334,5 @@ func parseLogLevel(level string) zerolog.Level {
 		return zerolog.ErrorLevel
 	default:
 		return zerolog.InfoLevel
-	}
-}
-
-// ─── Seed admin user from env ──────────────────────────────────────────────
-func seedAdminUser(ctx context.Context, repo *db.Repository, email, password string) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		zlog.Error().Err(err).Msg("failed to hash admin password")
-		return
-	}
-
-	existing, err := repo.GetUserByEmail(ctx, email)
-	if err == nil && existing != nil {
-		// Update password if admin already exists
-		if err := repo.UpdateUserPassword(ctx, existing.ID, string(hash)); err != nil {
-			zlog.Error().Err(err).Msg("failed to update admin password from env")
-		} else {
-			zlog.Info().Str("email", email).Msg("admin password updated from env")
-		}
-		return
-	}
-
-	// Create new admin user
-	now := time.Now()
-	user := &model.User{
-		ID:        uuid.New().String(),
-		Email:     email,
-		Name:      "Admin",
-		PasswordHash: string(hash),
-		Role:      "admin",
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-	if err := repo.CreateUser(ctx, user); err != nil {
-		zlog.Error().Err(err).Str("email", email).Msg("failed to create admin user from env")
-	} else {
-		zlog.Info().Str("email", email).Msg("admin user created from env")
 	}
 }
