@@ -2,6 +2,7 @@
 	import { user, sidebarCollapsed } from '$lib/stores/auth.js';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { api } from '$lib/api.svelte.js';
 	import Icon from '@iconify/svelte';
 
 	let dropdownOpen = $state(false);
@@ -21,6 +22,9 @@
 	}
 
 	function handleLogout() {
+		// Fire-and-forget backend logout (logs audit event)
+		api.auth.logout().catch(() => {});
+
 		localStorage.removeItem('access_token');
 		localStorage.removeItem('refresh_token');
 		localStorage.removeItem('user');
