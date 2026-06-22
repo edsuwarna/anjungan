@@ -7,6 +7,10 @@
 
 	let dropdownOpen = $state(false);
 
+	// Fixed positioning values (escapes overflow-hidden ancestor)
+	let ddTop = $state(0);
+	let ddRight = $state(0);
+
 	const pageTitles = {
 		'/': 'Overview',
 		'/servers': 'Servers',
@@ -17,8 +21,21 @@
 
 	let title = $derived(pageTitles[$page.url.pathname] || 'Anjungan');
 
-	function toggleDropdown() {
+	// Close dropdown on page navigation (prevents stale state after SPA nav)
+	let previousPath = $derived($page.url.pathname);
+	$effect(() => {
+		previousPath; // track dependency — runs when path changes
+		dropdownOpen = false;
+	});
+
+	function toggleDropdown(e) {
 		dropdownOpen = !dropdownOpen;
+		if (dropdownOpen) {
+			const btn = e.currentTarget;
+			const rect = btn.getBoundingClientRect();
+			ddTop = rect.bottom + 4;
+			ddRight = window.innerWidth - rect.right;
+		}
 	}
 
 	function handleLogout() {
@@ -96,11 +113,16 @@
 			</svg>
 		</button>
 
-		<!-- Dropdown -->
+		<!-- Dropdown (fixed positioning — escapes overflow-hidden ancestor) -->
 		{#if dropdownOpen}
 			<div
-				class="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border py-1 shadow-lg animate-fade-in"
-				style="background-color: var(--color-card); border-color: var(--color-border-light);"
+				class="w-48 rounded-xl border py-1 shadow-lg animate-fade-in"
+				style:position="fixed"
+				style:top="{ddTop}px"
+				style:right="{ddRight}px"
+				style:z-index="100"
+				style:background-color="var(--color-card)"
+				style:border-color="var(--color-border-light)"
 			>
 				<!-- User info header -->
 				<div class="border-b px-4 py-2.5" style="border-color: var(--color-border-light);">
