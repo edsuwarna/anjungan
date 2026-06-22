@@ -29,6 +29,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normalize email to match DB (admin CreateUser normalizes it too)
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
 	ip := audit.RemoteIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
 	userAgent := r.Header.Get("User-Agent")
 	resp, err := h.svc.Login(r.Context(), req.Email, req.Password, req.TOTPCode, ip)
