@@ -18,7 +18,13 @@ type Config struct {
 	Log            LogConfig
 	Security       SecurityConfig
 	SelfServer     SelfServerConfig
+	Admin          AdminConfig
 	MigrationsPath string
+}
+
+type AdminConfig struct {
+	Email    string
+	Password string
 }
 
 type ServerConfig struct {
@@ -155,6 +161,10 @@ func Load() *Config {
 			Name:             getEnv("SELF_SERVER_NAME", "anjungan-host"),
 			DockerSocketPath: getEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock"),
 			HostNetwork:      getEnv("SELF_HOST_NETWORK", ""),
+		},
+		Admin: AdminConfig{
+			Email:    getEnv("ADMIN_EMAIL", ""),
+			Password: getEnv("ADMIN_PASSWORD", ""),
 		},
 		Log: LogConfig{
 			Level: getEnv("LOG_LEVEL", "info"),
