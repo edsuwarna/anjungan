@@ -40,7 +40,7 @@ services:
       - anjungan-net
 
   backend:
-    image: ghcr.io/edsuwarna/anjungan/anjungan-backend:v0.14.0
+    image: ghcr.io/edsuwarna/anjungan/anjungan-backend:main-latest
     container_name: anjungan-backend
     env_file: .env
     ports:
@@ -58,7 +58,7 @@ services:
       - anjungan-net
 
   frontend:
-    image: ghcr.io/edsuwarna/anjungan/anjungan-frontend:v0.14.0
+    image: ghcr.io/edsuwarna/anjungan/anjungan-frontend:main-latest
     container_name: anjungan-frontend
     ports:
       - "${FRONTEND_PORT:-80}:80"
