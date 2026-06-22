@@ -34,32 +34,23 @@ The frontend Dockerfile:
 
 ## Tagging Convention
 
-Images are tagged for the private Zot registry at `reg.edsuwarna.xyz`.
+Images are pushed to GitHub Container Registry (GHCR) on `ghcr.io/edsuwarna/anjungan-*`.
 
 | Tag Pattern | When | Example |
 |-------------|------|---------|
-| `release-latest` | Tag push `v*` | `reg.edsuwarna.xyz/anjungan-backend:release-latest` |
-| `v0.3.0` | Tag push `v*` | `reg.edsuwarna.xyz/anjungan-backend:v0.3.0` |
-| `v0.3.0+release` | Tag push `v*` | `reg.edsuwarna.xyz/anjungan-backend:v0.3.0+release` |
-| `main-latest` | Push to `main` | `reg.edsuwarna.xyz/anjungan-frontend:main-latest` |
-| `main-{sha}` | Push to `main` | `reg.edsuwarna.xyz/anjungan-frontend:main-a1b2c3d` |
+| `release-latest` | Tag push `v*` | `ghcr.io/edsuwarna/anjungan-backend:release-latest` |
+| `v0.3.0` | Tag push `v*` | `ghcr.io/edsuwarna/anjungan-backend:v0.3.0` |
+| `main-latest` | Push to `main` | `ghcr.io/edsuwarna/anjungan-frontend:main-latest` |
+| `main-{sha}` | Push to `main` | `ghcr.io/edsuwarna/anjungan-frontend:main-a1b2c3d` |
 
 ## CI/CD Pipeline (GitHub Actions)
 
 The workflow `.github/workflows/docker-build-push.yml`:
 
 1. **On push to `main`** — builds both images, pushes with `main-latest` + `main-{sha}` tags
-2. **On tag push `v*`** — builds both images, pushes with `release-latest` + `v{version}` + `v{version}+release` tags
+2. **On tag push `v*`** — builds both images, pushes with `release-latest` + `v{version}` tags
 
-### Prerequisites for CI
-
-Set these GitHub Actions secrets:
-
-| Secret | Description |
-|--------|-------------|
-| `REGISTRY_URL` | Zot registry URL (e.g. `reg.edsuwarna.xyz`) |
-| `REGISTRY_USER` | Registry deploy user |
-| `REGISTRY_PASSWORD` | Registry deploy password |
+No additional secrets needed — `GITHUB_TOKEN` is provided automatically by GitHub Actions with `packages: write` permission.
 
 ## Rebuild & Deploy on Server
 

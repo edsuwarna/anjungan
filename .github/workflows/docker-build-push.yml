@@ -1,4 +1,4 @@
-name: Build & Push Docker Images to Zot Registry
+name: Build & Push Docker Images to GHCR
 
 on:
   push:
@@ -9,14 +9,15 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY_URL: registry.edsuwarna.xyz
-  REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-  REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+  REGISTRY: ghcr.io
 
 jobs:
   build-and-push:
     name: Build & Push
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -35,18 +36,18 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Zot Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: ${{ env.REGISTRY_USERNAME }}
-          password: ${{ env.REGISTRY_PASSWORD }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker Metadata (tags only)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY_URL }}/anjungan-${{ matrix.service.name }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/anjungan-${{ matrix.service.name }}
           tags: |
             type=ref,event=tag
             type=sha,prefix=
@@ -63,14 +64,14 @@ jobs:
           labels: |
             org.opencontainers.image.title=Anjungan ${{ matrix.service.name == 'backend' && 'Backend' || 'Frontend' }}
             org.opencontainers.image.description=${{ matrix.service.name == 'backend' && 'Backend service for Anjungan IDP platform' || 'Web frontend for Anjungan IDP platform' }}
-            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.licenses=Apache-2.0
             org.opencontainers.image.vendor=Edsuwarna
             org.opencontainers.image.source=https://github.com/edsuwarna/anjungan
             org.opencontainers.image.url=https://github.com/edsuwarna/anjungan
           annotations: |
             org.opencontainers.image.title=Anjungan ${{ matrix.service.name == 'backend' && 'Backend' || 'Frontend' }}
             org.opencontainers.image.description=${{ matrix.service.name == 'backend' && 'Backend service for Anjungan IDP platform' || 'Web frontend for Anjungan IDP platform' }}
-            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.licenses=Apache-2.0
             org.opencontainers.image.vendor=Edsuwarna
             org.opencontainers.image.source=https://github.com/edsuwarna/anjungan
             org.opencontainers.image.url=https://github.com/edsuwarna/anjungan
