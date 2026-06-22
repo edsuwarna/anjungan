@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -73,7 +74,10 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// ─── Seed admin user from env ─────────────────────────────────────────
 	if cfg.Admin.Email != "" && cfg.Admin.Password != "" {
+		zlog.Info().Str("email", cfg.Admin.Email).Msg("seed admin: seeding admin user from env")
 		seedAdminUser(context.Background(), repo, cfg.Admin.Email, cfg.Admin.Password)
+	} else {
+		zlog.Debug().Msg("seed admin: ADMIN_EMAIL or ADMIN_PASSWORD not set, using default admin from migration")
 	}
 
 	// ─── Build handlers ────────────────────────────────────────────────────
@@ -345,37 +349,49 @@ func parseLogLevel(level string) zerolog.Level {
 
 // ─── Seed admin user from env ──────────────────────────────────────────────
 func seedAdminUser(ctx context.Context, repo *db.Repository, email, password string) {
+	// Normalize email: lowercase + trim
+	email = strings.TrimSpace(strings.ToLower(email))
+	if email == "" {
+		zlog.Warn().Msg("seed admin: email is empty after normalization, skipping")
+		return
+	}
+	if password == "" {
+		zlog.Warn().Msg("seed admin: password is empty, skipping")
+		return
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		zlog.Error().Err(err).Msg("failed to hash admin password")
+		zlog.Error().Err(err).Msg("seed admin: failed to hash admin password")
 		return
 	}
 
 	existing, err := repo.GetUserByEmail(ctx, email)
 	if err == nil && existing != nil {
-		// Update password if admin already exists
+		// Update password + reset lockout (in case user was previously locked)
 		if err := repo.UpdateUserPassword(ctx, existing.ID, string(hash)); err != nil {
-			zlog.Error().Err(err).Msg("failed to update admin password from env")
-		} else {
-			zlog.Info().Str("email", email).Msg("admin password updated from env")
+			zlog.Error().Err(err).Str("email", email).Msg("seed admin: failed to update admin password from env")
+			return
 		}
+		repo.ResetUserLockout(ctx, existing.ID)
+		zlog.Info().Str("email", email).Msg("seed admin: admin password updated from env")
 		return
 	}
 
-	// Create new admin user
+	// User not found — create new admin user
 	now := time.Now()
 	user := &model.User{
-		ID:        uuid.New().String(),
-		Email:     email,
-		Name:      "Admin",
+		ID:           uuid.New().String(),
+		Email:        email,
+		Name:         "Admin",
 		PasswordHash: string(hash),
-		Role:      "admin",
-		CreatedAt: now,
-		UpdatedAt: now,
+		Role:         "admin",
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 	if err := repo.CreateUser(ctx, user); err != nil {
-		zlog.Error().Err(err).Str("email", email).Msg("failed to create admin user from env")
+		zlog.Error().Err(err).Str("email", email).Msg("seed admin: failed to create admin user from env")
 	} else {
-		zlog.Info().Str("email", email).Msg("admin user created from env")
+		zlog.Info().Str("email", email).Msg("seed admin: admin user created from env")
 	}
 }
