@@ -1,5 +1,9 @@
 # Anjungan — Internal Developer Platform
 
+[![Build](https://github.com/edsuwarna/anjungan/actions/workflows/docker-build-push.yml/badge.svg)](https://github.com/edsuwarna/anjungan/actions/workflows/docker-build-push.yml)
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev)
+[![License](https://img.shields.io/badge/License-Apache%202.0-10b981.svg)](LICENSE)
+
 > **Anjungan** (Indonesian: *platform*) — A modular internal developer platform (IDP) for managing servers, containers, deployments, container registries, and infrastructure compliance through a unified dashboard.
 
 ## Documentation
